@@ -1,8 +1,8 @@
 {
   "owner_note": "你唯一需要修改的配置文件：开通哪个渠道就把对应链接替换进去，未开通的保持默认即可正常运行",
   "domestic_affiliates_rmb": {
-    "aliyun_ambassador_url": "https://www.aliyun.com/daily-act/ecs/activity_selection?userCode=YOUR_ALIYUN_CODE",
-    "aliyun_bailian_url": "https://bailian.console.aliyun.com/?userCode=YOUR_ALIYUN_CODE",
+    "aliyun_ambassador_url": "https://www.aliyun.com/minisite/goods?userCode=vlxk7knp",
+    "aliyun_bailian_url": "https://bailian.console.aliyun.com/?userCode=vlxk7knp",
     "tencent_cps_url": "https://curl.qcloud.com/YOUR_TENCENT_CPS_CODE",
     "siliconflow_invite_url": "https://cloud.siliconflow.cn/i/YOUR_INVITE_CODE",
     "volcengine_ark_url": "https://console.volcengine.com/ark"
@@ -22,7 +22,14 @@
     "usdc_base_wallet_address": "0xYOUR_BASE_USDC_WALLET_ADDRESS"
   },
   "bounty_preferences": {
-    "preferred_languages": ["python", "typescript", "javascript", "go", "rust", "markdown"],
+    "preferred_languages": [
+      "python",
+      "typescript",
+      "javascript",
+      "go",
+      "rust",
+      "markdown"
+    ],
     "max_competing_comments": 8,
     "prioritize_cn_friendly_payouts": true
   }
