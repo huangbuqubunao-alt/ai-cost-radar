@@ -1,0 +1,69 @@
+name: Daily AI Model Price Refresh & GitHub Pages Deploy
+
+on:
+  push:
+    branches: ["main"]
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Refresh live OpenRouter & Mainland China RMB model catalog
+        run: python3 engine_a_mcp_actor/fetch_and_enrich.py
+
+      - name: Compile bilingual AI API & Cloud GPU cost calculator
+        run: python3 engine_b_affiliate_web/build_site.py --site-url "https://huangbuqubunao-alt.github.io/ai-cost-radar/"
+
+      - name: Stage static JSON API (/api/models_live.json) & .nojekyll
+        run: |
+          mkdir -p engine_b_affiliate_web/dist/api
+          cp shared_data/models_live.json engine_b_affiliate_web/dist/api/models_live.json
+          touch engine_b_affiliate_web/dist/.nojekyll
+          ls -lh engine_b_affiliate_web/dist engine_b_affiliate_web/dist/api
+
+      - name: Persist refreshed snapshot on scheduled or manual runs
+        if: github.event_name != 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add shared_data/models_live.json engine_b_affiliate_web/dist
+          git diff --staged --quiet || (git commit -m "chore(data): auto-refresh live AI model prices [skip ci]" && git push origin HEAD:main) || true
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: engine_b_affiliate_web/dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
