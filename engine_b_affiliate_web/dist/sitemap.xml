@@ -6,4 +6,28 @@
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
+  <url>
+    <loc>https://huangbuqubunao-alt.github.io/ai-cost-radar/claude-code-domestic/</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://huangbuqubunao-alt.github.io/ai-cost-radar/coding-plan-2026/</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://huangbuqubunao-alt.github.io/ai-cost-radar/deepseek-vs-qwen/</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://huangbuqubunao-alt.github.io/ai-cost-radar/dify-openclaw-cloud-server/</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
+  </url>
 </urlset>

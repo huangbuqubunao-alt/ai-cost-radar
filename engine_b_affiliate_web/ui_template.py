@@ -20,6 +20,11 @@ def render_html_template(
     cn_models_count: int,
     global_models_count: int,
     faq_html_items: str,
+    hero_title_main: str = "一秒算清大模型 API 与 Coding Plan 月账单，",
+    hero_title_accent: str = "最高立省 95% 算力成本",
+    hero_subtitle: str = "同屏精算国内直连（阿里云百炼 / 腾讯云 / 硅基流动 / 火山方舟 ¥）与海外网关（OpenRouter $），内置缓存折扣、思考 Token 倍率与一键复制 Claude Code / Cursor 接入参数。",
+    seo_nav_html: str = "",
+    sitemap_href: str = "sitemap.xml",
 ) -> str:
     return f"""<!DOCTYPE html>
 <html lang="zh-CN" data-theme="dark">
@@ -68,14 +73,14 @@ def render_html_template(
       --bg-card-hover: #17233b;
       --bg-input: #0a101d;
       --bg-subtle: rgba(99, 102, 241, 0.08);
-      --border: rgba(148, 163, 184, 0.14);
-      --border-strong: rgba(148, 163, 184, 0.28);
-      --text-primary: #f1f5f9;
-      --text-secondary: #94a3b8;
-      --text-muted: #64748b;
-      --accent: #6366f1;
-      --accent-hover: #818cf8;
-      --accent-soft: rgba(99, 102, 241, 0.16);
+      --border: rgba(148, 163, 184, 0.16);
+      --border-strong: rgba(148, 163, 184, 0.32);
+      --text-primary: #f8fafc;
+      --text-secondary: #cbd5e1;
+      --text-muted: #94a3b8;
+      --accent: #4f46e5;
+      --accent-hover: #4338ca;
+      --accent-soft: rgba(79, 70, 229, 0.18);
       --emerald: #10b981;
       --emerald-soft: rgba(16, 185, 129, 0.15);
       --emerald-text: #34d399;
@@ -180,12 +185,12 @@ def render_html_template(
       width: 36px;
       height: 36px;
       border-radius: 10px;
-      background: linear-gradient(135deg, #6366f1 0%, #10b981 100%);
+      background: #4f46e5;
       display: grid;
       place-items: center;
       color: #fff;
       font-weight: 800;
-      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
       flex-shrink: 0;
     }}
 
@@ -252,7 +257,7 @@ def render_html_template(
     .region-btn.active {{
       background: var(--accent);
       color: #ffffff;
-      box-shadow: 0 2px 10px rgba(99, 102, 241, 0.35);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
     }}
 
     .icon-btn {{
@@ -298,18 +303,187 @@ def render_html_template(
       margin-bottom: 8px;
     }}
 
-    .gradient-text {{
-      background: linear-gradient(90deg, #818cf8 0%, #34d399 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
+    .hero-accent {{
+      color: var(--emerald-text);
+      font-weight: 850;
     }}
 
-    [data-theme="light"] .gradient-text {{
-      background: linear-gradient(90deg, #4f46e5 0%, #059669 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
+    ::selection {{
+      background: var(--accent);
+      color: #ffffff;
+    }}
+
+    :focus-visible {{
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }}
+
+    input, select, textarea {{
+      caret-color: var(--accent);
+    }}
+
+    .kpi-val, .monthly-cost, .num-input, .control-meta, .pill-count {{
+      font-variant-numeric: tabular-nums;
+    }}
+
+    @media (prefers-reduced-motion: reduce) {{
+      *, *::before, *::after {{
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }}
+    }}
+
+    /* Subpage SEO Topic Bar */
+    .seo-topic-bar {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 10px 0 4px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 6px;
+    }}
+
+    .seo-topic-link {{
+      font-size: 0.78rem;
+      font-weight: 650;
+      padding: 5px 11px;
+      border-radius: 999px;
+      color: var(--text-secondary);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      transition: var(--transition);
+    }}
+
+    .seo-topic-link:hover,
+    .seo-topic-link.active {{
+      color: var(--text-primary);
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }}
+
+    /* Coding Plan PK Section */
+    .coding-plan-grid {{
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }}
+
+    @media (max-width: 980px) {{
+      .coding-plan-grid {{
+        grid-template-columns: repeat(2, 1fr);
+      }}
+    }}
+
+    @media (max-width: 640px) {{
+      .coding-plan-grid {{
+        grid-template-columns: 1fr;
+      }}
+    }}
+
+    .plan-card {{
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 12px;
+      transition: var(--transition);
+    }}
+
+    .plan-card.featured {{
+      border-color: rgba(16, 185, 129, 0.45);
+      box-shadow: var(--shadow-card);
+    }}
+
+    .plan-card:hover {{
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }}
+
+    .plan-price-row {{
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: var(--radius-md);
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+    }}
+
+    .plan-price-main {{
+      font-family: var(--font-mono);
+      font-size: 1.32rem;
+      font-weight: 850;
+      font-variant-numeric: tabular-nums;
+      color: var(--emerald-text);
+    }}
+
+    .cta-copy-cfg {{
+      width: 100%;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-input);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.77rem;
+      font-weight: 650;
+      padding: 7px 10px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: var(--transition);
+      text-align: center;
+    }}
+
+    .cta-copy-cfg:hover {{
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }}
+
+    /* 1-Click Config Copy Modal */
+    .cfg-modal-backdrop {{
+      position: fixed;
+      inset: 0;
+      z-index: 120;
+      background: rgba(7, 11, 20, 0.76);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }}
+
+    .cfg-modal-backdrop.open {{
+      display: flex;
+    }}
+
+    .cfg-modal-box {{
+      width: 100%;
+      max-width: 640px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      padding: 22px;
+      box-shadow: var(--shadow-card);
+      max-height: 90vh;
+      overflow-y: auto;
+    }}
+
+    .cfg-code-block {{
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--text-primary);
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin: 8px 0 12px;
     }}
 
     .hero p {{
@@ -466,7 +640,7 @@ def render_html_template(
       border-radius: 50%;
       background: var(--accent);
       border: 2px solid #fff;
-      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.5);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.38);
       cursor: pointer;
       transition: transform 0.12s ease;
     }}
@@ -811,14 +985,14 @@ def render_html_template(
       background: var(--accent);
       border-color: var(--accent);
       color: #fff;
-      box-shadow: 0 3px 12px rgba(99, 102, 241, 0.3);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
     }}
 
     .pill-count {{
       font-size: 0.7rem;
       padding: 1px 6px;
       border-radius: 999px;
-      background: rgba(255, 255, 255, 0.16);
+      background: rgba(0, 0, 0, 0.28);
       font-family: var(--font-mono);
     }}
 
@@ -1060,11 +1234,11 @@ def render_html_template(
     }}
 
     .cta-primary.cn-cta {{
-      background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+      background: #047857;
     }}
 
     .cta-primary.cn-cta:hover {{
-      filter: brightness(1.08);
+      background: #065f46;
     }}
 
     .cta-secondary-gpu {{
@@ -1229,7 +1403,7 @@ def render_html_template(
       content: "+";
       font-family: var(--font-mono);
       font-size: 1.1rem;
-      color: var(--accent);
+      color: var(--emerald-text);
       flex-shrink: 0;
     }}
 
@@ -1303,21 +1477,21 @@ def render_html_template(
   </header>
 
   <main class="container">
+    {f'<nav class="seo-topic-bar" aria-label="专题场景导航">{seo_nav_html}</nav>' if seo_nav_html else ''}
     <!-- Hero Section -->
     <section class="hero">
       <div class="hero-top">
         <div>
           <h1>
-            <span data-i18n="heroTitleMain">一秒算清大模型 API 月账单，</span><span class="gradient-text" data-i18n="heroTitleAccent">最高立省 95%+ 算力成本</span>
+            <span data-i18n="heroTitleMain">{hero_title_main}</span><span class="hero-accent" data-i18n="heroTitleAccent">{hero_title_accent}</span>
           </h1>
-          <p data-i18n="heroSubtitle">
-            支持国内合规直连（百炼 / 硅基流动 / 腾讯云 / 火山方舟 ¥）与海外统一网关（OpenRouter / Claude / GPT / Gemini $）同屏精算；月消耗超 $100 自动触发 GPU 私有化自建回本测算。
-          </p>
+          <p data-i18n="heroSubtitle">{hero_subtitle}</p>
         </div>
         <nav class="quick-jumps" aria-label="Quick section links">
-          <a href="#modelsSection" class="jump-chip" data-i18n="jumpModels">📊 模型比价榜 ({total_models})</a>
-          <a href="#subsidyMatrix" class="jump-chip" data-i18n="jumpSubsidy">🎁 免费Token与云补贴 (9大通道)</a>
-          <a href="#faqSection" class="jump-chip" data-i18n="jumpFaq">❓ 混合路由省钱指南</a>
+          <a href="#codingPlanSection" class="jump-chip">🔥 Coding Plan 包月PK</a>
+          <a href="#modelsSection" class="jump-chip" data-i18n="jumpModels">模型比价榜 ({total_models})</a>
+          <a href="#subsidyMatrix" class="jump-chip" data-i18n="jumpSubsidy">免费Token与云补贴</a>
+          <a href="#faqSection" class="jump-chip" data-i18n="jumpFaq">混合路由省钱指南</a>
         </nav>
       </div>
 
@@ -1377,11 +1551,15 @@ def render_html_template(
           <div class="sim-footer-bar">
             <label class="cache-toggle">
               <input type="checkbox" id="cacheToggle" />
-              <span data-i18n="cacheLabel">⚡ 叠加 Prompt 缓存命中预估 (输入成本立减 37.5%)</span>
+              <span data-i18n="cacheLabel">叠加 Prompt 缓存命中 (国内低至 2 折 / 海外 5 折)</span>
+            </label>
+            <label class="cache-toggle">
+              <input type="checkbox" id="reasoningToggle" />
+              <span data-i18n="reasoningLabel">计入深度思考隐式 Token (Reasoning 2.5x 输出)</span>
             </label>
             <label class="cache-toggle">
               <input type="checkbox" id="batchToggle" />
-              <span data-i18n="batchLabel">📦 包含 Batch 异步半价队列模型</span>
+              <span data-i18n="batchLabel">包含 Batch 异步半价队列</span>
             </label>
           </div>
         </div>
@@ -1432,6 +1610,15 @@ def render_html_template(
 
       <!-- Automatic High-Volume (> $100/mo) Self-Hosting GPU / Cloud Recommendation Banner -->
       <div id="selfHostBanner" class="selfhost-banner"></div>
+    </section>
+
+    <!-- 2026 Domestic Coding Plan Monthly Subscription vs Pay-As-You-Go Breakeven Section -->
+    <section class="section-block" id="codingPlanSection">
+      <div class="section-head">
+        <h2 data-i18n="codingPlanTitle">2026 程序员必看：Coding Plan 包月套餐 vs 按量 API 盈亏PK</h2>
+        <p id="codingPlanSubtitle" data-i18n="codingPlanDesc">在 Claude Code / Cline / Cursor 中单次提问会触发 5~30 轮调用；系统已根据您上方模拟流量实时对比各大厂包月封顶套餐。</p>
+      </div>
+      <div class="coding-plan-grid" id="codingPlanGrid"></div>
     </section>
 
     <!-- Filter Pills & Models Comparison Grid -->
@@ -1497,13 +1684,38 @@ def render_html_template(
     <div class="container footer-inner">
       <div>
         <strong>智算省钱路由台 · AI API &amp; Cloud Cost Calculator</strong> · 数据更新日期: {updated_date} ·
-        <a href="sitemap.xml" style="text-decoration:underline;">Sitemap</a>
+        <a href="{sitemap_href}" style="text-decoration:underline;">Sitemap</a> ·
+        <span id="clickTelemetryBadge" style="font-family:var(--font-mono);">已服务本地测算就绪</span>
       </div>
       <div data-i18n="footerDisclosure">
         透明说明：页面部分官方直达按钮含云厂商/平台合作伙伴推广参数，您无需支付任何额外费用，且可直接解锁新客免费 Token 或算力折扣券。
       </div>
     </div>
   </footer>
+
+  <!-- 1-Click Claude Code / Cursor / Cline / Cherry Studio Config Copy Modal -->
+  <div class="cfg-modal-backdrop" id="configModal" role="dialog" aria-modal="true" aria-labelledby="cfgModalTitle">
+    <div class="cfg-modal-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;">
+        <h3 id="cfgModalTitle" style="font-size:1.06rem;font-weight:800;">一键复制 Claude Code / Cursor / Cline 接入配置</h3>
+        <button type="button" class="icon-btn" id="cfgModalCloseBtn" aria-label="Close modal">关闭 ✕</button>
+      </div>
+      <p id="cfgModalSubtitle" style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;"></p>
+
+      <div style="font-size:0.8rem;font-weight:700;color:var(--text-primary);">1. Cursor / Cline / Cherry Studio 参数直填</div>
+      <pre class="cfg-code-block" id="cfgGuiSnippet"></pre>
+      <button type="button" class="cta-copy-cfg" id="copyGuiBtn" style="margin-bottom:14px;">复制 Base URL 与 Model ID</button>
+
+      <div style="font-size:0.8rem;font-weight:700;color:var(--text-primary);">2. Claude Code / 终端环境变量一键配置</div>
+      <pre class="cfg-code-block" id="cfgEnvSnippet"></pre>
+      <button type="button" class="cta-copy-cfg" id="copyEnvBtn" style="margin-bottom:16px;">复制终端环境变量命令</button>
+
+      <div style="padding-top:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px;">
+        <div style="font-size:0.79rem;color:var(--emerald-text);font-weight:700;">还没有该平台 API Key？先走下方官方补贴通道开通（自动领新客免费 Token / 折扣券）：</div>
+        <a class="cta-primary cn-cta" id="cfgModalOfficialCta" href="https://bailian.console.aliyun.com/" target="_blank" rel="noopener sponsored">直达官方控制台拿 API Key</a>
+      </div>
+    </div>
+  </div>
 
   <!-- Embedded Live Pricing & Affiliate Configuration -->
   <script id="app-data" type="application/json">{embedded_json}</script>
@@ -1514,19 +1726,43 @@ def render_html_template(
 
     const APP_DATA = JSON.parse(document.getElementById("app-data").textContent);
     const MODELS = APP_DATA.models || [];
+    const CODING_PLANS = APP_DATA.coding_plans || [];
+    const PAGE_PRESET = APP_DATA.page_preset || null;
     const AFF = APP_DATA.affiliates || {{}};
     const FX = Number(APP_DATA.fx_rate_usd_to_rmb) || 7.25;
+
+    const INITIAL_HERO_ZH = {{
+      heroTitleMain: document.querySelector('[data-i18n="heroTitleMain"]')?.textContent || "一秒算清大模型 API 与 Coding Plan 月账单，",
+      heroTitleAccent: document.querySelector('[data-i18n="heroTitleAccent"]')?.textContent || "最高立省 95% 算力成本",
+      heroSubtitle: document.querySelector('[data-i18n="heroSubtitle"]')?.textContent || ""
+    }};
+
+    function safeGetStorage(key, fallbackVal) {{
+      try {{
+        return localStorage.getItem(key) || fallbackVal;
+      }} catch (_) {{
+        return fallbackVal;
+      }}
+    }}
+
+    function safeSetStorage(key, val) {{
+      try {{
+        localStorage.setItem(key, val);
+      }} catch (_) {{
+        // Ignore storage quota / privacy mode errors
+      }}
+    }}
 
     const I18N = {{
       zh: {{
         brandTitle: "智算省钱路由台 · AI Cost Radar",
-        brandSub: "海内外大模型 API 真实月账单测算 · 官方免费 Token 与 GPU 算力补贴直通车",
-        heroTitleMain: "一秒算清大模型 API 月账单，",
-        heroTitleAccent: "最高立省 95%+ 算力成本",
-        heroSubtitle: "支持国内合规直连（百炼 / 硅基流动 / 腾讯云 / 火山方舟 ¥）与海外统一网关（OpenRouter / Claude / GPT / Gemini $）同屏精算；月消耗超 $100 自动触发 GPU 私有化自建回本测算。",
-        jumpModels: `📊 模型比价榜 (${{MODELS.length}})`,
-        jumpSubsidy: "🎁 免费Token与云补贴 (9大通道)",
-        jumpFaq: "❓ 混合路由省钱指南",
+        brandSub: "海内外大模型 API 真实月账单测算 · Coding Plan 包月PK与算力补贴直通车",
+        heroTitleMain: INITIAL_HERO_ZH.heroTitleMain,
+        heroTitleAccent: INITIAL_HERO_ZH.heroTitleAccent,
+        heroSubtitle: INITIAL_HERO_ZH.heroSubtitle,
+        jumpModels: `模型比价榜 (${{MODELS.length}})`,
+        jumpSubsidy: "免费Token与云补贴",
+        jumpFaq: "混合路由省钱指南",
         simTitle: "🧮 月度调用量与 Token 成本模拟器",
         simFormulaHint: "按每月 30 天标准生产周期实时精算",
         presetIndie: "🌱 个人独立开发 (500/天)",
@@ -1536,15 +1772,18 @@ def render_html_template(
         labelDailyCalls: "日请求量 (Daily Calls)",
         labelInputTokens: "单次输入Token (Avg Input Tokens)",
         labelOutputTokens: "单次输出Token (Avg Output Tokens)",
-        cacheLabel: "⚡ 叠加 Prompt 缓存命中预估 (输入成本立减 37.5%)",
-        batchLabel: "📦 包含 Batch 异步半价队列模型",
+        cacheLabel: "叠加 Prompt 缓存命中 (国内低至 2 折 / 海外 5 折)",
+        reasoningLabel: "计入深度思考隐式 Token (Reasoning 2.5x 输出)",
+        batchLabel: "包含 Batch 异步半价队列",
         routingTitle: "💡 省钱路由建议 + 算力补贴通道",
         baselineLabel: "对比旗舰:",
         kpiFlagship: "旗舰基准月账单",
-        kpiBestRoute: "推荐高性价比主力",
+        kpiBestRoute: "高性价比主力月费",
         kpiSavings: "预计立省 (按年折算)",
         quickSubsidyTitle: "🎁 官方免费额度 & 算力补贴直领通道",
         quickSubsidyHint: "新客专享 · 点击直达官方控制台",
+        codingPlanTitle: "2026 程序员必看：Coding Plan 包月套餐 vs 按量 API 盈亏PK",
+        codingPlanDesc: "在 Claude Code / Cline / Cursor 中单次提问会触发 5~30 轮调用；系统已根据您上方模拟流量实时对比各大厂包月封顶套餐。",
         pillAll: "全部",
         pillCoding: "编程/Agent",
         pillReasoning: "深度推理",
@@ -1555,21 +1794,21 @@ def render_html_template(
         faqTitle: "❓ 大模型 API 计费避坑、混合路由与私有化自建常见问题 (FAQ)",
         faqDesc: "面向架构师、独立开发者与企业 AI 团队的真实成本优化手册。",
         footerDisclosure: "透明说明：页面部分官方直达按钮含云厂商/平台合作伙伴推广参数，您无需支付任何额外费用，且可直接解锁新客免费 Token 或算力折扣券。",
-        searchPlaceholder: "🔍 搜索 DeepSeek / Qwen / Claude / GPT...",
+        searchPlaceholder: "🔍 搜索 Qwen3-Coder / DeepSeek / Kimi / GLM-5 / Claude...",
         sortCostAsc: "💰 月成本：从低到高",
         sortValue: "🏆 综合性价比评分优先",
         sortCostDesc: "💎 旗舰定位：单价从高到低",
         sortCtx: "📚 上下文窗口：从大到小"
       }},
       en: {{
-        brandTitle: "AI Cost Radar · LLM & GPU Calculator",
-        brandSub: "Real-time Monthly LLM API Bill Simulator · Official Free Tokens & Cloud GPU Credits",
-        heroTitleMain: "Calculate Your Real LLM API Bill & ",
+        brandTitle: "AI Cost Radar · LLM & Coding Plan Calculator",
+        brandSub: "Real-time Monthly LLM API & Coding Plan Breakeven Simulator · Official Cloud Subsidies",
+        heroTitleMain: "Calculate Your Real LLM API & Coding Plan Bill — ",
         heroTitleAccent: "Slash AI Spend by Up to 95%",
-        heroSubtitle: "Compare Global APIs (OpenRouter, Claude, GPT, Gemini in USD) & China-Direct APIs (Qwen, DeepSeek, Doubao in RMB) side-by-side. Auto-triggers GPU self-hosting breakeven math above $100/mo.",
-        jumpModels: `📊 Model Comparison (${{MODELS.length}})`,
-        jumpSubsidy: "🎁 Free Credits & Cloud Deals (9)",
-        jumpFaq: "❓ Hybrid Routing & Cost FAQ",
+        heroSubtitle: "Compare Global APIs (OpenRouter, Claude, GPT, Gemini in USD) & China-Direct APIs + Monthly Coding Plans (Qwen3-Coder, Hunyuan-T1, DeepSeek, Kimi-K2.5 in RMB) with 1-click Claude Code / Cursor config copy.",
+        jumpModels: `Model Comparison (${{MODELS.length}})`,
+        jumpSubsidy: "Free Credits & Cloud Deals",
+        jumpFaq: "Hybrid Routing & Cost FAQ",
         simTitle: "🧮 Interactive Monthly Token & Cost Simulator",
         simFormulaHint: "Calculated over a standard 30-day billing cycle",
         presetIndie: "🌱 Indie App (500/day)",
@@ -1579,8 +1818,9 @@ def render_html_template(
         labelDailyCalls: "Daily API Calls",
         labelInputTokens: "Avg Input Tokens / Call",
         labelOutputTokens: "Avg Output Tokens / Call",
-        cacheLabel: "⚡ Simulate Prompt Caching (-37.5% input token cost)",
-        batchLabel: "📦 Include Async Batch 50%-Off Models",
+        cacheLabel: "Prompt Cache Hit Discount (80% off CN / 50% off Global)",
+        reasoningLabel: "Include Hidden CoT Reasoning Overhead (2.5x Output)",
+        batchLabel: "Include Async Batch 50%-Off Models",
         routingTitle: "💡 Smart Routing & Cloud Subsidy Hub",
         baselineLabel: "Benchmark:",
         kpiFlagship: "Flagship Baseline / Mo",
@@ -1588,17 +1828,19 @@ def render_html_template(
         kpiSavings: "Est. Savings (Annualized)",
         quickSubsidyTitle: "🎁 Claim Free API Tokens & Cloud Credits",
         quickSubsidyHint: "Official Partner Links · Instant Signup Bonus",
+        codingPlanTitle: "2026 Coding Plan Subscriptions vs Pay-As-You-Go Breakeven",
+        codingPlanDesc: "Agentic IDEs (Claude Code / Cline / Cursor) fire 5–30 chained calls per prompt. Compare flat monthly plans against your simulated token bill.",
         pillAll: "All Models",
         pillCoding: "Coding / Agent",
         pillReasoning: "Deep Reasoning",
         pillCnDirect: "CN Direct (RMB)",
         pillFree: "Free Tier",
         matrixTitle: "🎁 Official API Free Tiers & Cloud GPU Credits Directory",
-        matrixDesc: "Curated global USD gateways, serverless GPU clouds, and domestic RMB-compliant AI platforms.",
+        matrixDesc: "Curated domestic RMB-compliant AI clouds, global USD gateways, and serverless GPU hosts.",
         faqTitle: "❓ LLM Token Pricing, Hybrid Routing & Self-Hosting FAQ",
         faqDesc: "Practical engineering playbook for reducing AI API & GPU infrastructure bills.",
         footerDisclosure: "Disclosure: Some official links include partner referral codes at zero extra cost to you, unlocking signup token grants and cloud credits.",
-        searchPlaceholder: "🔍 Search DeepSeek, Qwen, Claude, GPT...",
+        searchPlaceholder: "🔍 Search Qwen3-Coder, DeepSeek, Kimi, Claude, GPT...",
         sortCostAsc: "💰 Monthly Cost: Low to High",
         sortValue: "🏆 Best Value Score First",
         sortCostDesc: "💎 Flagship Tier: High to Low",
@@ -1608,13 +1850,14 @@ def render_html_template(
 
     const state = {{
       region: "all",       // 'all' | 'cn' | 'global'
-      currency: "RMB",     // 'RMB' | 'USD' (auto-synced with region; RMB default in 'all' with USD subtitle)
+      currency: "RMB",     // 'RMB' | 'USD'
       lang: "zh",          // 'zh' | 'en'
-      theme: localStorage.getItem("ai_cost_theme") || "dark",
+      theme: safeGetStorage("ai_cost_theme", "dark"),
       dailyCalls: 2500,
       inputTokens: 2000,
       outputTokens: 800,
       cacheEnabled: false,
+      reasoningEnabled: false,
       includeBatch: false,
       activeFilter: "all", // 'all' | 'coding' | 'reasoning' | 'cn_direct' | 'free'
       searchQuery: "",
@@ -1632,10 +1875,10 @@ def render_html_template(
         .replace(/'/g, "&#39;");
     }}
 
-    // Non-linear slider mapping (0..1000 -> 50..250,000 calls/day) for smooth low & high volume control
+    // Non-linear slider mapping (0..1000 -> 50..250,000 calls/day)
     function sliderToCalls(pos) {{
       const t = Math.max(0, Math.min(1, Number(pos) / 1000));
-      const raw = 50 * Math.pow(5000, t); // 50 to 250,000
+      const raw = 50 * Math.pow(5000, t);
       if (raw < 500) return Math.round(raw / 10) * 10;
       if (raw < 5000) return Math.round(raw / 50) * 50;
       if (raw < 50000) return Math.round(raw / 500) * 500;
@@ -1671,13 +1914,17 @@ def render_html_template(
       const monthlyCalls = state.dailyCalls * 30;
       const inM = (monthlyCalls * state.inputTokens) / 1000000;
       const outM = (monthlyCalls * state.outputTokens) / 1000000;
-      const inFactor = state.cacheEnabled ? 0.625 : 1.0;
-      const usd = inM * inFactor * m.input_usd_per_1m + outM * m.output_usd_per_1m;
-      const rmb = inM * inFactor * m.input_rmb_per_1m + outM * m.output_rmb_per_1m;
+      const rawCache = (m.cache_hit_factor !== undefined && m.cache_hit_factor !== null)
+        ? Number(m.cache_hit_factor)
+        : (m.region === "cn_direct" ? 0.25 : 0.5);
+      const inFactor = state.cacheEnabled ? rawCache : 1.0;
+      const isReasoning = (m.tags || []).includes("reasoning");
+      const outFactor = (state.reasoningEnabled && isReasoning) ? 2.5 : 1.0;
+      const usd = inM * inFactor * m.input_usd_per_1m + outM * outFactor * m.output_usd_per_1m;
+      const rmb = inM * inFactor * m.input_rmb_per_1m + outM * outFactor * m.output_rmb_per_1m;
       return {{ usd, rmb, inM, outM, monthlyCalls }};
     }}
 
-    // Populate Flagship Baseline Dropdown
     function initBaselines() {{
       const select = document.getElementById("baselineSelect");
       const candidates = MODELS
@@ -1691,7 +1938,6 @@ def render_html_template(
         return `<option value="${{esc(m.id)}}">${{esc(shortName)}} ($${{m.input_usd_per_1m}}/$${{m.output_usd_per_1m}})</option>`;
       }}).join("");
 
-      // Prefer a well-known Claude Sonnet / Opus or GPT flagship as default benchmark
       const preferred = list.find(m => /claude-(opus|sonnet)|gpt-(4|5|6)/i.test(m.id)) || list[0];
       state.baselineId = preferred ? preferred.id : (MODELS[0] ? MODELS[0].id : "");
       select.value = state.baselineId;
@@ -1709,21 +1955,28 @@ def render_html_template(
       if (key === "aliyun_bailian_url") {{
         return {{
           url,
-          label: zh ? "🎁 领阿里云百炼免费Token/算力券 →" : "🎁 Claim Aliyun Bailian Free Tokens →",
+          label: zh ? "🎁 领百炼 Coding Plan / 免费Token →" : "🎁 Claim Aliyun Bailian Deal →",
           isCn: true
         }};
       }}
       if (key === "tencent_cps_url") {{
         return {{
           url,
-          label: zh ? "⚡ 腾讯云DeepSeek/轻量云特惠 →" : "⚡ Tencent Cloud DeepSeek Deal →",
+          label: zh ? "⚡ 腾讯云 Coding Plan / 轻量云特惠 →" : "⚡ Tencent Coding Plan & Cloud Deal →",
+          isCn: true
+        }};
+      }}
+      if (key === "aliyun_ambassador_url") {{
+        return {{
+          url,
+          label: zh ? "🖥️ 领阿里云服务器补贴券 →" : "🖥️ Claim Aliyun ECS/GPU Coupon →",
           isCn: true
         }};
       }}
       if (key === "siliconflow_invite_url") {{
         return {{
           url,
-          label: zh ? "🚀 硅基流动注册送Token →" : "🚀 SiliconFlow Free Token Bonus →",
+          label: zh ? "🚀 硅基流动注册送 ¥16 Token →" : "🚀 SiliconFlow Free Token Bonus →",
           isCn: true
         }};
       }}
@@ -1746,23 +1999,23 @@ def render_html_template(
       const zh = state.lang === "zh";
 
       const cnItems = [
-        {{ label: zh ? "🎁 领阿里云百炼免费Token/算力券" : "🎁 Aliyun Bailian Free Tokens", url: AFF.aliyun_bailian_url }},
-        {{ label: zh ? "⚡ 腾讯云DeepSeek/轻量云特惠" : "⚡ Tencent DeepSeek & Cloud Deal", url: AFF.tencent_cps_url }},
-        {{ label: zh ? "🚀 硅基流动注册送Token" : "🚀 SiliconFlow Signup Token Bonus", url: AFF.siliconflow_invite_url }},
-        {{ label: zh ? "🔥 火山方舟领百万免费Token" : "🔥 Volcengine Ark Free Quota", url: AFF.volcengine_ark_url }}
+        {{ label: zh ? "🎁 阿里云百炼 Coding Plan / 免费Token" : "🎁 Aliyun Bailian Coding Plan & Tokens", url: AFF.aliyun_bailian_url }},
+        {{ label: zh ? "⚡ 腾讯云 Coding Plan / 轻量云特惠" : "⚡ Tencent Coding Plan & Cloud Deal", url: AFF.tencent_cps_url }},
+        {{ label: zh ? "🖥️ 阿里云 2核4G / GPU 新客隐藏补贴券" : "🖥️ Aliyun ECS & GPU Cloud Subsidy", url: AFF.aliyun_ambassador_url }},
+        {{ label: zh ? "🚀 硅基流动注册送 ¥16 极速Token" : "🚀 SiliconFlow Signup Token Bonus", url: AFF.siliconflow_invite_url }}
       ];
 
       const globalItems = [
         {{ label: zh ? "🌐 OpenRouter 免绑外卡多模型网关" : "🌐 OpenRouter Unified LLM API", url: AFF.openrouter_url }},
         {{ label: zh ? "🖥️ RunPod 按秒弹性 GPU 算力" : "🖥️ RunPod Serverless & Dedicated GPU", url: AFF.runpod_affiliate_url }},
-        {{ label: zh ? "☁️ DigitalOcean 领 $200 算力赠金" : "☁️ DigitalOcean $200 Free Credit", url: AFF.digitalocean_affiliate_url }},
-        {{ label: zh ? "🚂 Railway $5 一键部署 AI 网关" : "🚂 Railway 1-Click AI App Hosting", url: AFF.railway_affiliate_url }}
+        {{ label: zh ? "☁️ DigitalOcean 云主机与 GPU 节点" : "☁️ DigitalOcean Cloud & GPU Droplets", url: AFF.digitalocean_affiliate_url }},
+        {{ label: zh ? "🚂 Railway 一键部署 LiteLLM 网关" : "🚂 Railway 1-Click AI Gateway Hosting", url: AFF.railway_affiliate_url }}
       ];
 
       let items = [];
       if (state.region === "cn") items = cnItems;
       else if (state.region === "global") items = globalItems;
-      else items = [cnItems[0], cnItems[1], cnItems[2], globalItems[0]];
+      else items = zh ? [cnItems[0], cnItems[1], cnItems[2], cnItems[3]] : [cnItems[0], cnItems[1], globalItems[0], globalItems[1]];
 
       grid.innerHTML = items.map(it => `
         <a class="subsidy-chip-cta" href="${{esc(it.url)}}" target="_blank" rel="noopener sponsored">
@@ -1770,6 +2023,81 @@ def render_html_template(
           <span class="arrow">↗</span>
         </a>
       `).join("");
+    }}
+
+    function renderCodingPlans(flagshipCost, workhorseCost) {{
+      const grid = document.getElementById("codingPlanGrid");
+      if (!grid || CODING_PLANS.length === 0) return;
+      const zh = state.lang === "zh";
+      const cur = state.currency;
+      const isHeavy = state.dailyCalls >= 5000;
+      const refRmb = Math.max(workhorseCost ? workhorseCost.rmb : 0, flagshipCost.rmb * 0.25);
+      const refUsd = refRmb / FX;
+
+      grid.innerHTML = CODING_PLANS.map(plan => {{
+        const usePro = isHeavy && plan.pro_monthly_rmb > plan.monthly_rmb && plan.monthly_rmb > 0;
+        const planRmb = usePro ? Number(plan.pro_monthly_rmb) : Number(plan.monthly_rmb);
+        const planUsd = usePro ? Number(plan.pro_monthly_usd || (planRmb / FX)) : Number(plan.monthly_usd || (planRmb / FX));
+        const priceLabel = planRmb === 0
+          ? (zh ? "¥0 月租 · 按量池" : "$0 Base · Pay-As-You-Go")
+          : `${{fmtMoney(planUsd, planRmb, cur)}}`;
+        const tierHint = planRmb === 0
+          ? (zh ? "新客送 ¥16 体验金" : "Free signup quota")
+          : (usePro
+              ? (zh ? `Pro 档封顶 (轻量档 ¥${{plan.monthly_rmb}}/月)` : `Pro Tier (Starter ¥${{plan.monthly_rmb}}/mo)`)
+              : (zh ? `首购特惠档 (Pro 档 ¥${{plan.pro_monthly_rmb}}/月)` : `Starter Tier (Pro ¥${{plan.pro_monthly_rmb}}/mo)`));
+
+        let verdictBadge = "";
+        if (planRmb === 0) {{
+          verdictBadge = `<span class="badge badge-neutral">${{zh ? "灵活多模型切换" : "Flexible Multi-Model"}}</span>`;
+        }} else if (refRmb > planRmb * 1.15) {{
+          const savedRmb = Math.max(0, refRmb - planRmb);
+          const savedUsd = Math.max(0, refUsd - planUsd);
+          verdictBadge = `<span class="badge badge-save">${{zh ? `比按量月省 ${{fmtMoney(savedUsd, savedRmb, cur)}}` : `Save ${{fmtMoney(savedUsd, savedRmb, cur)}}/mo`}}</span>`;
+        }} else {{
+          verdictBadge = `<span class="badge badge-neutral">${{zh ? "防多轮 Agent 账单爆表" : "Caps Agentic Spend"}}</span>`;
+        }}
+
+        const modelsList = (plan.models_covered || []).slice(0, 4);
+        const ctaText = zh ? (plan.cta_zh || "直达官方活动 →") : (plan.cta_en || "View Official Plan →");
+        const isFeatured = Boolean(plan.featured_partner);
+
+        return `
+          <article class="plan-card ${{isFeatured ? "featured" : ""}}">
+            <div>
+              <div class="card-badges">
+                <span class="badge ${{isFeatured ? "badge-cn" : "badge-global"}}">
+                  ${{isFeatured ? (zh ? "🔥 官方补贴主力" : "🔥 Official Deal") : esc(plan.vendor)}}
+                </span>
+                ${{verdictBadge}}
+              </div>
+              <h3 class="model-name" style="margin-top:4px;">${{esc(plan.name)}}</h3>
+              <div class="model-provider">
+                <span>${{esc(plan.vendor)}}</span>
+                <span style="color:var(--emerald-text);font-weight:700;">${{esc(plan.speed_highlight || "")}}</span>
+              </div>
+              <div class="plan-price-row">
+                <div>
+                  <span class="plan-price-main">${{esc(priceLabel)}}</span>
+                  ${{planRmb > 0 ? `<span style="font-size:0.76rem;color:var(--text-muted);">${{zh ? "/月" : "/mo"}}</span>` : ""}}
+                </div>
+                <div style="font-size:0.74rem;color:var(--text-secondary);text-align:right;">${{esc(tierHint)}}</div>
+              </div>
+              <p style="font-size:0.79rem;color:var(--text-secondary);margin:10px 0 8px;line-height:1.45;">
+                ${{esc(plan.best_for || "")}}
+              </p>
+              <div class="card-tags">
+                ${{modelsList.map(t => `<span class="mini-tag">${{esc(t)}}</span>`).join("")}}
+              </div>
+            </div>
+            <div class="card-ctas">
+              <a class="cta-primary ${{isFeatured ? "cn-cta" : ""}}" href="${{esc(plan.url)}}" target="_blank" rel="noopener sponsored" data-affiliate-key="${{esc(plan.provider_config_key || "")}}">
+                ${{esc(ctaText)}} →
+              </a>
+            </div>
+          </article>
+        `;
+      }}).join("");
     }}
 
     function renderSelfHostBanner(flagshipCost, openWeightRefCost) {{
@@ -1784,29 +2112,29 @@ def render_html_template(
         const owStr = fmtMoney(openWeightRefCost.usd, openWeightRefCost.rmb, cur);
         const severeTier = openWeightRefCost.usd >= 100;
 
-        const cards = state.region === "cn" ? [
+        const cards = state.region !== "global" ? [
           {{
             title: zh ? "阿里云 GPU / ECS 云大使特惠" : "Aliyun GPU & ECS Cloud Subsidy",
             tag: "¥ RMB 合规专票",
-            sub: zh ? "私有化部署 vLLM / Qwen3 / DeepSeek，包月固定算力不限 Token" : "Self-host vLLM/Qwen3/DeepSeek with unmetered tokens",
+            sub: zh ? "部署 OpenClaw / Dify / LiteLLM 缓存或 vLLM 开源模型，包月封顶不限 Token" : "Host OpenClaw, Dify, LiteLLM cache or vLLM with fixed monthly billing",
             cta: zh ? "领阿里云服务器算力补贴券 →" : "Claim Aliyun GPU/ECS Coupon →",
             url: AFF.aliyun_ambassador_url
           }},
           {{
-            title: zh ? "腾讯云 DeepSeek 私有化 / 轻量云" : "Tencent Cloud GPU & Lighthouse",
+            title: zh ? "腾讯云轻量云 / HAI 高性能算力" : "Tencent Cloud GPU & Lighthouse",
             tag: "¥ 新客秒杀",
-            sub: zh ? "一键部署 HAI 高性能应用服务与轻量云 Agent 网关" : "1-click DeepSeek HAI GPU & Agent gateway hosting",
-            cta: zh ? "腾讯云DeepSeek/轻量云特惠 →" : "View Tencent Cloud Deals →",
+            sub: zh ? "一键模板部署 DeepSeek / OpenClaw 24h Agent 与语义缓存网关" : "1-click DeepSeek HAI GPU & 24h Agent gateway hosting",
+            cta: zh ? "腾讯云轻量云/HAI特惠 →" : "View Tencent Cloud Deals →",
             url: AFF.tencent_cps_url
           }},
           {{
-            title: zh ? "阿里云百炼企业级专属吞吐折扣" : "Aliyun Bailian Provisioned Throughput",
+            title: zh ? "阿里云百炼 Coding Plan 与阶梯资源包" : "Aliyun Bailian Coding Plan & Packs",
             tag: "免运维直连",
-            sub: zh ? "不想自建运维？先领百炼新客免费 Token 与阶梯算力券抵扣" : "Zero-ops domestic API with free signup token grants",
-            cta: zh ? "领阿里云百炼免费Token/算力券 →" : "Claim Bailian Token Grant →",
+            sub: zh ? "不想自建运维？直接开通百炼包月套餐或领新客算力抵扣券" : "Zero-ops domestic API with monthly Coding Plan & free signup grants",
+            cta: zh ? "领阿里云百炼补贴券 →" : "Claim Bailian Deal →",
             url: AFF.aliyun_bailian_url
           }}
-        ] : state.region === "global" ? [
+        ] : [
           {{
             title: "RunPod Serverless & GPU Pods",
             tag: "RTX 4090 / A100 / H100",
@@ -1816,39 +2144,17 @@ def render_html_template(
           }},
           {{
             title: "Railway 1-Click LiteLLM & Redis",
-            tag: "$5 Trial Credit",
+            tag: "Instant Deploy",
             sub: zh ? "一键部署 LiteLLM 路由网关 + Redis 语义缓存，直接拦截 30% 重复消耗" : "Host LiteLLM proxy + semantic cache in 1 click to cut 30% calls",
             cta: zh ? "Railway 一键部署省钱网关 →" : "Deploy Gateway on Railway →",
             url: AFF.railway_affiliate_url
           }},
           {{
             title: "DigitalOcean GPU & Cloud Droplets",
-            tag: "$200 Free Credit",
-            sub: zh ? "新客注册享 $200 60天算力赠金，轻松托管 AI SaaS 后端与向量库" : "$200 60-day credit for GPU droplets, pgvector & AI backends",
-            cta: zh ? "领 DigitalOcean $200 算力赠金 →" : "Claim $200 DO Cloud Credit →",
+            tag: "Global Cloud",
+            sub: zh ? "稳定托管海外 AI SaaS 后端、PostgreSQL 向量库与推理节点" : "Reliable cloud droplets, managed pgvector & GPU nodes for AI SaaS",
+            cta: zh ? "查看 DigitalOcean 云主机 →" : "Explore DigitalOcean Cloud →",
             url: AFF.digitalocean_affiliate_url
-          }}
-        ] : [
-          {{
-            title: zh ? "🇨🇳 阿里云 GPU / ECS 云大使特惠" : "🇨🇳 Aliyun GPU & Cloud Subsidy",
-            tag: "国内合规自建",
-            sub: zh ? "适合国内团队私有化部署 Qwen3 / DeepSeek，数据不出境、包月封顶" : "Domestic vLLM/Ollama deployment with fixed monthly billing",
-            cta: zh ? "领阿里云GPU/ECS补贴券 →" : "Claim Aliyun GPU Coupon →",
-            url: AFF.aliyun_ambassador_url
-          }},
-          {{
-            title: "🌍 RunPod GPU 云自建 (vLLM)",
-            tag: "海外弹性算力王",
-            sub: zh ? "RTX 4090 仅 ~$0.34/hr 起，日请求破万时比调商业 API 省一半以上" : "GPUs from ~$0.34/hr — massive savings above $100/mo API spend",
-            cta: zh ? "RunPod 部署开源大模型 →" : "Launch vLLM on RunPod →",
-            url: AFF.runpod_affiliate_url
-          }},
-          {{
-            title: "🚂 Railway 部署 LiteLLM 缓存网关",
-            tag: "架构级立省 30%",
-            sub: zh ? "免运维托管多模型自动降级路由 + Prompt 语义缓存中间件" : "1-click LiteLLM router + Redis semantic caching proxy",
-            cta: zh ? "Railway 免费体验一键部署 →" : "Deploy on Railway →",
-            url: AFF.railway_affiliate_url
           }}
         ];
 
@@ -1862,13 +2168,13 @@ def render_html_template(
               </div>
               <div class="selfhost-title">
                 ${{zh
-                  ? `当前模拟流量旗舰月费达 ${{billStr}}（主流开源 API 约 ${{owStr}}/月）— 开启「混合缓存网关 / GPU 私有化」可大幅封顶成本！`
-                  : `Simulated flagship spend hits ${{billStr}}/mo (Open-weight API ~${{owStr}}/mo) — Cap your bill with GPU Self-Hosting or Caching!`}}
+                  ? `当前模拟流量旗舰月费达 ${{billStr}}（主流开源 API 约 ${{owStr}}/月）— 开启「云服务器缓存网关 / GPU 私有化」可大幅封顶成本！`
+                  : `Simulated flagship spend hits ${{billStr}}/mo (Open-weight API ~${{owStr}}/mo) — Cap your bill with Cloud Caching or GPU Self-Hosting!`}}
               </div>
               <div class="selfhost-desc">
                 ${{zh
-                  ? "工程经验法则：当团队月 API 账单超过 $100–$300/月 时，使用 Railway 部署 LiteLLM 语义缓存网关，或在阿里云 / RunPod 租用 GPU 跑 vLLM (Qwen3 / DeepSeek)，可将边际 Token 成本压降至接近 ¥0。"
-                  : "Rule of thumb: Once monthly API spend crosses $100–$300/mo, deploying a LiteLLM caching gateway on Railway or self-hosting vLLM on RunPod / Aliyun GPU slashes marginal token cost toward zero."}}
+                  ? "工程经验法则：当团队月 API 账单超过 $100–$300/月 时，在阿里云 / 腾讯云特惠服务器部署 LiteLLM 语义缓存网关或 OpenClaw，可将重复 Token 成本压降 50% 以上。"
+                  : "Rule of thumb: Once monthly API spend crosses $100–$300/mo, deploying a LiteLLM semantic cache or self-hosting vLLM slashes marginal token cost."}}
               </div>
             </div>
           </div>
@@ -1893,11 +2199,11 @@ def render_html_template(
           <div style="font-size:0.84rem;color:var(--text-secondary);">
             💡 <strong>${{zh ? "轻量调用阶段 (< $100/月 自建回本线)" : "Low-Volume Stage (< $100/mo GPU Breakeven)"}}</strong>：
             ${{zh
-              ? "当前月消耗无需租用独立 GPU 服务器，直接白嫖百炼 / 硅基流动 / 火山方舟 / OpenRouter 免费额度最划算！"
-              : "At this volume, pay-as-you-go APIs + free signup token grants beat renting dedicated GPUs."}}
+              ? "当前月消耗无需租用独立 GPU，优先开通百炼 / 腾讯云 Coding Plan 包月套餐或领取新客免费 Token 最划算！"
+              : "At this volume, Coding Plan subscriptions + free signup token grants beat renting dedicated GPUs."}}
           </div>
           <button type="button" class="icon-btn" id="simHighVolBtn">
-            🚀 ${{zh ? "一键测算高并发 (> $100/月 GPU自建方案)" : "Simulate High Volume (>$100/mo)"}}
+            🚀 ${{zh ? "一键测算高并发 (> $100/月 云服务器自建方案)" : "Simulate High Volume (>$100/mo)"}}
           </button>
         `;
         const btn = document.getElementById("simHighVolBtn");
@@ -1914,59 +2220,59 @@ def render_html_template(
       const zh = state.lang === "zh";
       const partners = [
         {{
-          name: zh ? "阿里云百炼大模型平台" : "Aliyun Bailian (Qwen & DeepSeek)",
-          badge: "🇨🇳 国内直连 · ¥",
-          desc: zh ? "通义千问 Qwen3 全系列 + 满血 DeepSeek 官方直连，新开通即领百万免费 Token 与百炼算力抵扣券，支持企业专票。" : "Official Qwen3 & DeepSeek enterprise API in China with 1M+ free signup tokens.",
-          cta: zh ? "领阿里云百炼免费Token/算力券 →" : "Claim Bailian Free Tokens →",
+          name: zh ? "阿里云百炼大模型平台 & Coding Plan" : "Aliyun Bailian (Qwen3 & Coding Plan)",
+          badge: "🇨🇳 官方主力补贴 · ¥",
+          desc: zh ? "Qwen3-Coder-Next (147 TPS) + Qwen3.5-Plus + 满血 DeepSeek 直连，支持 ¥39/月起 Coding Plan 与百万新客免费 Token，可开增值税专票。" : "Official Qwen3-Coder-Next & DeepSeek enterprise API in China with Coding Plan & 1M+ free tokens.",
+          cta: zh ? "领阿里云百炼免费Token / Coding Plan →" : "Claim Bailian Deal →",
           url: AFF.aliyun_bailian_url
         }},
         {{
-          name: zh ? "硅基流动 SiliconFlow" : "SiliconFlow High-Speed Inference",
-          badge: "🇨🇳 开发者爆款 · ¥",
-          desc: zh ? "国内极速开源大模型推理专线（DeepSeek-R1/V3、Qwen3），注册即送免费 Token 额度，且提供多款永久 ¥0 免费小模型。" : "Blazing-fast DeepSeek-R1/V3 & Qwen inference in China + permanent ¥0 free small models.",
-          cta: zh ? "硅基流动注册送Token →" : "Get SiliconFlow Free Bonus →",
-          url: AFF.siliconflow_invite_url
-        }},
-        {{
-          name: zh ? "腾讯云 DeepSeek & 轻量云特惠" : "Tencent Cloud DeepSeek & Lighthouse",
-          badge: "🇨🇳 专线/云主机 · ¥",
-          desc: zh ? "腾讯云知识引擎满血 DeepSeek API（含混元 Lite 免费调用）及高性价比轻量应用服务器、HAI 算力特惠活动。" : "Tencent Cloud DeepSeek full-blood API, free Hunyuan-Lite API & discounted cloud servers.",
-          cta: zh ? "腾讯云DeepSeek/轻量云特惠 →" : "Explore Tencent Cloud Deals →",
+          name: zh ? "腾讯云 Coding Plan & 轻量云特惠" : "Tencent Cloud Coding Plan & Lighthouse",
+          badge: "🇨🇳 编程/云主机特惠 · ¥",
+          desc: zh ? "混元 T1 / 2.0-Thinking + 满血 DeepSeek 极速专线（首字 1.05s），叠加轻量应用服务器与 HAI 一键部署 OpenClaw / Dify 新客秒杀。" : "Tencent Hunyuan-T1, DeepSeek full-blood API & discounted Lighthouse cloud servers.",
+          cta: zh ? "腾讯云 Coding Plan / 轻量云特惠 →" : "Explore Tencent Cloud Deals →",
           url: AFF.tencent_cps_url
         }},
         {{
-          name: zh ? "火山引擎方舟 (豆包 + DeepSeek)" : "Volcengine Ark (Doubao & DeepSeek)",
-          badge: "🇨🇳 超大并发 · ¥",
-          desc: zh ? "字节跳动旗下火山方舟，Doubao-Pro 百万 Token 低至 ¥0.8 起，高吞吐 TPM 不卡顿，各模型均享新客免费体验额度。" : "ByteDance Volcengine Ark offering ultra-low latency Doubao & DeepSeek with free trial quotas.",
+          name: zh ? "阿里云 2核4G / GPU 云小站补贴" : "Aliyun ECS & GPU Cloud Coupons",
+          badge: "🇨🇳 私有化/Agent托管 · ¥",
+          desc: zh ? "部署 24 小时 OpenClaw Agent、Dify 知识库、LiteLLM 语义缓存网关或 vLLM 私有化模型的官方隐藏优惠券通道。" : "Official Aliyun ECS & GPU discounts for OpenClaw, Dify, LiteLLM & vLLM deployments.",
+          cta: zh ? "领阿里云服务器隐藏补贴券 →" : "Claim Aliyun Cloud Coupons →",
+          url: AFF.aliyun_ambassador_url
+        }},
+        {{
+          name: zh ? "硅基流动 SiliconFlow 极速推理池" : "SiliconFlow High-Speed Inference",
+          badge: "🇨🇳 多模型秒切 · ¥",
+          desc: zh ? "一个 API Key 畅调 Kimi-K2.5 (首字0.99s)、GLM-5 (157 TPS)、MiniMax-M2.5 与 DeepSeek-V3.2，注册即赠 ¥16 额度及多款永久免费小模型。" : "Single API key for Kimi-K2.5, GLM-5, MiniMax-M2.5 & DeepSeek in China + ¥0 free small models.",
+          cta: zh ? "硅基流动注册领 ¥16 免费额度 →" : "Get SiliconFlow Free Bonus →",
+          url: AFF.siliconflow_invite_url
+        }},
+        {{
+          name: zh ? "火山引擎方舟 (Doubao-Seed-2.0)" : "Volcengine Ark (Doubao 2.0 & DeepSeek)",
+          badge: "🇨🇳 Trae同源高并发 · ¥",
+          desc: zh ? "字节跳动旗下火山方舟，Doubao-Seed-2.0-Pro 与 DeepSeek 高吞吐 TPM 不限速，支持 Coding Plan 与 50 万免费体验额度。" : "ByteDance Volcengine Ark offering ultra-low latency Doubao-Seed-2.0 & DeepSeek.",
           cta: zh ? "火山方舟领免费Token额度 →" : "Start on Volcengine Ark →",
           url: AFF.volcengine_ark_url
         }},
         {{
-          name: zh ? "阿里云 GPU / ECS 云大使补贴" : "Aliyun GPU & ECS Cloud Coupons",
-          badge: "🇨🇳 私有化自建 · ¥",
-          desc: zh ? "月账单超 $100 或对数据隐私合规要求极高时，领阿里云服务器官方补贴券，一键私有化部署 vLLM / Ollama / Dify。" : "Official Aliyun ECS & GPU discounts for private vLLM, Ollama, and Dify deployments.",
-          cta: zh ? "领阿里云GPU/ECS补贴券 →" : "Claim Aliyun Cloud Coupons →",
-          url: AFF.aliyun_ambassador_url
-        }},
-        {{
           name: "OpenRouter (Global 300+ LLMs)",
           badge: "🌍 Global · USD",
-          desc: zh ? "一个 API Key 统一调用 Claude、GPT、Gemini、Llama 与免费 `:free` 模型池，内置自动故障转移路由。" : "Single OpenAI-compatible API key for Claude, GPT, Gemini, DeepSeek & free community endpoints.",
+          desc: zh ? "一个 API Key 统一调用 Claude Sonnet/Opus、GPT-6、Gemini 与免费 `:free` 模型池，内置自动故障转移路由。" : "Single OpenAI-compatible API key for Claude, GPT, Gemini, DeepSeek & free community endpoints.",
           cta: zh ? "OpenRouter 统一API接入 →" : "Connect via OpenRouter →",
           url: AFF.openrouter_url
         }},
         {{
           name: "RunPod Serverless GPU Cloud",
-          badge: "🌍 GPU 自建王 · USD",
-          desc: zh ? "全球最受 AI 团队欢迎的弹性 GPU 云（RTX 4090 / A100 / H100），按秒计费部署开源大模型，高并发成本直降 60%。" : "Deploy vLLM/SGLang on per-second RTX 4090, A100 & H100 GPUs with zero cold-start hassle.",
+          badge: "🌍 GPU 自建 · USD",
+          desc: zh ? "全球 AI 团队常用的弹性 GPU 云（RTX 4090 / A100 / H100），按秒计费部署 vLLM / SGLang 开源大模型。" : "Deploy vLLM/SGLang on per-second RTX 4090, A100 & H100 GPUs.",
           cta: zh ? "RunPod 部署弹性 GPU →" : "Deploy GPUs on RunPod →",
           url: AFF.runpod_affiliate_url
         }},
         {{
-          name: "DigitalOcean Cloud & GPU ($200)",
-          badge: "🌍 $200 赠金 · USD",
-          desc: zh ? "海外独立开发者首选云平台，新用户专享 $200 60天免费算力额度，适合部署海外 AI SaaS、数据库与推理节点。" : "Get $200 in 60-day free cloud credit for AI SaaS backends, managed DBs & GPU droplets.",
-          cta: zh ? "领 DigitalOcean $200 赠金 →" : "Claim $200 DO Credit →",
+          name: "DigitalOcean Cloud & GPU",
+          badge: "🌍 海外云主机 · USD",
+          desc: zh ? "海外独立开发者主流云平台，适合部署出海 AI SaaS 后端、托管向量数据库与推理节点。" : "Cloud droplets, managed databases & GPU nodes for global AI SaaS.",
+          cta: zh ? "访问 DigitalOcean 官网 →" : "Visit DigitalOcean →",
           url: AFF.digitalocean_affiliate_url
         }},
         {{
@@ -2005,11 +2311,65 @@ def render_html_template(
       return (m.tags || []).includes(filterKey);
     }}
 
+    function openConfigModal(modelId) {{
+      const m = MODELS.find(x => x.id === modelId);
+      const modal = document.getElementById("configModal");
+      if (!m || !modal) return;
+
+      const zh = state.lang === "zh";
+      const baseUrl = m.api_base_url || "https://dashscope.aliyuncs.com/compatible-mode/v1";
+      const apiModel = m.api_model_id || m.id;
+      const cta = getModelCtaInfo(m);
+
+      document.getElementById("cfgModalTitle").textContent = zh
+        ? "一键复制 Claude Code / Cursor / Cline 接入配置"
+        : "1-Click Claude Code / Cursor / Cline API Config";
+      document.getElementById("cfgModalSubtitle").textContent = `${{m.name}} · ${{m.provider}} (CTX ${{fmtCtx(m.context_length)}})`;
+
+      document.getElementById("cfgGuiSnippet").textContent =
+`Base URL: ${{baseUrl}}
+Model ID: ${{apiModel}}`;
+
+      document.getElementById("cfgEnvSnippet").textContent =
+`export OPENAI_BASE_URL="${{baseUrl}}"
+export OPENAI_API_KEY="sk-your-api-key"
+export OPENAI_MODEL="${{apiModel}}"`;
+
+      const ctaEl = document.getElementById("cfgModalOfficialCta");
+      ctaEl.href = cta.url;
+      ctaEl.className = cta.isCn ? "cta-primary cn-cta" : "cta-primary";
+      ctaEl.textContent = cta.label;
+
+      document.getElementById("copyGuiBtn").textContent = zh ? "复制 Base URL 与 Model ID" : "Copy Base URL & Model ID";
+      document.getElementById("copyEnvBtn").textContent = zh ? "复制终端环境变量命令" : "Copy Shell Export Snippet";
+
+      modal.classList.add("open");
+    }}
+
+    function closeConfigModal() {{
+      const modal = document.getElementById("configModal");
+      if (modal) modal.classList.remove("open");
+    }}
+
+    function updateTelemetryBadge() {{
+      const el = document.getElementById("clickTelemetryBadge");
+      if (!el) return;
+      const clicks = Number(safeGetStorage("ai_cost_radar_clicks", "0")) || 0;
+      if (clicks > 0) {{
+        el.textContent = state.lang === "zh"
+          ? `本地精算就绪 · 已直达官方通道 ${{clicks}} 次`
+          : `Local Calc Ready · ${{clicks}} Official Visits`;
+      }} else {{
+        el.textContent = state.lang === "zh"
+          ? "本地实时精算 · 零数据上传"
+          : "100% Client-Side Math";
+      }}
+    }}
+
     function updateAll() {{
       const zh = state.lang === "zh";
       const cur = state.currency;
 
-      // Update simulator metadata
       const monthlyCalls = state.dailyCalls * 30;
       const inM = (monthlyCalls * state.inputTokens) / 1000000;
       const outM = (monthlyCalls * state.outputTokens) / 1000000;
@@ -2020,25 +2380,21 @@ def render_html_template(
         ? `月输入: ${{inM.toFixed(1)}}M Tokens`
         : `In: ${{inM.toFixed(1)}}M tok/mo`;
       document.getElementById("monthlyOutputMeta").textContent = zh
-        ? `月输出: ${{outM.toFixed(1)}}M Tokens`
-        : `Out: ${{outM.toFixed(1)}}M tok/mo`;
+        ? `月输出: ${{outM.toFixed(1)}}M Tokens${{state.reasoningEnabled ? " (思考x2.5)" : ""}}`
+        : `Out: ${{outM.toFixed(1)}}M tok/mo${{state.reasoningEnabled ? " (CoT 2.5x)" : ""}}`;
 
-      // Base candidate pool (respecting batch toggle + region)
       const poolByBatch = MODELS.filter(m => state.includeBatch || !m.is_batch);
       const regionPool = poolByBatch.filter(matchesRegion);
 
-      // Update pill counts within current region pool
       ["all", "coding", "reasoning", "cn_direct", "free"].forEach(k => {{
         const cnt = (k === "cn_direct" ? poolByBatch : regionPool).filter(m => matchesFilter(m, k)).length;
         const badge = document.getElementById("count-" + k);
         if (badge) badge.textContent = String(cnt);
       }});
 
-      // Baseline cost
       const baselineModel = getBaselineModel();
       const baseCost = calcModelMonthly(baselineModel);
 
-      // Pick best production workhorse model in current region (non-free paid high-value coding/reasoning model, or cheapest overall)
       const workhorseCandidates = regionPool
         .filter(m => !m.is_free && ((m.tags || []).includes("coding") || (m.tags || []).includes("reasoning")))
         .map(m => ({{ m, c: calcModelMonthly(m) }}))
@@ -2046,11 +2402,9 @@ def render_html_template(
 
       const bestEntry = workhorseCandidates[0] || regionPool.map(m => ({{ m, c: calcModelMonthly(m) }})).sort((a, b) => a.c.usd - b.c.usd)[0];
 
-      // Open-weight reference cost for self-hosting threshold (e.g. DeepSeek-R1 / Qwen3-235B)
-      const owRefModel = MODELS.find(m => /deepseek-r1|qwen3-235b/i.test(m.id)) || bestEntry?.m || baselineModel;
+      const owRefModel = MODELS.find(m => /deepseek-r1|qwen3-235b|qwen3\\.5-plus/i.test(m.id)) || bestEntry?.m || baselineModel;
       const owRefCost = calcModelMonthly(owRefModel);
 
-      // Render KPIs
       document.getElementById("kpiFlagshipVal").textContent = fmtMoney(baseCost.usd, baseCost.rmb, cur);
       document.getElementById("kpiFlagshipSub").textContent = baselineModel.name.replace(/^[^:]+:\\s*/, "");
 
@@ -2069,7 +2423,6 @@ def render_html_template(
           ? `预计年省 ${{fmtMoney(saveUsd * 12, saveRmb * 12, cur)}}`
           : `Save ${{fmtMoney(saveUsd * 12, saveRmb * 12, cur)}} / yr`;
 
-        // 80/20 Hybrid Routing Math
         const hybridUsd = 0.8 * bestEntry.c.usd + 0.2 * baseCost.usd;
         const hybridRmb = 0.8 * bestEntry.c.rmb + 0.2 * baseCost.rmb;
         const hybridPct = baseCost.usd > 0 ? Math.max(0, ((baseCost.usd - hybridUsd) / baseCost.usd) * 100) : 0;
@@ -2088,14 +2441,15 @@ def render_html_template(
       }}
 
       renderQuickSubsidies();
+      renderCodingPlans(baseCost, owRefCost);
       renderSelfHostBanner(baseCost, owRefCost);
+      updateTelemetryBadge();
 
-      // Filter & Search Models
       const q = state.searchQuery.trim().toLowerCase();
       let filtered = regionPool.filter(m => {{
         if (!matchesFilter(m, state.activeFilter)) return false;
         if (q) {{
-          const hay = `${{m.id}} ${{m.name}} ${{m.provider}} ${{(m.tags || []).join(" ")}}`.toLowerCase();
+          const hay = `${{m.id}} ${{m.name}} ${{m.provider}} ${{(m.tags || []).join(" ")}} ${{m.perf_note || ""}}`.toLowerCase();
           if (!hay.includes(q)) return false;
         }}
         return true;
@@ -2105,7 +2459,6 @@ def render_html_template(
         return {{ m, c, savePct }};
       }});
 
-      // Sort
       filtered.sort((a, b) => {{
         if (state.sortBy === "cost_asc") return a.c.usd - b.c.usd || (b.m.value_score || 0) - (a.m.value_score || 0);
         if (state.sortBy === "cost_desc") return b.c.usd - a.c.usd;
@@ -2164,6 +2517,7 @@ def render_html_template(
           : `输入 ¥${{Number(m.input_rmb_per_1m.toFixed(3))}} / 输出 ¥${{Number(m.output_rmb_per_1m.toFixed(3))}} /百万Token`;
 
         const tagLabels = [];
+        if (m.perf_note && zh) tagLabels.push("⚡ " + m.perf_note);
         if ((m.tags || []).includes("coding")) tagLabels.push(zh ? "💻 编程/Agent" : "💻 Coding");
         if ((m.tags || []).includes("reasoning")) tagLabels.push(zh ? "🧠 深度推理" : "🧠 Reasoning");
         if (m.supports_tools) tagLabels.push("🔧 Tools");
@@ -2173,7 +2527,7 @@ def render_html_template(
         const showSelfHostSecondary = m.open_weights && c.usd >= 100;
         const gpuUrl = isCn ? AFF.aliyun_ambassador_url : AFF.runpod_affiliate_url;
         const gpuLabel = isCn
-          ? (zh ? "🖥️ 月超$100：领阿里云GPU补贴自建更省 →" : "🖥️ >$100/mo: Self-Host on Aliyun GPU →")
+          ? (zh ? "🖥️ 月超$100：领阿里云服务器补贴自建 →" : "🖥️ >$100/mo: Self-Host on Aliyun GPU →")
           : (zh ? "🖥️ 月超$100：RunPod GPU自建省一半 →" : "🖥️ >$100/mo: Self-Host on RunPod GPU →");
 
         return `
@@ -2212,6 +2566,9 @@ def render_html_template(
               <a class="cta-primary ${{cta.isCn ? "cn-cta" : ""}}" href="${{esc(cta.url)}}" target="_blank" rel="noopener sponsored" data-affiliate-key="${{esc(m.provider_config_key || "")}}">
                 ${{esc(cta.label)}}
               </a>
+              <button type="button" class="cta-copy-cfg" data-copy-model="${{esc(m.id)}}">
+                ${{zh ? "复制 Claude Code / Cursor 接入配置" : "Copy Claude Code / Cursor Config"}}
+              </button>
               ${{showSelfHostSecondary ? `
                 <a class="cta-secondary-gpu" href="${{esc(gpuUrl)}}" target="_blank" rel="noopener sponsored">
                   ${{esc(gpuLabel)}}
@@ -2226,7 +2583,7 @@ def render_html_template(
     function applyTheme(theme) {{
       state.theme = theme;
       document.documentElement.setAttribute("data-theme", theme);
-      localStorage.setItem("ai_cost_theme", theme);
+      safeSetStorage("ai_cost_theme", theme);
       const btn = document.getElementById("themeToggleBtn");
       const zh = state.lang === "zh";
       btn.innerHTML = theme === "dark"
@@ -2271,9 +2628,21 @@ def render_html_template(
       updateAll();
     }}
 
-    // Bind UI Events
+    function copyTextWithFeedback(text, btnEl) {{
+      const orig = btnEl.textContent;
+      const doneMsg = state.lang === "zh" ? "✅ 已复制到剪贴板！" : "✅ Copied to Clipboard!";
+      if (navigator.clipboard && navigator.clipboard.writeText) {{
+        navigator.clipboard.writeText(text).then(() => {{
+          btnEl.textContent = doneMsg;
+          setTimeout(() => {{ btnEl.textContent = orig; }}, 1800);
+        }}).catch(() => {{
+          btnEl.textContent = doneMsg;
+          setTimeout(() => {{ btnEl.textContent = orig; }}, 1800);
+        }});
+      }}
+    }}
+
     function bindEvents() {{
-      // Region Switcher
       document.querySelectorAll(".region-btn").forEach(btn => {{
         btn.addEventListener("click", () => {{
           document.querySelectorAll(".region-btn").forEach(b => b.classList.remove("active"));
@@ -2295,7 +2664,6 @@ def render_html_template(
         }});
       }});
 
-      // Presets
       document.querySelectorAll(".preset-btn").forEach(btn => {{
         btn.addEventListener("click", () => {{
           document.querySelectorAll(".preset-btn").forEach(b => b.classList.remove("active"));
@@ -2304,7 +2672,6 @@ def render_html_template(
         }});
       }});
 
-      // Daily Calls Slider + Number
       const callsRange = document.getElementById("dailyCallsRange");
       const callsNum = document.getElementById("dailyCallsNum");
       callsRange.addEventListener("input", () => {{
@@ -2320,7 +2687,6 @@ def render_html_template(
         updateAll();
       }});
 
-      // Input Tokens Slider + Number
       const inRange = document.getElementById("inputTokensRange");
       const inNum = document.getElementById("inputTokensNum");
       inRange.addEventListener("input", () => {{
@@ -2334,7 +2700,6 @@ def render_html_template(
         updateAll();
       }});
 
-      // Output Tokens Slider + Number
       const outRange = document.getElementById("outputTokensRange");
       const outNum = document.getElementById("outputTokensNum");
       outRange.addEventListener("input", () => {{
@@ -2348,9 +2713,12 @@ def render_html_template(
         updateAll();
       }});
 
-      // Toggles
       document.getElementById("cacheToggle").addEventListener("change", e => {{
         state.cacheEnabled = e.target.checked;
+        updateAll();
+      }});
+      document.getElementById("reasoningToggle").addEventListener("change", e => {{
+        state.reasoningEnabled = e.target.checked;
         updateAll();
       }});
       document.getElementById("batchToggle").addEventListener("change", e => {{
@@ -2358,19 +2726,16 @@ def render_html_template(
         updateAll();
       }});
 
-      // Baseline Select
       document.getElementById("baselineSelect").addEventListener("change", e => {{
         state.baselineId = e.target.value;
         updateAll();
       }});
 
-      // Filter Pills
       document.querySelectorAll(".filter-pill").forEach(pill => {{
         pill.addEventListener("click", () => {{
           document.querySelectorAll(".filter-pill").forEach(p => p.classList.remove("active"));
           pill.classList.add("active");
           state.activeFilter = pill.dataset.filter;
-          // Smart UX: if user clicks 国内合规直连 while in Global-only region, switch region to 'all' so CN models show
           if (state.activeFilter === "cn_direct" && state.region === "global") {{
             state.region = "all";
             state.currency = "RMB";
@@ -2380,7 +2745,6 @@ def render_html_template(
         }});
       }});
 
-      // Search & Sort
       document.getElementById("searchInput").addEventListener("input", e => {{
         state.searchQuery = e.target.value;
         updateAll();
@@ -2390,13 +2754,11 @@ def render_html_template(
         updateAll();
       }});
 
-      // Show More
       document.getElementById("showMoreBtn").addEventListener("click", () => {{
         state.showAllModels = !state.showAllModels;
         updateAll();
       }});
 
-      // Theme & Language
       document.getElementById("themeToggleBtn").addEventListener("click", () => {{
         applyTheme(state.theme === "dark" ? "light" : "dark");
       }});
@@ -2407,13 +2769,61 @@ def render_html_template(
         }}
         applyLang(nextLang);
       }});
+
+      // Delegated listener for 1-Click Config Copy & Outbound Sponsored Click Telemetry
+      document.addEventListener("click", e => {{
+        const copyBtn = e.target.closest("[data-copy-model]");
+        if (copyBtn) {{
+          openConfigModal(copyBtn.getAttribute("data-copy-model"));
+          return;
+        }}
+        const sponsoredLink = e.target.closest('a[rel~="sponsored"]');
+        if (sponsoredLink) {{
+          const nextCnt = (Number(safeGetStorage("ai_cost_radar_clicks", "0")) || 0) + 1;
+          safeSetStorage("ai_cost_radar_clicks", String(nextCnt));
+          updateTelemetryBadge();
+        }}
+      }});
+
+      document.getElementById("cfgModalCloseBtn").addEventListener("click", closeConfigModal);
+      document.getElementById("configModal").addEventListener("click", e => {{
+        if (e.target.id === "configModal") closeConfigModal();
+      }});
+      document.addEventListener("keydown", e => {{
+        if (e.key === "Escape") closeConfigModal();
+      }});
+
+      document.getElementById("copyGuiBtn").addEventListener("click", e => {{
+        copyTextWithFeedback(document.getElementById("cfgGuiSnippet").textContent, e.currentTarget);
+      }});
+      document.getElementById("copyEnvBtn").addEventListener("click", e => {{
+        copyTextWithFeedback(document.getElementById("cfgEnvSnippet").textContent, e.currentTarget);
+      }});
     }}
 
     initBaselines();
     bindEvents();
     applyTheme(state.theme);
     renderPartnerMatrix();
-    applyWorkload(2500, 2000, 800);
+
+    if (PAGE_PRESET) {{
+      if (PAGE_PRESET.region) {{
+        state.region = PAGE_PRESET.region;
+        state.currency = state.region === "global" ? "USD" : "RMB";
+        document.querySelectorAll(".region-btn").forEach(b => b.classList.toggle("active", b.dataset.region === state.region));
+      }}
+      if (PAGE_PRESET.filter) {{
+        state.activeFilter = PAGE_PRESET.filter;
+        document.querySelectorAll(".filter-pill").forEach(p => p.classList.toggle("active", p.dataset.filter === state.activeFilter));
+      }}
+      state.cacheEnabled = Boolean(PAGE_PRESET.cacheEnabled);
+      document.getElementById("cacheToggle").checked = state.cacheEnabled;
+      state.reasoningEnabled = Boolean(PAGE_PRESET.reasoningEnabled);
+      document.getElementById("reasoningToggle").checked = state.reasoningEnabled;
+      applyWorkload(PAGE_PRESET.dailyCalls || 2500, PAGE_PRESET.inputTokens || 2000, PAGE_PRESET.outputTokens || 800);
+    }} else {{
+      applyWorkload(2500, 2000, 800);
+    }}
   }})();
   </script>
 </body>

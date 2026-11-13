@@ -1,5 +1,5 @@
 {
-  "owner_note": "你唯一需要修改的配置文件：开通哪个渠道就把对应链接替换进去，未开通的保持默认即可正常运行",
+  "owner_note": "主配置文件：已激活阿里云云大使(vlxk7knp)、腾讯云CPS(EGH3k1cs)、硅基流动(VjtrbFsv)及Base/EVM免KYC钱包直收；海外未开通联盟默认走干净官方直达链接",
   "domestic_affiliates_rmb": {
     "aliyun_ambassador_url": "https://www.aliyun.com/minisite/goods?userCode=vlxk7knp",
     "aliyun_bailian_url": "https://bailian.console.aliyun.com/?userCode=vlxk7knp",
@@ -8,9 +8,9 @@
     "volcengine_ark_url": "https://console.volcengine.com/ark"
   },
   "global_affiliates_usd": {
-    "runpod_affiliate_url": "https://runpod.io?ref=YOUR_RUNPOD_REF",
-    "digitalocean_affiliate_url": "https://m.do.co/c/YOUR_DO_REF",
-    "railway_affiliate_url": "https://railway.app?referralCode=YOUR_RAILWAY_CODE",
+    "runpod_affiliate_url": "https://www.runpod.io",
+    "digitalocean_affiliate_url": "https://www.digitalocean.com",
+    "railway_affiliate_url": "https://railway.com",
     "openrouter_url": "https://openrouter.ai"
   },
   "payout_readiness": {

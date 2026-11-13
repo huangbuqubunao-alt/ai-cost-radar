@@ -39,16 +39,16 @@ DEFAULT_FX_USD_TO_RMB = 7.25
 DEFAULT_SITE_URL = "https://huangbuqubunao-alt.github.io/ai-cost-radar/"
 
 DEFAULT_AFFILIATES: dict[str, str] = {
-    # Domestic RMB channels
-    "aliyun_ambassador_url": "https://www.aliyun.com/daily-act/ecs/activity_selection?userCode=YOUR_ALIYUN_CODE",
-    "aliyun_bailian_url": "https://bailian.console.aliyun.com/?userCode=YOUR_ALIYUN_CODE",
-    "tencent_cps_url": "https://curl.qcloud.com/YOUR_TENCENT_CPS_CODE",
-    "siliconflow_invite_url": "https://cloud.siliconflow.cn/i/YOUR_INVITE_CODE",
+    # Domestic RMB channels (clean official URLs when unconfigured)
+    "aliyun_ambassador_url": "https://www.aliyun.com/minisite/goods",
+    "aliyun_bailian_url": "https://bailian.console.aliyun.com/",
+    "tencent_cps_url": "https://cloud.tencent.com/product/lkeap",
+    "siliconflow_invite_url": "https://cloud.siliconflow.cn/",
     "volcengine_ark_url": "https://console.volcengine.com/ark",
-    # Global USD channels
-    "runpod_affiliate_url": "https://runpod.io?ref=YOUR_RUNPOD_REF",
-    "digitalocean_affiliate_url": "https://m.do.co/c/YOUR_DO_REF",
-    "railway_affiliate_url": "https://railway.app?referralCode=YOUR_RAILWAY_CODE",
+    # Global USD channels (clean official URLs when unconfigured)
+    "runpod_affiliate_url": "https://www.runpod.io",
+    "digitalocean_affiliate_url": "https://www.digitalocean.com",
+    "railway_affiliate_url": "https://railway.com",
     "openrouter_url": "https://openrouter.ai",
 }
 
@@ -295,6 +295,14 @@ def safe_json_for_html_script(obj: Any) -> str:
     return json.dumps(obj, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
 
+def _sanitize_affiliate_url(key: str, raw_val: Any) -> str:
+    fallback = DEFAULT_AFFILIATES.get(key, "https://openrouter.ai")
+    s = str(raw_val or "").strip()
+    if not s or "YOUR_" in s.upper() or not s.startswith(("http://", "https://")):
+        return fallback
+    return s
+
+
 def load_affiliates(config_path: Path) -> dict[str, str]:
     affiliates = dict(DEFAULT_AFFILIATES)
     if not config_path.exists():
@@ -309,13 +317,13 @@ def load_affiliates(config_path: Path) -> dict[str, str]:
         if isinstance(sub, dict):
             for k, v in sub.items():
                 if k in affiliates and isinstance(v, str) and v.strip():
-                    affiliates[k] = v.strip()
+                    affiliates[k] = _sanitize_affiliate_url(k, v)
 
     # Also support flat top-level overrides if present
     for k in list(affiliates.keys()):
         val = raw.get(k)
         if isinstance(val, str) and val.strip():
-            affiliates[k] = val.strip()
+            affiliates[k] = _sanitize_affiliate_url(k, val)
 
     return affiliates
 
@@ -433,11 +441,27 @@ def normalize_model(raw: dict[str, Any], affiliates: dict[str, str], fx_rate: fl
     affiliate_url = affiliates.get(config_key, DEFAULT_AFFILIATES["openrouter_url"])
     bonus_zh, bonus_en = channel_bonus_notes(config_key, is_free)
 
+    default_base_map = {
+        "aliyun_bailian_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "tencent_cps_url": "https://api.lkeap.cloud.tencent.com/v1",
+        "siliconflow_invite_url": "https://api.siliconflow.cn/v1",
+        "volcengine_ark_url": "https://ark.cn-beijing.volces.com/api/v3",
+        "openrouter_url": "https://openrouter.ai/api/v1",
+    }
+    api_base_url = str(raw.get("api_base_url") or default_base_map.get(config_key, "https://openrouter.ai/api/v1"))
+    api_model_id = str(raw.get("api_model_id") or (model_id.split("/", 1)[-1] if region == "cn_direct" and not model_id.startswith("siliconflow/") else model_id.removeprefix("siliconflow/")))
+    cache_hit_factor = float(raw.get("cache_hit_factor", 0.2 if region == "cn_direct" and not is_free else (0.5 if not is_free else 1.0)))
+    perf_note = str(raw.get("perf_note") or "")
+
     return {
         "id": model_id,
         "name": name,
         "provider": provider,
         "provider_config_key": config_key,
+        "api_base_url": api_base_url,
+        "api_model_id": api_model_id,
+        "cache_hit_factor": cache_hit_factor,
+        "perf_note": perf_note,
         "affiliate_url": affiliate_url,
         "region": region,
         "input_usd_per_1m": in_usd_f,
@@ -512,20 +536,193 @@ def load_models_dataset(
     return fallback_normalized, DEFAULT_FX_USD_TO_RMB, now_date, "builtin_15_fallback"
 
 
-def build_json_ld(site_url: str, updated_date: str, total_models: int) -> tuple[str, str]:
+DEFAULT_CODING_PLANS: list[dict[str, Any]] = [
+    {
+        "id": "aliyun-coding-plan",
+        "name": "阿里云百炼 Coding Plan 包月套餐",
+        "vendor": "阿里云百炼 (Aliyun Bailian)",
+        "provider_config_key": "aliyun_bailian_url",
+        "monthly_rmb": 39.0,
+        "pro_monthly_rmb": 99.0,
+        "models_covered": ["qwen3-coder-next", "qwen3.5-plus", "deepseek-v3.2", "qwen3-235b"],
+        "speed_highlight": "峰值 147 TPS 全场最快输出",
+        "best_for": "Claude Code / Cline / 通义灵码高频重构，企业合规可开增值税专票",
+        "featured_partner": True,
+        "cta_zh": "特惠开通百炼 Coding Plan / 领算力券",
+        "cta_en": "Get Aliyun Bailian Coding Plan",
+    },
+    {
+        "id": "tencent-coding-plan",
+        "name": "腾讯云 LKEAP Coding Plan 编程套餐",
+        "vendor": "腾讯云 (Tencent Cloud)",
+        "provider_config_key": "tencent_cps_url",
+        "monthly_rmb": 29.0,
+        "pro_monthly_rmb": 89.0,
+        "models_covered": ["hunyuan-t1", "hunyuan-2.0-thinking", "deepseek-v3.2", "deepseek-r1"],
+        "speed_highlight": "首字 1.05s 极速响应 · 专线稳定",
+        "best_for": "微信生态/小程序/云原生全栈开发，可搭配轻量云一键部署 OpenClaw/Dify",
+        "featured_partner": True,
+        "cta_zh": "抢腾讯云 Coding Plan & 轻量云特惠",
+        "cta_en": "Claim Tencent Coding Plan & Cloud Deal",
+    },
+    {
+        "id": "aliyun-ecs-agent-host",
+        "name": "阿里云 2核4G / GPU 专属部署包 (OpenClaw / Dify)",
+        "vendor": "阿里云云小站特惠",
+        "provider_config_key": "aliyun_ambassador_url",
+        "monthly_rmb": 19.0,
+        "pro_monthly_rmb": 199.0,
+        "models_covered": ["私有化 LiteLLM 缓存网关", "Dify 企业工作流", "OpenClaw 24h Agent"],
+        "speed_highlight": "语义缓存直降 30%~60% 重复 API 请求",
+        "best_for": "需要 24 小时挂机跑自动化 Agent、自建语义缓存网关或团队共享中转台",
+        "featured_partner": True,
+        "cta_zh": "领阿里云服务器新客隐藏补贴券",
+        "cta_en": "Claim Aliyun Cloud Server Subsidy",
+    },
+    {
+        "id": "volcengine-coding-plan",
+        "name": "火山方舟 Coding Plan 畅享包",
+        "vendor": "字节跳动 · 火山引擎",
+        "provider_config_key": "volcengine_ark_url",
+        "monthly_rmb": 39.0,
+        "pro_monthly_rmb": 99.0,
+        "models_covered": ["doubao-seed-2.0-pro", "deepseek-v3.2", "kimi-k2.5"],
+        "speed_highlight": "Trae 同源底座 · 百万 TPM 大并发",
+        "best_for": "Trae / Cursor 多文件并发 Agent 任务，新客另赠 50 万体验 Token",
+        "featured_partner": False,
+        "cta_zh": "开通火山方舟 Coding 套餐",
+        "cta_en": "Explore Volcengine Coding Plan",
+    },
+    {
+        "id": "siliconflow-coding-pack",
+        "name": "硅基流动多模型极速按量池 (赠 ¥16 额度)",
+        "vendor": "硅基流动 (SiliconFlow)",
+        "provider_config_key": "siliconflow_invite_url",
+        "monthly_rmb": 0.0,
+        "pro_monthly_rmb": 50.0,
+        "models_covered": ["Kimi-K2.5 (0.99s)", "GLM-5 (157 TPS)", "MiniMax-M2.5", "DeepSeek-R1"],
+        "speed_highlight": "Kimi-K2.5 首字 0.99s 全网最快秒回",
+        "best_for": "不想被固定包月绑定的灵活开发者，一个 API Key 随时切 Kimi / GLM-5 / MiniMax",
+        "featured_partner": False,
+        "cta_zh": "注册领免费 Token 测速体验",
+        "cta_en": "Claim SiliconFlow Free Token Bonus",
+    },
+    {
+        "id": "openrouter-global-coding",
+        "name": "OpenRouter 海外顶配混合路由 (Claude + GPT-6)",
+        "vendor": "OpenRouter (Global)",
+        "provider_config_key": "openrouter_url",
+        "monthly_rmb": 72.0,
+        "pro_monthly_rmb": 288.0,
+        "models_covered": ["Claude Sonnet 5.5", "GPT-6.1", "Gemini 3.8 Flash", "DeepSeek V4.1"],
+        "speed_highlight": "免绑多家外卡 · 自动 Fallback 防宕机",
+        "best_for": "出海项目与疑难架构攻坚（20% 难题调 Claude/GPT，80% 常规调国产低价模型）",
+        "featured_partner": False,
+        "cta_zh": "接入 OpenRouter 全球网关",
+        "cta_en": "Connect OpenRouter Unified API",
+    },
+]
+
+SEO_ROUTES: list[dict[str, Any]] = [
+    {
+        "slug": "",
+        "nav_label": "比价总览",
+        "priority": "1.0",
+        "title": "大模型 API 成本计算器 & Coding Plan 省钱比价台 (2026) | DeepSeek / 千问 / 豆包 / Claude 实时测算",
+        "description": "免费在线测算海内外 80+ 款主流大模型 API 月账单与 2026 国内 Coding Plan 包月套餐临界点，支持一键复制 Claude Code / Cursor 接入配置，直通阿里云百炼、腾讯云、硅基流动官方补贴。",
+        "hero_main": "一秒算清大模型 API 与 Coding Plan 月账单，",
+        "hero_accent": "最高立省 95% 算力成本",
+        "hero_sub": "同屏精算国内直连（阿里云百炼 / 腾讯云 / 硅基流动 / 火山方舟 ¥）与海外网关（OpenRouter $），内置 Prompt 缓存、思考 Token 倍率与一键复制 Claude Code / Cursor 接入参数。",
+        "preset": {"region": "all", "filter": "all", "dailyCalls": 2500, "inputTokens": 2000, "outputTokens": 800, "cacheEnabled": False, "reasoningEnabled": False},
+    },
+    {
+        "slug": "claude-code-domestic/",
+        "nav_label": "Claude Code 国内平替",
+        "priority": "0.9",
+        "title": "2026 Claude Code / Cline / Cursor 国内平替 API 最省钱配置指南与账单计算器",
+        "description": "解决 Claude Code 与 Cline 多轮调用账单破千痛点！实测对比阿里云百炼 Qwen3-Coder-Next、腾讯混元 T1、Kimi-K2.5、GLM-5 成本与速度，附一键复制环境变量配置与新客补贴券。",
+        "hero_main": "Claude Code / Cline 国内平替专线测算，",
+        "hero_accent": "告别按量破千账单",
+        "hero_sub": "AI 编程单次指令平均触发 10~25 轮长上下文调用。下方已为您预设典型 Agent 编程负载（开启缓存命中折扣），支持一键复制 Base URL 贴入终端或 Cursor。",
+        "preset": {"region": "cn", "filter": "coding", "dailyCalls": 3000, "inputTokens": 6000, "outputTokens": 1200, "cacheEnabled": True, "reasoningEnabled": False},
+    },
+    {
+        "slug": "coding-plan-2026/",
+        "nav_label": "Coding Plan 包月横评",
+        "priority": "0.9",
+        "title": "2026 国内大厂 Coding Plan 包月套餐横评：阿里云百炼 vs 腾讯云 vs 火山方舟谁最划算？",
+        "description": "按量付费还是买 ¥29~¥99 Coding Plan 包月套餐？实时输入你的日代码请求量，一秒算出盈亏临界线，覆盖百炼 Qwen3-Coder-Next (147 TPS)、腾讯混元 T1、豆包 2.0 实测对比。",
+        "hero_main": "2026 国内 Coding Plan 包月 vs 按量计费，",
+        "hero_accent": "一秒算出回本临界线",
+        "hero_sub": "重度使用 Claude Code / Cursor / Trae 时，开通阿里云百炼（¥39起）或腾讯云（¥29起）Coding Plan 往往比按量 API 省下 70% 以上预算。",
+        "preset": {"region": "cn", "filter": "coding", "dailyCalls": 4500, "inputTokens": 5000, "outputTokens": 1000, "cacheEnabled": True, "reasoningEnabled": False},
+    },
+    {
+        "slug": "deepseek-vs-qwen/",
+        "nav_label": "DeepSeek vs 千问对比",
+        "priority": "0.85",
+        "title": "DeepSeek-V3.2 / R1 vs 通义千问 Qwen3-Coder / Qwen3.5 真实 API 价格与思考 Token 测算",
+        "description": "深度对比满血 DeepSeek-R1/V3 与阿里云通义千问 Qwen3.5-Plus / Qwen3-235B 在开启深度推理（Reasoning 2.5x 输出开销）与缓存命中下的真实人民币月度成本。",
+        "hero_main": "DeepSeek 满血版 vs 通义千问 Qwen3 全系，",
+        "hero_accent": "含隐式思考 Token 真实比价",
+        "hero_sub": "深度推理模型的隐式思维链（CoT）按输出高价计费！下方已默认开启「2.5x 思考 Token 负载」，帮您看清真实生产账单。",
+        "preset": {"region": "cn", "filter": "reasoning", "dailyCalls": 4000, "inputTokens": 3000, "outputTokens": 1200, "cacheEnabled": True, "reasoningEnabled": True},
+    },
+    {
+        "slug": "dify-openclaw-cloud-server/",
+        "nav_label": "OpenClaw/Dify 云服务器部署",
+        "priority": "0.85",
+        "title": "2026 部署 OpenClaw / Dify / LiteLLM 语义缓存服务器选型与 GPU 自建回本计算器",
+        "description": "月 API 消耗超 $100 (¥725) 怎么封顶成本？对比阿里云云小站 2核4G/GPU 补贴券与腾讯云轻量应用服务器 HAI 特惠，一键部署 LiteLLM 缓存网关或 vLLM 私有化模型。",
+        "hero_main": "部署 OpenClaw / Dify / vLLM 算力精算，",
+        "hero_accent": "用云服务器补贴封顶 API 账单",
+        "hero_sub": "高并发 SaaS 与 24 小时挂机 Agent 场景下，租用特惠云服务器挂一层 LiteLLM 语义缓存或私有化跑开源模型，立砍 50%+ 重复 Token 开销。",
+        "preset": {"region": "cn", "filter": "all", "dailyCalls": 18000, "inputTokens": 2500, "outputTokens": 800, "cacheEnabled": False, "reasoningEnabled": False},
+    },
+]
+
+
+def load_coding_plans(live_path: Path, affiliates: dict[str, str], fx_rate: float, force_fallback: bool = False) -> list[dict[str, Any]]:
+    raw_plans: list[dict[str, Any]] = []
+    if not force_fallback and live_path.exists():
+        try:
+            payload = json.loads(live_path.read_text(encoding="utf-8"))
+            if isinstance(payload, dict) and isinstance(payload.get("coding_plans"), list):
+                raw_plans = payload["coding_plans"]
+        except Exception:
+            raw_plans = []
+
+    source_list = raw_plans if len(raw_plans) >= 4 else DEFAULT_CODING_PLANS
+    enriched: list[dict[str, Any]] = []
+    for item in source_list:
+        cfg_key = str(item.get("provider_config_key") or "aliyun_bailian_url")
+        url = affiliates.get(cfg_key, DEFAULT_AFFILIATES["aliyun_bailian_url"])
+        m_rmb = float(item.get("monthly_rmb") or 0.0)
+        p_rmb = float(item.get("pro_monthly_rmb") or m_rmb)
+        enriched.append(
+            {
+                **item,
+                "url": url,
+                "monthly_rmb": m_rmb,
+                "pro_monthly_rmb": p_rmb,
+                "monthly_usd": round(m_rmb / fx_rate, 2),
+                "pro_monthly_usd": round(p_rmb / fx_rate, 2),
+            }
+        )
+    return enriched
+
+
+def build_json_ld(site_url: str, updated_date: str, total_models: int, page_title: str, page_description: str) -> tuple[str, str]:
     webapp_ld = {
         "@context": "https://schema.org",
         "@type": "WebApplication",
-        "name": "智算省钱路由台 · Bilingual AI API & Cloud GPU Cost Calculator",
+        "name": page_title,
         "url": site_url,
         "dateModified": updated_date,
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "All",
         "inLanguage": ["zh-CN", "en"],
-        "description": (
-            f"实时测算并对比海内外 {total_models} 款主流大模型（DeepSeek、通义千问 Qwen3、豆包、混元、Claude、GPT、Gemini）"
-            "每月 API 真实成本，提供 80/20 混合模型路由建议、官方免费 Token 补贴直领通道及 >$100/月 GPU 私有化自建回本分析。"
-        ),
+        "description": page_description,
         "offers": {
             "@type": "Offer",
             "price": "0",
@@ -533,10 +730,10 @@ def build_json_ld(site_url: str, updated_date: str, total_models: int) -> tuple[
         },
         "featureList": [
             "1-Click Domestic RMB (¥) vs Global USD ($) Region & Currency Switcher",
-            "Interactive Monthly API Token & Prompt Caching Cost Simulator",
-            "80/20 Hybrid Model Routing Savings Calculator",
+            "2026 Domestic Coding Plan Monthly Subscription vs Pay-As-You-Go Breakeven Calculator",
+            "1-Click Claude Code, Cursor, Cline & Cherry Studio API Config Copy",
+            "Reasoning Token Overhead & Provider-Specific Prompt Cache Simulator",
             "Automatic >$100/mo Cloud GPU Self-Hosting Breakeven Advisor",
-            "Direct Official Free Token & Cloud Credit Links",
         ],
     }
 
@@ -576,14 +773,22 @@ def build_faq_html() -> str:
 
 def build_sitemap_xml(site_url: str, updated_date: str) -> str:
     base = site_url.rstrip("/") + "/"
-    return f"""<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>{html.escape(base)}</loc>
+    url_entries: list[str] = []
+    for route in SEO_ROUTES:
+        loc = base + route["slug"]
+        prio = route["priority"]
+        url_entries.append(
+            f"""  <url>
+    <loc>{html.escape(loc)}</loc>
     <lastmod>{html.escape(updated_date)}</lastmod>
     <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
+    <priority>{prio}</priority>
+  </url>"""
+        )
+    joined = "\n".join(url_entries)
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{joined}
 </urlset>
 """
 
@@ -612,6 +817,15 @@ Sitemap: {sitemap_url}
 """
 
 
+def build_seo_nav_html(base_prefix: str, active_slug: str) -> str:
+    links: list[str] = []
+    for r in SEO_ROUTES:
+        href = f"{base_prefix}{r['slug']}" if r["slug"] else (base_prefix or "./")
+        cls = "seo-topic-link active" if r["slug"] == active_slug else "seo-topic-link"
+        links.append(f'<a class="{cls}" href="{html.escape(href)}">{html.escape(r["nav_label"])}</a>')
+    return "\n          ".join(links)
+
+
 def build_site(*, force_fallback: bool = False, site_url: str | None = None) -> dict[str, Any]:
     affiliates = load_affiliates(CONFIG_PATH)
     models, fx_rate, updated_date, source_label = load_models_dataset(
@@ -619,6 +833,7 @@ def build_site(*, force_fallback: bool = False, site_url: str | None = None) -> 
         affiliates,
         force_fallback=force_fallback,
     )
+    coding_plans = load_coding_plans(LIVE_MODELS_PATH, affiliates, fx_rate, force_fallback=force_fallback)
 
     resolved_site_url = (
         site_url
@@ -630,48 +845,61 @@ def build_site(*, force_fallback: bool = False, site_url: str | None = None) -> 
 
     cn_count = sum(1 for m in models if m["region"] == "cn_direct")
     global_count = sum(1 for m in models if m["region"] == "global")
-
-    app_payload = {
-        "updated_at": updated_date,
-        "source": source_label,
-        "fx_rate_usd_to_rmb": fx_rate,
-        "affiliates": affiliates,
-        "models": models,
-    }
-
-    embedded_json = safe_json_for_html_script(app_payload)
-    json_ld_webapp, json_ld_faq = build_json_ld(resolved_site_url, updated_date, len(models))
     faq_html = build_faq_html()
-
-    page_title = (
-        "大模型 API 成本计算器 & 算力补贴比价台 (2026) | "
-        "DeepSeek / 千问 / 豆包 / Claude / GPT 实时月账单测算"
-    )
-    page_description = (
-        f"免费在线测算海内外 {len(models)} 款主流大模型 API 月度调用成本（支持人民币 ¥ 与美元 $ 一键切换），"
-        "自动生成 80/20 混合省钱路由与 >$100/月 GPU 私有化自建方案，直通阿里云百炼、硅基流动、腾讯云、火山方舟与 OpenRouter 官方免费 Token 补贴。"
-    )
-
-    html_output = render_html_template(
-        embedded_json=embedded_json,
-        json_ld_webapp=json_ld_webapp,
-        json_ld_faq=json_ld_faq,
-        page_title=html.escape(page_title),
-        page_description=html.escape(page_description),
-        canonical_url=html.escape(resolved_site_url),
-        updated_date=html.escape(updated_date),
-        total_models=len(models),
-        cn_models_count=cn_count,
-        global_models_count=global_count,
-        faq_html_items=faq_html,
-    )
 
     DIST_DIR.mkdir(parents=True, exist_ok=True)
     index_path = DIST_DIR / "index.html"
+
+    for route in SEO_ROUTES:
+        slug = route["slug"]
+        is_root = slug == ""
+        base_prefix = "" if is_root else "../"
+        route_canonical = resolved_site_url + slug
+
+        app_payload = {
+            "updated_at": updated_date,
+            "source": source_label,
+            "fx_rate_usd_to_rmb": fx_rate,
+            "affiliates": affiliates,
+            "coding_plans": coding_plans,
+            "page_preset": route["preset"],
+            "models": models,
+        }
+        embedded_json = safe_json_for_html_script(app_payload)
+        json_ld_webapp, json_ld_faq = build_json_ld(
+            route_canonical,
+            updated_date,
+            len(models),
+            route["title"],
+            route["description"],
+        )
+        seo_nav_html = build_seo_nav_html(base_prefix, slug)
+
+        html_output = render_html_template(
+            embedded_json=embedded_json,
+            json_ld_webapp=json_ld_webapp,
+            json_ld_faq=json_ld_faq,
+            page_title=html.escape(route["title"]),
+            page_description=html.escape(route["description"]),
+            canonical_url=html.escape(route_canonical),
+            updated_date=html.escape(updated_date),
+            total_models=len(models),
+            cn_models_count=cn_count,
+            global_models_count=global_count,
+            faq_html_items=faq_html,
+            hero_title_main=html.escape(route["hero_main"]),
+            hero_title_accent=html.escape(route["hero_accent"]),
+            hero_subtitle=html.escape(route["hero_sub"]),
+            seo_nav_html=seo_nav_html,
+            sitemap_href=f"{base_prefix}sitemap.xml",
+        )
+
+        out_file = DIST_DIR / "index.html" if is_root else (DIST_DIR / slug.strip("/") / "index.html")
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text(html_output, encoding="utf-8")
+
     sitemap_path = DIST_DIR / "sitemap.xml"
     robots_path = DIST_DIR / "robots.txt"
-
-    index_path.write_text(html_output, encoding="utf-8")
     sitemap_path.write_text(build_sitemap_xml(resolved_site_url, updated_date), encoding="utf-8")
     robots_path.write_text(build_robots_txt(resolved_site_url), encoding="utf-8")
 
@@ -679,6 +907,7 @@ def build_site(*, force_fallback: bool = False, site_url: str | None = None) -> 
         "index_path": str(index_path),
         "sitemap_path": str(sitemap_path),
         "robots_path": str(robots_path),
+        "seo_pages_count": len(SEO_ROUTES),
         "total_models": len(models),
         "cn_models": cn_count,
         "global_models": global_count,
@@ -695,21 +924,22 @@ def main() -> int:
     parser.add_argument(
         "--fallback-only",
         action="store_true",
-        help="Ignore shared_data/models_live.json and compile using the 15-model built-in fallback dataset.",
+        help="Ignore shared_data/models_live.json and compile using the built-in fallback dataset.",
     )
     parser.add_argument(
         "--site-url",
         default=None,
-        help="Canonical public URL for sitemap.xml, robots.txt, and JSON-LD (default: https://ai-cost-radar.pages.dev/).",
+        help="Canonical public URL for sitemap.xml, robots.txt, and JSON-LD.",
     )
     args = parser.parse_args()
 
     summary = build_site(force_fallback=args.fallback_only, site_url=args.site_url)
     print(
-        f"✅ Engine B 静态比价站编译成功！\n"
+        f"✅ Engine B 静态比价矩阵站编译成功！\n"
         f"   - 数据源: {summary['source']} (共 {summary['total_models']} 款模型: 国内直连 {summary['cn_models']} 款 / 海外 Global {summary['global_models']} 款)\n"
+        f"   - 静态 SEO 页面数: {summary['seo_pages_count']} 页 (全量收录进 sitemap.xml)\n"
         f"   - 汇率基准: 1 USD = {summary['fx_rate']} RMB\n"
-        f"   - 输出页面: {summary['index_path']} ({summary['index_bytes']:,} bytes)\n"
+        f"   - 主页体积: {summary['index_path']} ({summary['index_bytes']:,} bytes)\n"
         f"   - SEO 索引: {summary['sitemap_path']} & {summary['robots_path']}"
     )
     return 0
