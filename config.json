@@ -4,7 +4,7 @@
     "aliyun_ambassador_url": "https://www.aliyun.com/minisite/goods?userCode=vlxk7knp",
     "aliyun_bailian_url": "https://bailian.console.aliyun.com/?userCode=vlxk7knp",
     "tencent_cps_url": "https://curl.qcloud.com/YOUR_TENCENT_CPS_CODE",
-    "siliconflow_invite_url": "https://cloud.siliconflow.cn/i/YOUR_INVITE_CODE",
+    "siliconflow_invite_url": "https://cloud.siliconflow.cn/i/VjtrbFsv",
     "volcengine_ark_url": "https://console.volcengine.com/ark"
   },
   "global_affiliates_usd": {
@@ -17,9 +17,9 @@
     "has_alipay_wechat": true,
     "has_paypal_cn": false,
     "has_payoneer": false,
-    "has_usdc_wallet": false,
+    "has_usdc_wallet": true,
     "has_hk_bank_or_stripe": false,
-    "usdc_base_wallet_address": "0xYOUR_BASE_USDC_WALLET_ADDRESS"
+    "usdc_base_wallet_address": "0x1a56625e34E8f1b5528b3085832842210Ca673Ac"
   },
   "bounty_preferences": {
     "preferred_languages": [
