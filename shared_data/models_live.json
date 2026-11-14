@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-14T21:44:17Z",
-  "last_live_verified_at": "2026-11-14T21:44:17Z",
+  "updated_at": "2026-11-14T21:48:01Z",
+  "last_live_verified_at": "2026-11-14T21:48:01Z",
   "quote_verified_date": "2026-11-13",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
@@ -10,7 +10,7 @@
     "global": 66
   },
   "official_rule_audit": {
-    "checked_at": "2026-11-14T21:44:17Z",
+    "checked_at": "2026-11-14T21:48:01Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -26,22 +26,21 @@
       {
         "plan_id": "tencent-coding-plan",
         "url": "https://cloud.tencent.com/document/product/1823/130092",
-        "status": "verified_markers",
-        "matched_groups": [
-          "lite_monthly_cap_18k",
-          "lite_renewal_40",
-          "pro_monthly_cap_90k",
-          "pro_renewal_200"
-        ],
+        "status": "csr_shell_manual_check",
+        "matched_groups": [],
         "missing_groups": []
       },
       {
         "plan_id": "volcengine-coding-plan",
         "url": "https://www.volcengine.com/docs/82379/1925114",
-        "status": "unreachable",
-        "matched_groups": [],
-        "missing_groups": [],
-        "note": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1081)>"
+        "status": "verified_markers",
+        "matched_groups": [
+          "tiers_lite_pro",
+          "quota_window_5h",
+          "dedicated_coding_endpoint",
+          "interactive_ide_only"
+        ],
+        "missing_groups": []
       }
     ]
   },
