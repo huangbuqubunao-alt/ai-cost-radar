@@ -29,12 +29,12 @@ jobs:
           node-version: '22'
       - name: Check source syntax
         run: |
-          python3 -W error -m compileall -q engine_a_mcp_actor engine_b_affiliate_web engine_c_bounty_radar cloudflare test_codex_v3_acceptance.py test_upgrade_2026_roadmap.py test_round1_product_iteration.py test_round2_product_iteration.py
+          python3 -W error -m compileall -q engine_a_mcp_actor engine_b_affiliate_web engine_c_bounty_radar cloudflare test_codex_v3_acceptance.py test_upgrade_2026_roadmap.py test_round1_product_iteration.py test_round2_product_iteration.py test_round3_product_iteration.py
           node --input-type=module --check < functions/events.js
           node --input-type=module --check < functions/admin/stats.js
           node --input-type=module --check < functions/api/budget.js
       - name: Run all acceptance suites
-        run: python3 -W error -m unittest -v test_codex_v3_acceptance test_upgrade_2026_roadmap test_cloudflare_budget test_round1_product_iteration test_round2_product_iteration engine_a_mcp_actor.test_engine_a
+        run: python3 -W error -m unittest -v test_codex_v3_acceptance test_upgrade_2026_roadmap test_cloudflare_budget test_round1_product_iteration test_round2_product_iteration test_round3_product_iteration engine_a_mcp_actor.test_engine_a
       - name: Fetch a fresh catalog (failure preserves deployed site)
         run: |
           python3 engine_a_mcp_actor/fetch_and_enrich.py

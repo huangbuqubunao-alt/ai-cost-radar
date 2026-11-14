@@ -17,6 +17,7 @@ from copy import deepcopy
 from typing import Any
 
 QUOTE_VERIFIED_DATE: str = "2026-11-13"
+DEFAULT_FX_USD_TO_RMB: float = 7.20
 PRO_MONTHLY_CAP: int = 90_000
 PRO_WEEKLY_CAP: int = 45_000
 PRO_5H_CAP: int = 6_000
@@ -333,6 +334,93 @@ OFFERS_CATALOG_2026: list[dict[str, Any]] = [
 
 def get_offers_catalog() -> list[dict[str, Any]]:
     return deepcopy(OFFERS_CATALOG_2026)
+
+
+def resolve_model_query(models: list[dict[str, Any]], raw_query: str | None) -> tuple[dict[str, Any] | None, str | None]:
+    """
+    Resolve a model ID, vendor-prefixed alias (e.g. `aliyun/qwen3.5-plus`, `tencent/hunyuan-t1`),
+    exact `api_model_id` (e.g. `hunyuan-t1-latest`, `doubao-seed-2-0-pro-250415`), or fuzzy query.
+    Returns (matched_model, match_note_or_None).
+    """
+    if not models:
+        return None, "Model catalog is empty."
+
+    raw = str(raw_query or "deepseek-v3").strip()
+    if not raw:
+        raw = "deepseek-v3"
+
+    # 1. Exact ID match
+    for m in models:
+        if m.get("id") == raw:
+            return m, None
+
+    # 2. Normalized vendor prefix & case-insensitive ID match
+    norm_id = raw.lower()
+    if norm_id.startswith("aliyun/"):
+        norm_id = "aliyun-bailian/" + norm_id[len("aliyun/") :]
+    elif norm_id.startswith("tencent/"):
+        norm_id = "tencent-cloud/" + norm_id[len("tencent/") :]
+
+    for m in models:
+        if str(m.get("id") or "").lower() == norm_id:
+            return m, None
+
+    # 3. Exact `api_model_id` or `/<slug>` suffix match (prefer `cn_direct`, paid, higher `value_score`)
+    q_lower = raw.lower()
+    suffix_matches = [
+        m
+        for m in models
+        if str(m.get("api_model_id") or "").lower() == q_lower
+        or str(m.get("id") or "").lower().endswith("/" + q_lower)
+    ]
+    if suffix_matches:
+        suffix_matches.sort(
+            key=lambda item: (
+                1 if item.get("region") == "cn_direct" else 0,
+                0 if item.get("is_free") else 1,
+                float(item.get("value_score") or 0.0),
+            ),
+            reverse=True,
+        )
+        return suffix_matches[0], None
+
+    # 4. Fuzzy token & substring ranking
+    wants_free = "free" in q_lower
+    best_match: dict[str, Any] | None = None
+    best_rank = -1.0
+    q_tokens = [tok for tok in norm_id.replace("/", " ").replace("-", " ").split() if tok]
+
+    for m in models:
+        mid = str(m.get("id") or "").lower()
+        mname = str(m.get("name") or "").lower()
+        api_mid = str(m.get("api_model_id") or "").lower()
+        hay = f"{mid} {api_mid} {mname} {str(m.get('provider') or '').lower()}"
+
+        score = 0.0
+        if norm_id in mid or q_lower in api_mid:
+            score = 700.0
+        elif q_lower in mname:
+            score = 600.0
+        elif q_tokens and all(tok in hay for tok in q_tokens):
+            score = 500.0
+        elif q_tokens:
+            overlap = sum(1 for tok in q_tokens if tok in hay)
+            if overlap > 0:
+                score = overlap * 120.0
+
+        if score > 0:
+            if not wants_free and m.get("is_free"):
+                score -= 50.0
+            score += float(m.get("value_score") or 0.0) * 0.1
+            if score > best_rank:
+                best_rank = score
+                best_match = m
+
+    if best_match is not None:
+        return best_match, None
+
+    fallback = models[0]
+    return fallback, f"No direct match for '{raw_query}'; defaulted to top-value model '{fallback['id']}'."
 
 
 def plan_covers_model(plan_or_id: str | dict[str, Any], model_id_or_obj: str | dict[str, Any] | None) -> bool:

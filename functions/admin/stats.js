@@ -29,6 +29,7 @@ export async function onRequestGet(context) {
       `SELECT
          COUNT(DISTINCT browser_day_id) AS estimated_daily_uv,
          COUNT(DISTINCT CASE WHEN event_name = 'result_view' THEN browser_day_id END) AS calculations_completed_uv,
+         COUNT(DISTINCT CASE WHEN event_name IN ('share_copy', 'share_summary') THEN browser_day_id END) AS shares_copied_uv,
          COUNT(DISTINCT CASE WHEN event_name = 'share_open' THEN browser_day_id END) AS share_opens_uv
        FROM telemetry_events
        WHERE day_bucket = ?1`
@@ -92,6 +93,7 @@ export async function onRequestGet(context) {
     metric_label_zh: "估算日 UV（短期按日轮换标识，跨设备/清理存储/拦截有偏差）",
     estimated_daily_uv: Number(kpiRows?.estimated_daily_uv || 0),
     calculations_completed_uv: calcUv,
+    shares_copied_uv: Number(kpiRows?.shares_copied_uv || 0),
     share_opens_uv: Number(kpiRows?.share_opens_uv || 0),
     offers,
     traffic: trafficRows.results,

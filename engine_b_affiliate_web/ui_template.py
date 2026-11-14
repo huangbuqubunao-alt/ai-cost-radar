@@ -710,6 +710,20 @@ def render_html_template(
       line-height: 1.5;
     }}
 
+    .hybrid-controls-row {{
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin: 7px 0 8px;
+    }}
+
+    .hybrid-select {{
+      max-width: 215px;
+      font-size: 0.75rem;
+      padding: 4px 8px;
+    }}
+
     .primary-rec-box {{
       background: var(--bg-input);
       border: 1px solid var(--border-strong);
@@ -1778,6 +1792,17 @@ def render_html_template(
               <span id="hybridTitleText">80/20 混合模型分层路由测算</span>
               <span class="badge badge-save" id="hybridSaveBadge">省 --%</span>
             </div>
+            <div class="hybrid-controls-row">
+              <select id="hybridRatioSelect" class="select-sm hybrid-select" aria-label="Routine traffic share">
+                <option value="0.7">70% 常规 / 30% 复杂</option>
+                <option value="0.8" selected>80% 常规 / 20% 复杂 (推荐)</option>
+                <option value="0.9">90% 常规 / 10% 复杂</option>
+              </select>
+              <select id="hybridRoutineSelect" class="select-sm hybrid-select" aria-label="Routine workhorse model">
+                <option value="auto">自动优选低价编码模型</option>
+              </select>
+              <button type="button" class="cta-copy-cfg" id="openHybridConfigBtn" style="width:auto;padding:4px 10px;font-size:0.75rem;" data-i18n="openHybridConfigBtn">生成 LiteLLM 路由配置</button>
+            </div>
             <div class="hybrid-desc" id="hybridDescText">正在根据所选基准模型计算...</div>
           </div>
 
@@ -1872,10 +1897,11 @@ def render_html_template(
   <footer class="site-footer">
     <div class="container footer-inner">
       <div>
-        <strong>智算省钱路由台 · AI Cost Radar</strong> · 页面构建日: {updated_date} · 报价核验日: {quote_verified_date} ·
+        <strong data-zh="智算省钱路由台 · AI Cost Radar" data-en="AI Cost Radar · LLM Pricing &amp; Routing">智算省钱路由台 · AI Cost Radar</strong> ·
+        <span data-zh="页面构建日: {updated_date} · 报价核验日: {quote_verified_date}" data-en="Built: {updated_date} · Quotes Verified: {quote_verified_date}">页面构建日: {updated_date} · 报价核验日: {quote_verified_date}</span> ·
         <a href="{sitemap_href}" style="text-decoration:underline;">Sitemap</a> ·
-        <a href="{feed_href}" style="text-decoration:underline;">Atom 订阅</a> ·
-        <a href="{badge_svg_href}" style="text-decoration:underline;">状态徽章</a> ·
+        <a href="{feed_href}" style="text-decoration:underline;" data-zh="Atom 订阅" data-en="Atom Feed">Atom 订阅</a> ·
+        <a href="{badge_svg_href}" style="text-decoration:underline;" data-zh="状态徽章" data-en="Status Badge">状态徽章</a> ·
         <span id="clickTelemetryBadge" style="font-family:var(--font-mono);">同源匿名统计口径：估算日 UV</span>
       </div>
       <div data-i18n="footerDisclosure" style="max-width:72ch;">
@@ -1892,7 +1918,7 @@ def render_html_template(
       </div>
       <p id="cfgModalSubtitle" style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;"></p>
 
-      <div class="cfg-selector-grid">
+      <div class="cfg-selector-grid" id="cfgSelectorGrid">
         <div>
           <label for="cfgClientSelect" style="display:block;font-size:0.76rem;font-weight:700;margin-bottom:4px;color:var(--text-secondary);" data-i18n="cfgClientLabel">1. 选择编程客户端协议</label>
           <select id="cfgClientSelect" class="select-sm" style="max-width:100%;width:100%;">
@@ -1911,11 +1937,11 @@ def render_html_template(
 
       <div id="cfgModalWarning" class="verdict-banner warn" style="padding:10px 12px;margin-bottom:12px;font-size:0.78rem;"></div>
 
-      <div style="font-size:0.8rem;font-weight:700;color:var(--text-primary);" data-i18n="cfgGuiHeading">客户端面板参数核对</div>
+      <div id="cfgGuiHeadingEl" style="font-size:0.8rem;font-weight:700;color:var(--text-primary);" data-i18n="cfgGuiHeading">客户端面板参数核对</div>
       <pre class="cfg-code-block" id="cfgGuiSnippet"></pre>
       <button type="button" class="cta-copy-cfg" id="copyGuiBtn" style="margin-bottom:12px;" data-i18n="copyGuiBtn">复制协议地址与模型参数</button>
 
-      <div style="font-size:0.8rem;font-weight:700;color:var(--text-primary);" data-i18n="cfgEnvHeading">终端环境变量一键导出命令</div>
+      <div id="cfgEnvHeadingEl" style="font-size:0.8rem;font-weight:700;color:var(--text-primary);" data-i18n="cfgEnvHeading">终端环境变量一键导出命令</div>
       <pre class="cfg-code-block" id="cfgEnvSnippet"></pre>
       <button type="button" class="cta-copy-cfg" id="copyEnvBtn" style="margin-bottom:14px;" data-i18n="copyEnvBtn">复制环境变量命令</button>
 
@@ -2072,6 +2098,9 @@ def render_html_template(
       searchQuery: "",
       sortBy: "cost_asc",
       baselineId: "",
+      hybridRoutineRatio: 0.8,
+      hybridRoutineModelId: "auto",
+      modalMode: "endpoint",
       showAllModels: false,
       modalTargetVendor: "aliyun-coding-plan",
       modalTargetModelId: "qwen3.5-plus",
@@ -2222,10 +2251,108 @@ def render_html_template(
         || (MODELS[0] ? MODELS[0].id : "");
       state.baselineId = presetBase || fallbackBase;
       select.value = state.baselineId;
+
+      const routineSel = document.getElementById("hybridRoutineSelect");
+      if (routineSel) {{
+        const routineCandidates = MODELS
+          .filter(m => !m.is_free && (m.tags || []).includes("coding"))
+          .sort((a, b) => (a.region === "cn_direct" ? 0 : 1) - (b.region === "cn_direct" ? 0 : 1) || a.blended_usd_per_1m - b.blended_usd_per_1m)
+          .slice(0, 18);
+        routineSel.innerHTML = [
+          `<option value="auto">${{state.lang === "en" ? "Auto Best-Value Coding Model" : "自动优选低价编码模型"}}</option>`,
+          ...routineCandidates.map(renderOpt)
+        ].join("");
+        routineSel.value = state.hybridRoutineModelId || "auto";
+      }}
+
+      const ssrCpDetails = document.getElementById("ssrCodingPlanDetails");
+      if (ssrCpDetails) ssrCpDetails.open = false;
     }}
 
     function getBaselineModel() {{
       return MODELS.find(m => m.id === state.baselineId) || MODELS[0];
+    }}
+
+    function resolveHybridSelection(regionPool, baselineModel, baseCost) {{
+      const pool = (regionPool && regionPool.length > 0) ? regionPool : MODELS;
+      let routineModel = null;
+      if (state.hybridRoutineModelId && state.hybridRoutineModelId !== "auto") {{
+        routineModel = MODELS.find(m => m.id === state.hybridRoutineModelId) || null;
+      }}
+      if (!routineModel) {{
+        const codingPool = pool
+          .filter(m => !m.is_free && (m.tags || []).includes("coding"))
+          .map(m => ({{ m, c: calcModelMonthly(m) }}))
+          .sort((a, b) => a.c.usd - b.c.usd);
+        const fallbackPool = pool
+          .filter(m => !m.is_free)
+          .map(m => ({{ m, c: calcModelMonthly(m) }}))
+          .sort((a, b) => a.c.usd - b.c.usd);
+        const picked = codingPool[0] || fallbackPool[0] || {{ m: baselineModel, c: baseCost }};
+        routineModel = picked.m;
+      }}
+      const routineCost = calcModelMonthly(routineModel);
+      const ratio = Math.min(0.95, Math.max(0.5, Number(state.hybridRoutineRatio) || 0.8));
+      const hardRatio = Math.max(0, 1 - ratio);
+      const hybridUsd = ratio * routineCost.usd + hardRatio * baseCost.usd;
+      const hybridRmb = ratio * routineCost.rmb + hardRatio * baseCost.rmb;
+      const hybridPct = baseCost.usd > 0 ? Math.max(0, ((baseCost.usd - hybridUsd) / baseCost.usd) * 100) : 0;
+      return {{ routineModel, routineCost, ratio, hardRatio, hybridUsd, hybridRmb, hybridPct }};
+    }}
+
+    function buildLiteLlmRoutingConfig(routineModel, baselineModel, ratio) {{
+      const isEn = state.lang === "en";
+      const rPct = Math.round(ratio * 100);
+      const hPct = 100 - rPct;
+      const rWeight = Math.max(1, Math.round(rPct / 10));
+      const hWeight = Math.max(1, Math.round(hPct / 10));
+      const rBase = routineModel.api_base_url || "https://openrouter.ai/api/v1";
+      const bBase = baselineModel.api_base_url || "https://openrouter.ai/api/v1";
+      const rModelId = routineModel.api_model_id || routineModel.id;
+      const bModelId = baselineModel.api_model_id || baselineModel.id;
+      const sameVendor = rBase === bBase;
+      const rEnvKey = "ROUTINE_LLM_API_KEY";
+      const bEnvKey = sameVendor ? "ROUTINE_LLM_API_KEY" : "FLAGSHIP_LLM_API_KEY";
+
+      const yaml = [
+        `# LiteLLM Tiered Routing (${{rPct}}% Routine + ${{hPct}}% Escalation)`,
+        `model_list:`,
+        `  - model_name: coding-tiered-default`,
+        `    litellm_params:`,
+        `      model: openai/${{rModelId}}`,
+        `      api_base: ${{rBase}}`,
+        `      api_key: os.environ/${{rEnvKey}}`,
+        `      weight: ${{rWeight}}`,
+        `  - model_name: coding-tiered-default`,
+        `    litellm_params:`,
+        `      model: openai/${{bModelId}}`,
+        `      api_base: ${{bBase}}`,
+        `      api_key: os.environ/${{bEnvKey}}`,
+        `      weight: ${{hWeight}}`,
+        `  - model_name: hard-reasoning-only`,
+        `    litellm_params:`,
+        `      model: openai/${{bModelId}}`,
+        `      api_base: ${{bBase}}`,
+        `      api_key: os.environ/${{bEnvKey}}`,
+        ``,
+        `router_settings:`,
+        `  routing_strategy: simple-shuffle`,
+        `  num_retries: 2`,
+        `  fallbacks: [{{"coding-tiered-default": ["hard-reasoning-only"]}}]`
+      ].join("\\n");
+
+      const envLines = [
+        `export ${{rEnvKey}}="sk-your-routine-payg-key"`,
+        ...(sameVendor ? [] : [`export ${{bEnvKey}}="sk-your-flagship-payg-key"`]),
+        `# Start local OpenAI-compatible router at http://127.0.0.1:4000/v1`,
+        `uvx --from 'litellm[proxy]' litellm --config config.yaml --port 4000`
+      ].join("\\n");
+
+      const warning = isEn
+        ? `Important: LiteLLM Proxy uses standard Pay-As-You-Go API keys (${{rBase}}). Never put personal Coding Plan subscription keys (sk-sp-) into an automated proxy gateway.`
+        : `合规与防扣错提醒：LiteLLM 分层路由网关请填入「按量付费 API Key」（${{rBase}}），切勿将个人 Coding Plan 包月密钥（sk-sp-）放入自动化转发网关。`;
+
+      return {{ yaml, env: envLines, warning, docUrl: "https://docs.litellm.ai/docs/routing" }};
     }}
 
     function getModelCtaInfo(m) {{
@@ -2966,6 +3093,59 @@ def render_html_template(
     }}
 
     function refreshConfigModalSnippets() {{
+      const isEn = state.lang === "en";
+      const selectorGrid = document.getElementById("cfgSelectorGrid");
+      const titleEl = document.getElementById("cfgModalTitle");
+      const guiHeadEl = document.getElementById("cfgGuiHeadingEl");
+      const envHeadEl = document.getElementById("cfgEnvHeadingEl");
+      const copyGuiBtn = document.getElementById("copyGuiBtn");
+      const copyEnvBtn = document.getElementById("copyEnvBtn");
+
+      if (state.modalMode === "litellm_hybrid") {{
+        if (selectorGrid) selectorGrid.style.display = "none";
+        const baselineModel = getBaselineModel();
+        const baseCost = calcModelMonthly(baselineModel);
+        const poolByBatch = MODELS.filter(m => state.includeBatch || !m.is_batch);
+        const regionPool = poolByBatch.filter(matchesRegion);
+        const hy = resolveHybridSelection(regionPool, baselineModel, baseCost);
+        const rPct = Math.round(hy.ratio * 100);
+        const hPct = 100 - rPct;
+        const cfg = buildLiteLlmRoutingConfig(hy.routineModel, baselineModel, hy.ratio);
+        const rCta = getModelCtaInfo(hy.routineModel);
+
+        if (titleEl) titleEl.textContent = isEn
+          ? `LiteLLM Tiered Routing Config (${{rPct}}/${{hPct}} Split)`
+          : `LiteLLM 分层路由网关配置（${{rPct}}% 常规 / ${{hPct}}% 复杂）`;
+        document.getElementById("cfgModalSubtitle").textContent = isEn
+          ? `${{rPct}}% ${{shortModelName(hy.routineModel, true)}} + ${{hPct}}% ${{shortModelName(baselineModel, true)}} · Est. ${{fmtMoney(hy.hybridUsd, hy.hybridRmb, state.currency)}}/mo`
+          : `${{rPct}}% ${{shortModelName(hy.routineModel, false)}} ＋ ${{hPct}}% ${{shortModelName(baselineModel, false)}} · 预计月账单 ${{fmtMoney(hy.hybridUsd, hy.hybridRmb, state.currency)}}`;
+        if (guiHeadEl) guiHeadEl.textContent = isEn ? "1. Save as config.yaml (LiteLLM Proxy)" : "1. 保存为 config.yaml（LiteLLM 分层路由规则）";
+        if (envHeadEl) envHeadEl.textContent = isEn ? "2. Export PayG Keys & Launch Local Router" : "2. 导出按量密钥并启动本地路由网关";
+        if (copyGuiBtn) copyGuiBtn.textContent = isEn ? "Copy config.yaml" : "复制 config.yaml 配置";
+        if (copyEnvBtn) copyEnvBtn.textContent = isEn ? "Copy Launch Commands" : "复制启动命令";
+        document.getElementById("cfgModalWarning").textContent = cfg.warning;
+        document.getElementById("cfgGuiSnippet").textContent = cfg.yaml;
+        document.getElementById("cfgEnvSnippet").textContent = cfg.env;
+        const docLink = document.getElementById("cfgModalDocLink");
+        docLink.href = cfg.docUrl;
+        docLink.textContent = isEn ? "Read LiteLLM Routing Docs" : "查阅 LiteLLM 官方路由文档";
+        const ctaEl = document.getElementById("cfgModalOfficialCta");
+        ctaEl.href = rCta.url;
+        ctaEl.dataset.offerId = rCta.offerId;
+        ctaEl.dataset.cardSlot = "hybrid_modal";
+        ctaEl.textContent = isEn ? `Get ${{shortModelName(hy.routineModel, true)}} API Key` : `获取 ${{shortModelName(hy.routineModel, false)}} 按量密钥`;
+        return;
+      }}
+
+      if (selectorGrid) selectorGrid.style.display = "";
+      if (titleEl) titleEl.textContent = isEn
+        ? "Dedicated Endpoint Generator (Client × Billing Mode)"
+        : "按客户端与计费模式生成专属接入配置";
+      if (guiHeadEl) guiHeadEl.textContent = isEn ? I18N_EN.cfgGuiHeading : (ORIG_ZH_I18N.cfgGuiHeading || "客户端面板参数核对");
+      if (envHeadEl) envHeadEl.textContent = isEn ? I18N_EN.cfgEnvHeading : (ORIG_ZH_I18N.cfgEnvHeading || "终端环境变量一键导出命令");
+      if (copyGuiBtn) copyGuiBtn.textContent = isEn ? I18N_EN.copyGuiBtn : (ORIG_ZH_I18N.copyGuiBtn || "复制协议地址与模型参数");
+      if (copyEnvBtn) copyEnvBtn.textContent = isEn ? I18N_EN.copyEnvBtn : (ORIG_ZH_I18N.copyEnvBtn || "复制环境变量命令");
+
       const clientType = document.getElementById("cfgClientSelect").value;
       const billingMode = document.getElementById("cfgBillingModeSelect").value;
       const cfg = resolveEndpointConfig(
@@ -2975,17 +3155,31 @@ def render_html_template(
         state.modalTargetModelId,
         state.modalFallbackBaseUrl
       );
-      document.getElementById("cfgModalSubtitle").textContent = state.lang === "en"
+      document.getElementById("cfgModalSubtitle").textContent = isEn
         ? (state.modalTargetNameEn || state.modalTargetName)
         : state.modalTargetName;
       document.getElementById("cfgModalWarning").textContent = cfg.warning;
       document.getElementById("cfgGuiSnippet").textContent = cfg.gui;
       document.getElementById("cfgEnvSnippet").textContent = cfg.env;
-      document.getElementById("cfgModalDocLink").href = cfg.docUrl;
+      const docLink = document.getElementById("cfgModalDocLink");
+      docLink.href = cfg.docUrl;
+      docLink.textContent = isEn ? I18N_EN.cfgModalDocLink : (ORIG_ZH_I18N.cfgModalDocLink || "查阅该厂商官方接入文档");
       const ctaEl = document.getElementById("cfgModalOfficialCta");
       ctaEl.href = state.modalOfficialCtaUrl;
       ctaEl.dataset.offerId = state.modalOfferId;
       ctaEl.dataset.cardSlot = "config_modal";
+      ctaEl.textContent = isEn ? I18N_EN.cfgModalOfficialCta : (ORIG_ZH_I18N.cfgModalOfficialCta || "前往官方控制台获取密钥");
+    }}
+
+    function openHybridRoutingModal(triggerEl) {{
+      const modal = document.getElementById("configModal");
+      if (!modal) return;
+      lastModalTrigger = triggerEl || document.activeElement;
+      state.modalMode = "litellm_hybrid";
+      refreshConfigModalSnippets();
+      modal.classList.add("open");
+      document.getElementById("copyGuiBtn").focus();
+      observeOfferCards();
     }}
 
     function openConfigModalForModel(modelId, triggerEl) {{
@@ -2993,6 +3187,7 @@ def render_html_template(
       const modal = document.getElementById("configModal");
       if (!m || !modal) return;
       lastModalTrigger = triggerEl || document.activeElement;
+      state.modalMode = "endpoint";
       const cta = getModelCtaInfo(m);
       state.modalTargetVendor = m.provider_config_key || m.id;
       state.modalTargetModelId = m.api_model_id || m.id;
@@ -3015,6 +3210,7 @@ def render_html_template(
       const modal = document.getElementById("configModal");
       if (!plan || !modal) return;
       lastModalTrigger = triggerEl || document.activeElement;
+      state.modalMode = "endpoint";
       const enPair = PLAN_EN_TITLES[plan.id] || [plan.name, plan.vendor];
       state.modalTargetVendor = plan.id;
       state.modalOfferId = plan.id;
@@ -3069,6 +3265,8 @@ def render_html_template(
       params.set("filter", state.activeFilter);
       if (state.lang === "en") params.set("lang", "en");
       if (state.baselineId) params.set("baseline", state.baselineId);
+      if (Math.abs(state.hybridRoutineRatio - 0.8) > 0.001) params.set("split", String(state.hybridRoutineRatio));
+      if (state.hybridRoutineModelId && state.hybridRoutineModelId !== "auto") params.set("routine", state.hybridRoutineModelId);
       params.set("qv", QUOTE_VERIFIED_DATE);
       const base = window.location.origin + window.location.pathname;
       return `${{base}}?${{params.toString()}}`;
@@ -3081,6 +3279,12 @@ def render_html_template(
       const baselineModel = getBaselineModel();
       const baseCost = calcModelMonthly(baselineModel);
       const baseBill = fmtMoney(baseCost.usd, baseCost.rmb, cur);
+      const poolByBatch = MODELS.filter(m => state.includeBatch || !m.is_batch);
+      const regionPool = poolByBatch.filter(matchesRegion);
+      const hy = resolveHybridSelection(regionPool, baselineModel, baseCost);
+      const rPct = Math.round(hy.ratio * 100);
+      const hPct = 100 - rPct;
+      const hyBill = fmtMoney(hy.hybridUsd, hy.hybridRmb, cur);
       const cacheNote = state.cacheEnabled ? `${{Math.round(state.cacheHitRate * 100)}}%` : "0%";
       const verdictEl = document.getElementById("codingPlanLiveVerdict");
       const verdictClean = verdictEl ? verdictEl.textContent.replace(/\\s+/g, " ").trim() : "";
@@ -3090,6 +3294,7 @@ def render_html_template(
           `[AI Cost Radar · Billing Audit (${{QUOTE_VERIFIED_DATE}})]`,
           `- Workload: ${{fmtNum(state.dailyCalls)}} calls/day (${{fmtNum(monthlyCalls)}}/30d) · In ${{fmtNum(state.inputTokens)}} / Out ${{fmtNum(state.outputTokens)}} tok · Cache ${{cacheNote}} · Mode: ${{state.usageMode}}`,
           `- Same-Model PayG Baseline (${{formatModelTitle(baselineModel, true)}}): ${{baseBill}}/mo`,
+          `- Tiered Routing (${{rPct}}% ${{shortModelName(hy.routineModel, true)}} + ${{hPct}}% ${{shortModelName(baselineModel, true)}}): ${{hyBill}}/mo (Save ${{hy.hybridPct.toFixed(0)}}%)`,
           `- Verdict: ${{verdictClean}}`,
           `- Reproducible Link: ${{shareUrl}}`
         ].join("\\n");
@@ -3098,6 +3303,7 @@ def render_html_template(
         `【AI Cost Radar · 算力与套餐对账单（核验日 ${{QUOTE_VERIFIED_DATE}}）】`,
         `- 调用规模：${{fmtNum(state.dailyCalls)}} 次/天（30天 ${{fmtNum(monthlyCalls)}} 次）· 单次输入 ${{fmtNum(state.inputTokens)}} / 输出 ${{fmtNum(state.outputTokens)}} tok · 缓存命中 ${{cacheNote}}`,
         `- 同模型按量基准（${{baselineModel.name}}）：${{baseBill}}/月`,
+        `- 分层路由方案（${{rPct}}% ${{shortModelName(hy.routineModel, false)}} ＋ ${{hPct}}% ${{shortModelName(baselineModel, false)}}）：${{hyBill}}/月（省 ${{hy.hybridPct.toFixed(0)}}%）`,
         `- 核验结论：${{verdictClean}}`,
         `- 一键复算链接：${{shareUrl}}`
       ].join("\\n");
@@ -3212,6 +3418,20 @@ def render_html_template(
           hasShareParams = true;
         }}
       }}
+      if (params.has("split")) {{
+        const sp = Number(params.get("split"));
+        if (Number.isFinite(sp) && sp >= 0.5 && sp <= 0.95) {{
+          state.hybridRoutineRatio = Math.round(sp * 100) / 100;
+          hasShareParams = true;
+        }}
+      }}
+      if (params.has("routine")) {{
+        const rt = params.get("routine");
+        if (rt === "auto" || MODELS.some(m => m.id === rt)) {{
+          state.hybridRoutineModelId = rt;
+          hasShareParams = true;
+        }}
+      }}
 
       const qv = params.get("qv");
       const staleBanner = document.getElementById("staleQuoteBanner");
@@ -3247,6 +3467,22 @@ def render_html_template(
       document.getElementById("reasoningMultSelect").value = String(state.reasoningMultiplier);
       document.getElementById("outputIncludesReasoningToggle").checked = state.outputIncludesReasoning;
       document.getElementById("baselineSelect").value = state.baselineId;
+      const hyRatioSel = document.getElementById("hybridRatioSelect");
+      if (hyRatioSel) {{
+        if (!Array.from(hyRatioSel.options).some(opt => Math.abs(Number(opt.value) - state.hybridRoutineRatio) < 0.001)) {{
+          const rPct = Math.round(state.hybridRoutineRatio * 100);
+          hyRatioSel.add(new Option(`${{rPct}}% / ${{100 - rPct}}%`, String(state.hybridRoutineRatio)));
+        }}
+        hyRatioSel.value = String(state.hybridRoutineRatio);
+      }}
+      const hyRoutineSel = document.getElementById("hybridRoutineSelect");
+      if (hyRoutineSel) {{
+        if (state.hybridRoutineModelId !== "auto" && !Array.from(hyRoutineSel.options).some(opt => opt.value === state.hybridRoutineModelId)) {{
+          const mExtra = MODELS.find(m => m.id === state.hybridRoutineModelId);
+          if (mExtra) hyRoutineSel.add(new Option(shortModelName(mExtra, isEnRestore), mExtra.id));
+        }}
+        hyRoutineSel.value = state.hybridRoutineModelId;
+      }}
       document.querySelectorAll(".region-btn").forEach(b => b.classList.toggle("active", b.dataset.region === state.region));
       document.querySelectorAll(".filter-pill").forEach(p => p.classList.toggle("active", p.dataset.filter === state.activeFilter));
 
@@ -3312,19 +3548,19 @@ def render_html_template(
           ? `Annual delta ${{fmtMoney(saveUsd * 12, saveRmb * 12, cur)}}`
           : `年差额 ${{fmtMoney(saveUsd * 12, saveRmb * 12, cur)}}`;
 
-        const hybridUsd = 0.8 * bestEntry.c.usd + 0.2 * baseCost.usd;
-        const hybridRmb = 0.8 * bestEntry.c.rmb + 0.2 * baseCost.rmb;
-        const hybridPct = baseCost.usd > 0 ? Math.max(0, ((baseCost.usd - hybridUsd) / baseCost.usd) * 100) : 0;
-        const bestShort = shortModelName(bestEntry.m, isEn);
+        const hy = resolveHybridSelection(regionPool, baselineModel, baseCost);
+        const rPct = Math.round(hy.ratio * 100);
+        const hPct = 100 - rPct;
+        const routineShort = shortModelName(hy.routineModel, isEn);
         const baseShort = shortModelName(baselineModel, isEn);
 
         document.getElementById("hybridTitleText").textContent = isEn
-          ? "80/20 Tiered Model Routing Estimate"
-          : "80/20 混合模型分层路由测算";
-        document.getElementById("hybridSaveBadge").textContent = isEn ? `Save ${{hybridPct.toFixed(0)}}%` : `省 ${{hybridPct.toFixed(0)}}%`;
+          ? `${{rPct}}/${{hPct}} Tiered Model Routing Builder`
+          : `${{rPct}}/${{hPct}} 混合模型分层路由组合器`;
+        document.getElementById("hybridSaveBadge").textContent = isEn ? `Save ${{hy.hybridPct.toFixed(0)}}%` : `省 ${{hy.hybridPct.toFixed(0)}}%`;
         document.getElementById("hybridDescText").innerHTML = isEn
-          ? `Route 80% routine calls to <strong>${{esc(bestShort)}}</strong> + keep 20% hard reasoning on <strong>${{esc(baseShort)}}</strong> → blended pay-as-you-go ≈ <strong>${{fmtMoney(hybridUsd, hybridRmb, cur)}}/mo</strong>.`
-          : `80% 常规任务走 <strong>${{esc(bestShort)}}</strong> ＋ 20% 复杂推理保留 <strong>${{esc(baseShort)}}</strong>，混合按量月账单约 <strong>${{fmtMoney(hybridUsd, hybridRmb, cur)}}</strong>。`;
+          ? `Route ${{rPct}}% routine calls to <strong>${{esc(routineShort)}}</strong> + keep ${{hPct}}% hard reasoning on <strong>${{esc(baseShort)}}</strong> → blended Pay-As-You-Go ≈ <strong>${{fmtMoney(hy.hybridUsd, hy.hybridRmb, cur)}}/mo</strong>.`
+          : `${{rPct}}% 常规任务走 <strong>${{esc(routineShort)}}</strong> ＋ ${{hPct}}% 复杂推理保留 <strong>${{esc(baseShort)}}</strong>，混合按量月账单约 <strong>${{fmtMoney(hy.hybridUsd, hy.hybridRmb, cur)}}</strong>。`;
       }}
 
       renderCodingPlans(baseCost, baselineModel);
@@ -3526,6 +3762,7 @@ def render_html_template(
       kpiFlagship: "Baseline Pay-As-You-Go / mo",
       kpiBestRoute: "Lowest Filtered Pay-As-You-Go",
       kpiSavings: "Same-Workload Delta",
+      openHybridConfigBtn: "Export LiteLLM YAML",
       verdictShareHint: "Share current inputs, same-model PayG & plan verdict with your team:",
       copySummaryBtn: "Copy Verdict Brief",
       codingPlanTitle: "2026 CN Coding Plan Subscriptions vs Same-Model Pay-As-You-Go",
@@ -3575,6 +3812,10 @@ def render_html_template(
         if (isEn && I18N_EN[k]) el.textContent = I18N_EN[k];
         else if (!isEn && k in ORIG_ZH_I18N) el.textContent = ORIG_ZH_I18N[k];
       }});
+      document.querySelectorAll("[data-en]").forEach(el => {{
+        const txt = isEn ? el.getAttribute("data-en") : el.getAttribute("data-zh");
+        if (txt) el.textContent = txt;
+      }});
 
       const livePill = document.getElementById("liveStatusPill");
       if (livePill) {{
@@ -3601,6 +3842,34 @@ def render_html_template(
       const baseSel = document.getElementById("baselineSelect");
       if (baseSel) {{
         Array.from(baseSel.options).forEach(opt => {{
+          const m = MODELS.find(x => x.id === opt.value);
+          if (m) {{
+            const unitHint = m.region === "cn_direct"
+              ? `¥${{m.input_rmb_per_1m}}/¥${{m.output_rmb_per_1m}}`
+              : `$${{m.input_usd_per_1m}}/$${{m.output_usd_per_1m}}`;
+            opt.textContent = `${{shortModelName(m, isEn)}} (${{unitHint}})`;
+          }}
+        }});
+      }}
+
+      const hyRatioSel = document.getElementById("hybridRatioSelect");
+      if (hyRatioSel) {{
+        Array.from(hyRatioSel.options).forEach(opt => {{
+          const rPct = Math.round(Number(opt.value) * 100);
+          const hPct = 100 - rPct;
+          const isDef = Math.abs(Number(opt.value) - 0.8) < 0.001;
+          opt.textContent = isEn
+            ? (isDef ? `${{rPct}}% Routine / ${{hPct}}% Hard (Default)` : `${{rPct}}% Routine / ${{hPct}}% Hard`)
+            : (isDef ? `${{rPct}}% 常规 / ${{hPct}}% 复杂 (推荐)` : `${{rPct}}% 常规 / ${{hPct}}% 复杂`);
+        }});
+      }}
+      const hyRoutineSel = document.getElementById("hybridRoutineSelect");
+      if (hyRoutineSel) {{
+        Array.from(hyRoutineSel.options).forEach(opt => {{
+          if (opt.value === "auto") {{
+            opt.textContent = isEn ? "Auto Best-Value Coding Model" : "自动优选低价编码模型";
+            return;
+          }}
           const m = MODELS.find(x => x.id === opt.value);
           if (m) {{
             const unitHint = m.region === "cn_direct"
@@ -3832,6 +4101,17 @@ def render_html_template(
         state.baselineId = e.target.value;
         updateAll(true);
       }});
+      document.getElementById("hybridRatioSelect").addEventListener("change", e => {{
+        state.hybridRoutineRatio = Number(e.target.value) || 0.8;
+        updateAll(true);
+      }});
+      document.getElementById("hybridRoutineSelect").addEventListener("change", e => {{
+        state.hybridRoutineModelId = e.target.value || "auto";
+        updateAll(true);
+      }});
+      document.getElementById("openHybridConfigBtn").addEventListener("click", e => {{
+        openHybridRoutingModal(e.currentTarget);
+      }});
 
       document.querySelectorAll(".filter-pill").forEach(pill => {{
         pill.addEventListener("click", () => {{
@@ -3860,6 +4140,7 @@ def render_html_template(
         try {{
           window.history.replaceState(null, "", shareUrl);
         }} catch (_) {{}}
+        trackEvent("share_copy", {{ slot_id: "share_link" }});
         copyTextWithFeedback(shareUrl, e.currentTarget, state.lang === "en" ? "Shareable Link Copied" : "已复制可复算链接");
       }});
 
@@ -3869,7 +4150,7 @@ def render_html_template(
           window.history.replaceState(null, "", shareUrl);
         }} catch (_) {{}}
         const summaryText = buildVerdictSummaryText();
-        trackEvent("share_summary", {{ slot_id: "verdict_brief" }});
+        trackEvent("share_copy", {{ slot_id: "verdict_brief" }});
         copyTextWithFeedback(summaryText, e.currentTarget, state.lang === "en" ? "Verdict Brief Copied" : "已复制对账结论单");
       }});
 

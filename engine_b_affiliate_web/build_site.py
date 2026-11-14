@@ -43,7 +43,7 @@ for _p in (ENGINE_DIR, ENGINE_A_DIR):
 import pricing_core  # noqa: E402
 from ui_template import render_html_template  # noqa: E402
 
-DEFAULT_FX_USD_TO_RMB = 7.25
+DEFAULT_FX_USD_TO_RMB = pricing_core.DEFAULT_FX_USD_TO_RMB
 DEFAULT_SITE_URL = "https://ai-cost-radar-nlu.pages.dev/"
 
 DEFAULT_AFFILIATES: dict[str, str] = {
@@ -286,22 +286,32 @@ FAQ_ENTRIES: list[dict[str, str]] = [
     {
         "q": "为什么每天 5,000 次模型调用时，¥200/月的 Coding Plan Pro 仍然不够用？",
         "a": "根据阿里云百炼与腾讯云官方公布的套餐规则，Pro 档上限均为每 5 小时 6,000 次、每周 45,000 次、每月 90,000 次模型调用（腾讯云 Lite 为 1,200 / 9,000 / 18,000 次，百炼 Lite 已停新购）。按每月 30 天折算，每天 5,000 次模型调用等于每月 15 万次，直接超出 Pro 月上限 6 万次。尤其需要注意：官方统计单位是「模型 API 调用次数」而非「用户提问次数」，在 Claude Code、Cline 或 Cursor 中发出一句指令往往连续触发 5～30 次模型调用。",
+        "q_en": "Why is a ¥200/mo Coding Plan Pro still not enough at 5,000 model calls/day?",
+        "a_en": "Per official Aliyun Bailian and Tencent Cloud rules, Pro tiers cap usage at 6,000 calls per 5 hours, 45,000 calls per week, and 90,000 calls per month (Tencent Lite is 1,200 / 9,000 / 18,000; Aliyun Lite is closed to new buyers). On a 30-day basis, 5,000 model calls/day equals 150,000 calls/month — exceeding the 90,000 Pro monthly cap by 60,000 calls. Note that quotas count underlying model API calls rather than user prompts: one agent prompt in Claude Code, Cline, or Cursor typically triggers 5–30 model calls.",
     },
     {
         "q": "Prompt 缓存命中率与隐式思考（Reasoning）Token 是如何影响真实月账单的？",
         "a": "开启缓存并不意味着 100% 输入都按折扣价结算。真实输入费用 = 未命中比例 × 普通输入价 + 命中比例 × 缓存命中价（例如输入 100 万 Token、普通价 ¥1.0、命中价 ¥0.2、命中率 50% 时，输入成本为 ¥0.60）。此外，深度推理模型（如 DeepSeek-R1、Qwen3.5-Plus、Hunyuan-T1）产生的隐式思维链 Token 按输出单价计费；若您的统计值尚未包含思考部分，可开启 1.5x～3.5x 可调倍率估算，若日志已包含思考 Token 则勾选「已含推理 Token」避免重复放大。",
+        "q_en": "How do prompt-cache hit rates and hidden reasoning tokens affect my real monthly bill?",
+        "a_en": "Enabling prompt caching does not discount 100% of input tokens. Effective input cost = uncached share × regular input rate + hit share × cached input rate (for example, 1M input tokens at ¥1.0 regular, ¥0.2 cached, and 50% hit rate costs ¥0.60, not ¥0.20). Likewise, reasoning models (DeepSeek-R1, Qwen3.5-Plus, Hunyuan-T1) bill hidden chain-of-thought tokens at the output rate; apply a 1.5x–3.5x multiplier if your average output count only measures visible text, or check 'already include reasoning' if your API logs already include reasoning_tokens.",
     },
     {
         "q": "买了百炼或腾讯云 Coding Plan 后，为什么复制错 Base URL 会继续产生按量扣费？",
         "a": "各大厂的个人 Coding Plan 均采用独立计费网关与专属密钥（如 sk-sp- 开头），不能填入通用按量端点。例如在 Claude Code 中使用腾讯云 Coding Plan 必须配置 ANTHROPIC_BASE_URL=https://api.lkeap.cloud.tencent.com/coding/anthropic（百炼为 https://coding.dashscope.aliyuncs.com/apps/anthropic），而在 OpenAI 兼容客户端中需配置对应 coding 专属路径。若误填通用按量兼容地址，请求会直接走账户余额按量计费。",
+        "q_en": "Why am I still billed pay-as-you-go after buying an Aliyun or Tencent Coding Plan?",
+        "a_en": "Personal Coding Plans run on isolated gateways with dedicated keys (such as sk-sp-) and must never be paired with generic pay-as-you-go Base URLs. For Claude Code, Tencent Coding Plan requires ANTHROPIC_BASE_URL=https://api.lkeap.cloud.tencent.com/coding/anthropic (Aliyun requires https://coding.dashscope.aliyuncs.com/apps/anthropic), while OpenAI-compatible IDEs require the dedicated /coding path. Pasting a standard /v1 pay-as-you-go endpoint bills your cash balance directly.",
     },
     {
         "q": "非交互式自动化后端、定时批处理或 SaaS 接口能买个人 Coding Plan 省钱吗？",
         "a": "不能。阿里云百炼、腾讯云与火山方舟官方文档均明确规定个人 Coding Plan 仅限交互式 AI 编程工具（Claude Code、Cursor、Cline、通义灵码、CodeBuddy、Trae 等）人工辅助开发使用，严禁用于自动化脚本、后端业务 API 或对外代调用。本计算器在您选择「非交互式自动化后端」场景时会自动排除上述个人套餐，并对比合规按量 API 与自建语义缓存网关方案。",
+        "q_en": "Can automated backends, cron pipelines, or SaaS APIs use personal Coding Plans?",
+        "a_en": "No. Official terms from Aliyun Bailian, Tencent Cloud, and Volcengine Ark strictly restrict personal Coding Plans to human-in-the-loop interactive coding IDEs (Claude Code, Cursor, Cline, Tongyi Lingma, CodeBuddy, Trae) and prohibit automated scripts, backend APIs, or proxy resale. Selecting 'Automated Backend / Batch API' in this calculator automatically excludes personal Coding Plans and compares compliant pay-as-you-go pools and semantic-cache cloud hosts.",
     },
     {
         "q": "什么时候适合买云服务器部署 LiteLLM / Dify 缓存网关或租用弹性 GPU 自建？",
         "a": "自建并非零成本：缓存网关月总成本 = 云主机月租（约 ¥68）+ 未命中缓存的剩余 API 账单 + 存储与流量开销（约 ¥15）；弹性 GPU 自建总成本 = 实例小时单价 × 月开机小时数 + 存储流量。只有当自建总成本稳定低于当前按量付费 API 月账单时，页面才会建议购买云主机或弹性 GPU；若当前按量账单更低，直接继续按量付费即可。",
+        "q_en": "When does hosting a LiteLLM / Dify cache gateway or renting an elastic GPU actually save money?",
+        "a_en": "Self-hosting is never zero-cost: Cache Gateway Monthly Total = cloud server rent (~¥68) + uncached API spend + storage/egress (~¥15); Elastic GPU Monthly Total = hourly GPU rate × monthly active hours + storage/egress. This tool only recommends a cloud server or GPU when total self-hosted cost is meaningfully lower than your current pay-as-you-go API bill; otherwise staying on pay-as-you-go is cheaper.",
     },
 ]
 
@@ -696,6 +706,18 @@ def load_quote_metadata(live_path: Path, force_fallback: bool = False) -> tuple[
     return verified_date, last_live
 
 
+def load_price_changes(live_path: Path, force_fallback: bool = False) -> list[dict[str, Any]]:
+    if force_fallback or not live_path.exists():
+        return []
+    try:
+        payload = json.loads(live_path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict) and isinstance(payload.get("price_changes"), list):
+            return [dict(item) for item in payload["price_changes"] if isinstance(item, dict)]
+    except Exception:
+        pass
+    return []
+
+
 def load_coding_plans(
     live_path: Path,
     affiliates: dict[str, str],
@@ -852,81 +874,87 @@ def build_ssr_coding_plan_tables_html(
     h5k = html.escape(eval_5k["headline_zh"])
     w800 = html.escape(eval_800["window_note_zh"])
 
+    cp_sum_zh = f"展开官方规则与固定验算案例静态核对表（报价核验日：{qver} · 关闭 JS 亦可直接阅读）"
+    cp_sum_en = f"Expand Static Official Rules & Worked Examples Reference Ledger (Quotes Verified: {qver} · No-JS Ready)"
+
     return f"""
-      <div class="ssr-ledger-wrap" id="ssrCodingPlanLedger">
-        <div class="table-scroll">
-          <table class="ssr-table" id="ssrOfficialPlansTable">
-            <caption>2026 国内大厂个人 Coding Plan 订阅官方价格、额度窗口与专属端点核验表（报价核验日：{qver}；额度单位均为「模型 API 调用次数」，单次用户提问常触发 5～30 次模型调用）</caption>
-            <thead>
-              <tr>
-                <th scope="col">厂商与套餐档位</th>
-                <th scope="col">可购状态</th>
-                <th scope="col">首月价 / 续费原价</th>
-                <th scope="col">额度上限（5小时 / 周 / 月）</th>
-                <th scope="col">专属协议端点（勿混用通用按量端点）</th>
-                <th scope="col">官方规则依据</th>
-              </tr>
-            </thead>
-            <tbody>
-              {''.join(plan_rows)}
-            </tbody>
-          </table>
-        </div>
+      <details class="ssr-directory-details" open id="ssrCodingPlanDetails">
+        <summary data-zh="{cp_sum_zh}" data-en="{html.escape(cp_sum_en)}">{cp_sum_zh}</summary>
+        <div class="ssr-ledger-wrap" id="ssrCodingPlanLedger" style="margin-top:12px;">
+          <div class="table-scroll">
+            <table class="ssr-table" id="ssrOfficialPlansTable">
+              <caption>2026 国内大厂个人 Coding Plan 订阅官方价格、额度窗口与专属端点核验表（报价核验日：{qver}；额度单位均为「模型 API 调用次数」，单次用户提问常触发 5～30 次模型调用）</caption>
+              <thead>
+                <tr>
+                  <th scope="col">厂商与套餐档位</th>
+                  <th scope="col">可购状态</th>
+                  <th scope="col">首月价 / 续费原价</th>
+                  <th scope="col">额度上限（5小时 / 周 / 月）</th>
+                  <th scope="col">专属协议端点（勿混用通用按量端点）</th>
+                  <th scope="col">官方规则依据</th>
+                </tr>
+              </thead>
+              <tbody>
+                {''.join(plan_rows)}
+              </tbody>
+            </table>
+          </div>
 
-        <div class="table-scroll" style="margin-top:14px;">
-          <table class="ssr-table" id="ssrWorkedExamplesTable">
-            <caption>典型开发场景可复算基准结论表（关闭 JavaScript 亦可直接核对）</caption>
-            <thead>
-              <tr>
-                <th scope="col">验算场景与输入条件</th>
-                <th scope="col">30 天折算用量与同模型按量账单</th>
-                <th scope="col">核验结论（首月 / 续费 / 超额边界）</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><strong>案例 A：高频 Agent 编程（每天 5,000 次模型调用）</strong><br><span class="table-sub">交互式 IDE · 输入 4K / 输出 1K · 50% 缓存命中</span></td>
-                <td class="num-cell">150,000 次/月</td>
-                <td><strong>{h5k}</strong></td>
-              </tr>
-              <tr>
-                <td><strong>案例 B：常规独立开发（每天 800 次模型调用）</strong><br><span class="table-sub">对比 Qwen3-Coder-Next 同模型按量（输入 ¥{qc_in:g}/M，输出 ¥{qc_out:g}/M，50% 缓存命中）</span></td>
-                <td class="num-cell">24,000 次/月 · 同模型按量约 ¥{bill_800['total_cost']:.2f}/月</td>
-                <td>超出腾讯/火山 Lite 月上限（18,000 次），匹配 Pro 档（90,000 次/月）：百炼 Pro 首月 ¥39.90 可省 ¥{max(0.0, bill_800['total_cost'] - 39.90):.2f}，但次月恢复 ¥200/月续费后比按量贵 ¥{abs(bill_800['total_cost'] - 200.0):.2f}；{w800}</td>
-              </tr>
-              <tr>
-                <td><strong>案例 C：非交互式自动化后端 / 批处理 API（每天 1,000 次）</strong><br><span class="table-sub">生产业务接口 / 定时流水线 / 对外服务</span></td>
-                <td class="num-cell">30,000 次/月</td>
-                <td><strong>自动排除百炼、腾讯云与火山方舟个人 Coding Plan</strong>（官方条款明确仅限交互式编程工具，严禁用于自动化后端服务），应选按量付费池或云服务器自建缓存网关。</td>
-              </tr>
-              <tr>
-                <td><strong>案例 D：Prompt 缓存命中率拆分验算</strong><br><span class="table-sub">输入 100 万 Token · 普通输入单价 ¥1.0/M · 命中单价 ¥0.2/M · 命中率 50%</span></td>
-                <td class="num-cell">输入实付 ¥{bill_cache_demo['input_cost']:.2f}</td>
-                <td>未命中 50% 按 ¥1.0 计（¥0.50）＋ 命中 50% 按 ¥0.2 计（¥0.10）＝ <strong>¥{bill_cache_demo['total_cost']:.2f}</strong>，避免将全部输入误按 2 折计算。</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+          <div class="table-scroll" style="margin-top:14px;">
+            <table class="ssr-table" id="ssrWorkedExamplesTable">
+              <caption>典型开发场景可复算基准结论表（关闭 JavaScript 亦可直接核对）</caption>
+              <thead>
+                <tr>
+                  <th scope="col">验算场景与输入条件</th>
+                  <th scope="col">30 天折算用量与同模型按量账单</th>
+                  <th scope="col">核验结论（首月 / 续费 / 超额边界）</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>案例 A：高频 Agent 编程（每天 5,000 次模型调用）</strong><br><span class="table-sub">交互式 IDE · 输入 4K / 输出 1K · 50% 缓存命中</span></td>
+                  <td class="num-cell">150,000 次/月</td>
+                  <td><strong>{h5k}</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>案例 B：常规独立开发（每天 800 次模型调用）</strong><br><span class="table-sub">对比 Qwen3-Coder-Next 同模型按量（输入 ¥{qc_in:g}/M，输出 ¥{qc_out:g}/M，50% 缓存命中）</span></td>
+                  <td class="num-cell">24,000 次/月 · 同模型按量约 ¥{bill_800['total_cost']:.2f}/月</td>
+                  <td>超出腾讯/火山 Lite 月上限（18,000 次），匹配 Pro 档（90,000 次/月）：百炼 Pro 首月 ¥39.90 可省 ¥{max(0.0, bill_800['total_cost'] - 39.90):.2f}，但次月恢复 ¥200/月续费后比按量贵 ¥{abs(bill_800['total_cost'] - 200.0):.2f}；{w800}</td>
+                </tr>
+                <tr>
+                  <td><strong>案例 C：非交互式自动化后端 / 批处理 API（每天 1,000 次）</strong><br><span class="table-sub">生产业务接口 / 定时流水线 / 对外服务</span></td>
+                  <td class="num-cell">30,000 次/月</td>
+                  <td><strong>自动排除百炼、腾讯云与火山方舟个人 Coding Plan</strong>（官方条款明确仅限交互式编程工具，严禁用于自动化后端服务），应选按量付费池或云服务器自建缓存网关。</td>
+                </tr>
+                <tr>
+                  <td><strong>案例 D：Prompt 缓存命中率拆分验算</strong><br><span class="table-sub">输入 100 万 Token · 普通输入单价 ¥1.0/M · 命中单价 ¥0.2/M · 命中率 50%</span></td>
+                  <td class="num-cell">输入实付 ¥{bill_cache_demo['input_cost']:.2f}</td>
+                  <td>未命中 50% 按 ¥1.0 计（¥0.50）＋ 命中 50% 按 ¥0.2 计（¥0.10）＝ <strong>¥{bill_cache_demo['total_cost']:.2f}</strong>，避免将全部输入误按 2 折计算。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-        <div class="table-scroll" style="margin-top:14px;">
-          <table class="ssr-table" id="ssrNonSubOffersTable">
-            <caption>非包月替代方案对比表（云主机缓存网关 / 按量付费池 / 海外多模型路由 — 严禁与个人包月混同）</caption>
-            <thead>
-              <tr>
-                <th scope="col">方案名称</th>
-                <th scope="col">计费类别</th>
-                <th scope="col">费用结构</th>
-                <th scope="col">适用场景</th>
-                <th scope="col">推广与结算说明</th>
-                <th scope="col">入口</th>
-              </tr>
-            </thead>
-            <tbody>
-              {''.join(non_sub_rows)}
-            </tbody>
-          </table>
+          <div class="table-scroll" style="margin-top:14px;">
+            <table class="ssr-table" id="ssrNonSubOffersTable">
+              <caption>非包月替代方案对比表（云主机缓存网关 / 按量付费池 / 海外多模型路由 — 严禁与个人包月混同）</caption>
+              <thead>
+                <tr>
+                  <th scope="col">方案名称</th>
+                  <th scope="col">计费类别</th>
+                  <th scope="col">费用结构</th>
+                  <th scope="col">适用场景</th>
+                  <th scope="col">推广与结算说明</th>
+                  <th scope="col">入口</th>
+                </tr>
+              </thead>
+              <tbody>
+                {''.join(non_sub_rows)}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </details>
     """
 
 
@@ -966,9 +994,11 @@ def build_ssr_models_table_html(
 
     open_attr = " open" if open_by_default else ""
     qver = html.escape(quote_verified_date)
+    dir_sum_zh = f"查阅全量 {len(sorted_models)} 款海内外模型静态核验价格表（报价核验日：{qver} · 支持页内 #model 锚点直链与无 JS 阅读）"
+    dir_sum_en = f"Expand All {len(sorted_models)} Global & CN Models Static Price Ledger (Quotes Verified: {qver} · #model Anchor & No-JS Ready)"
     return f"""
       <details class="ssr-directory-details"{open_attr} id="ssrModelsDirectory">
-        <summary>查阅全量 {len(sorted_models)} 款海内外模型静态核验价格表（报价核验日：{qver} · 支持页内 #model 锚点直链与无 JS 阅读）</summary>
+        <summary data-zh="{dir_sum_zh}" data-en="{html.escape(dir_sum_en)}">{dir_sum_zh}</summary>
         <div class="table-scroll" style="margin-top:12px;">
           <table class="ssr-table" id="ssrAllModelsTable">
             <caption>全量 {len(sorted_models)} 款大模型输入/输出百万 Token 价格与缓存系数核验目录（核验日：{qver}）</caption>
@@ -1008,34 +1038,65 @@ def build_status_badge_svg(quote_verified_date: str, total_models: int) -> str:
 """
 
 
-def build_atom_feed_xml(site_url: str, build_date: str, quote_verified_date: str, total_models: int) -> str:
+def build_atom_feed_xml(
+    site_url: str,
+    build_date: str,
+    quote_verified_date: str,
+    total_models: int,
+    price_changes: list[dict[str, Any]] | None = None,
+) -> str:
     base = site_url.rstrip("/") + "/"
     feed_url = base + "feeds/price-changes.xml"
     cp_url = base + "coding-plan-2026/"
     ds_url = base + "deepseek-vs-qwen/"
-    updated_iso = f"{quote_verified_date}T00:00:00Z"
+    changes = price_changes or []
+    feed_updated_iso = (
+        str(changes[0].get("detected_at"))
+        if changes and changes[0].get("detected_at")
+        else f"{quote_verified_date}T00:00:00Z"
+    )
+    verified_iso = f"{quote_verified_date}T00:00:00Z"
+
+    dynamic_entries_xml = ""
+    for idx, chg in enumerate(changes[:12]):
+        cid = str(chg.get("id") or f"change-{idx}")
+        cname = str(chg.get("name") or cid)
+        det_iso = str(chg.get("detected_at") or verified_iso)
+        summary_zh = str(chg.get("summary_zh") or "")
+        is_plan = chg.get("entity_type") == "coding_plan"
+        target_href = cp_url if is_plan else f"{base}#{_model_anchor_id(cid)}"
+        entry_id = f"{feed_url}#delta-{idx}-{re.sub(r'[^a-zA-Z0-9._-]+', '-', cid)}-{det_iso[:10]}"
+        dynamic_entries_xml += f"""  <entry>
+    <title>[价格异动 {html.escape(det_iso[:10])}] {html.escape(cname)} ({html.escape(cid)})</title>
+    <id>{html.escape(entry_id)}</id>
+    <link href="{html.escape(target_href)}"/>
+    <updated>{html.escape(det_iso)}</updated>
+    <summary>{html.escape(summary_zh)}</summary>
+  </entry>
+"""
+
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
   <title>智算省钱路由台 (AI Cost Radar) — 模型与 Coding Plan 价格核验更新订阅</title>
   <id>{html.escape(feed_url)}</id>
   <link href="{html.escape(feed_url)}" rel="self" type="application/atom+xml"/>
   <link href="{html.escape(base)}" rel="alternate" type="text/html"/>
-  <updated>{html.escape(updated_iso)}</updated>
+  <updated>{html.escape(feed_updated_iso)}</updated>
   <author>
     <name>AI Cost Radar</name>
   </author>
-  <entry>
+{dynamic_entries_xml}  <entry>
     <title>[报价核验 {html.escape(quote_verified_date)}] 修正国内三大厂 Coding Plan 月上限 (90,000次/月) 与首购/续费价格口径</title>
     <id>{html.escape(cp_url)}#verified-{html.escape(quote_verified_date)}</id>
     <link href="{html.escape(cp_url)}"/>
-    <updated>{html.escape(updated_iso)}</updated>
+    <updated>{html.escape(verified_iso)}</updated>
     <summary>核验阿里云百炼（Lite 停新购，Pro 首月 ¥39.90 / 续费 ¥200，上限 6,000/5h · 45,000/周 · 90,000/月）、腾讯云（Lite ¥40 限 18,000/月，Pro ¥200 限 90,000/月）与火山方舟官方规则，同步 {total_models} 款海内外模型报价（构建日 {html.escape(build_date)}）。</summary>
   </entry>
   <entry>
     <title>[计费模型升级 {html.escape(quote_verified_date)}] Prompt 缓存拆分为「命中率 × 命中单价」并新增思考倍率防重算保护</title>
     <id>{html.escape(ds_url)}#math-{html.escape(quote_verified_date)}</id>
     <link href="{html.escape(ds_url)}"/>
-    <updated>{html.escape(updated_iso)}</updated>
+    <updated>{html.escape(verified_iso)}</updated>
     <summary>修正全量输入默认按命中价打折的偏差：支持 0%~85% 缓存命中率调节，并区分 Claude Code Anthropic 专属端点与通用按量端点。</summary>
   </entry>
 </feed>
@@ -1100,10 +1161,12 @@ def build_faq_html() -> str:
         open_attr = " open" if idx == 0 else ""
         q_esc = html.escape(item["q"])
         a_esc = html.escape(item["a"])
+        q_en_esc = html.escape(item.get("q_en", item["q"]))
+        a_en_esc = html.escape(item.get("a_en", item["a"]))
         blocks.append(
             f'<details class="faq-item"{open_attr}>'
-            f"<summary>{q_esc}</summary>"
-            f'<div class="faq-answer">{a_esc}</div>'
+            f'<summary data-zh="{q_esc}" data-en="{q_en_esc}">{q_esc}</summary>'
+            f'<div class="faq-answer" data-zh="{a_esc}" data-en="{a_en_esc}">{a_esc}</div>'
             f"</details>"
         )
     return "\n        ".join(blocks)
@@ -1178,16 +1241,20 @@ def build_site(
     force_fallback: bool = False,
     site_url: str | None = None,
     dist_dir: Path | None = None,
+    output_dir: Path | None = None,
+    models_path: Path | None = None,
 ) -> dict[str, Any]:
+    live_models_file = Path(models_path) if models_path is not None else LIVE_MODELS_PATH
     affiliates = load_affiliates(CONFIG_PATH)
     models, fx_rate, updated_date, source_label = load_models_dataset(
-        LIVE_MODELS_PATH,
+        live_models_file,
         affiliates,
         force_fallback=force_fallback,
     )
-    quote_verified_date, last_live_verified_at = load_quote_metadata(LIVE_MODELS_PATH, force_fallback=force_fallback)
+    quote_verified_date, last_live_verified_at = load_quote_metadata(live_models_file, force_fallback=force_fallback)
+    price_changes = load_price_changes(live_models_file, force_fallback=force_fallback)
     build_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    coding_plans = load_coding_plans(LIVE_MODELS_PATH, affiliates, fx_rate, force_fallback=force_fallback)
+    coding_plans = load_coding_plans(live_models_file, affiliates, fx_rate, force_fallback=force_fallback)
 
     resolved_site_url = (site_url or os.environ.get("SITE_BASE_URL") or DEFAULT_SITE_URL).strip()
     if not resolved_site_url.endswith("/"):
@@ -1203,7 +1270,8 @@ def build_site(
         models=models,
     )
 
-    target_dist = Path(dist_dir) if dist_dir is not None else DIST_DIR
+    resolved_out = output_dir if output_dir is not None else dist_dir
+    target_dist = Path(resolved_out) if resolved_out is not None else DIST_DIR
     target_dist.mkdir(parents=True, exist_ok=True)
     index_path = target_dist / "index.html"
 
@@ -1284,6 +1352,7 @@ def build_site(
         "last_live_verified_at": last_live_verified_at,
         "source": source_label,
         "fx_rate_usd_to_rmb": fx_rate,
+        "price_changes": price_changes,
         "coding_plans": coding_plans,
         "models": [{**model, "signup_url": model.get("affiliate_url", "")} for model in models],
     }
@@ -1304,7 +1373,13 @@ def build_site(
     feeds_dir.mkdir(parents=True, exist_ok=True)
     feed_path = feeds_dir / "price-changes.xml"
     feed_path.write_text(
-        build_atom_feed_xml(resolved_site_url, build_date, quote_verified_date, len(models)),
+        build_atom_feed_xml(
+            resolved_site_url,
+            build_date,
+            quote_verified_date,
+            len(models),
+            price_changes=price_changes,
+        ),
         encoding="utf-8",
     )
 

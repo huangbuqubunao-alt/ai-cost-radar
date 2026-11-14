@@ -290,52 +290,16 @@ def calculate_api_budget(
     catalog = load_models_catalog()
     models: list[dict[str, Any]] = catalog.get("models", [])
 
-    q = str(model_query or "deepseek-v3").strip().lower()
     reqs = max(0.0, float(daily_requests if daily_requests is not None else 1000))
     in_tok = max(0.0, float(avg_input_tokens if avg_input_tokens is not None else 1500))
     out_tok = max(0.0, float(avg_output_tokens if avg_output_tokens is not None else 500))
     hit_rate = min(1.0, max(0.0, float(cache_hit_rate or 0.0)))
     r_mult = max(1.0, float(reasoning_multiplier or 1.0))
     inc_cot = bool(output_includes_reasoning)
-    wants_free = "free" in q
 
-    best_match: dict[str, Any] | None = None
-    best_rank = -1.0
-    q_tokens = [tok for tok in q.replace("/", " ").replace("-", " ").split() if tok]
-
-    for m in models:
-        mid = m["id"].lower()
-        mname = m["name"].lower()
-        hay = f"{mid} {mname} {m['provider'].lower()}"
-
-        score = 0.0
-        if mid == q:
-            score = 1000.0
-        elif mid.endswith("/" + q):
-            score = 900.0
-        elif q in mid:
-            score = 700.0
-        elif q in mname:
-            score = 600.0
-        elif q_tokens and all(tok in hay for tok in q_tokens):
-            score = 500.0
-        elif q_tokens:
-            overlap = sum(1 for tok in q_tokens if tok in hay)
-            if overlap > 0:
-                score = overlap * 120.0
-
-        if score > 0:
-            if not wants_free and m.get("is_free"):
-                score -= 50.0
-            score += m.get("value_score", 0.0) * 0.1
-            if score > best_rank:
-                best_rank = score
-                best_match = m
-
-    match_note = None
+    best_match, match_note = pricing_core.resolve_model_query(models, model_query)
     if best_match is None:
-        best_match = models[0]
-        match_note = f"No direct match for '{model_query}'; defaulted to top-value model '{best_match['id']}'."
+        raise ValueError("Model catalog is empty")
 
     daily_in_m = (reqs * in_tok) / 1_000_000.0
     daily_out_m = (reqs * out_tok) / 1_000_000.0
@@ -458,6 +422,7 @@ def calculate_api_budget(
             "reasoning_multiplier": effective_r_mult,
             "output_includes_reasoning": inc_cot,
             "usage_mode": coding_eval["usage_mode"],
+            "peak_5h_calls": int(peak_5h_calls) if peak_5h_calls is not None else None,
         },
         "quote_verified_date": catalog.get("quote_verified_date", pricing_core.QUOTE_VERIFIED_DATE),
         "last_live_verified_at": catalog.get("last_live_verified_at") or catalog.get("updated_at"),
@@ -993,11 +958,19 @@ class ModelRouterHTTPHandler(BaseHTTPRequestHandler):
         if path == "/api/budget":
             if not self._check_x402_gate(path):
                 return
+            inc_raw = str(qs.get("output_includes_reasoning", "false")).strip().lower()
+            inc_reasoning = inc_raw in ("1", "true", "yes")
+            peak_val = int(float(qs["peak_5h_calls"])) if "peak_5h_calls" in qs and qs["peak_5h_calls"] != "" else None
             res = calculate_api_budget(
-                model_query=qs.get("model_query", "deepseek-v3"),
+                model_query=qs.get("model_query") or qs.get("model_id") or "deepseek-v3",
                 daily_requests=int(float(qs.get("daily_requests", 1000))),
                 avg_input_tokens=int(float(qs.get("avg_input_tokens", 1500))),
                 avg_output_tokens=int(float(qs.get("avg_output_tokens", 500))),
+                cache_hit_rate=float(qs.get("cache_hit_rate", 0.0)),
+                reasoning_multiplier=float(qs.get("reasoning_multiplier", 1.0)),
+                output_includes_reasoning=inc_reasoning,
+                usage_mode=qs.get("usage_mode", "interactive_ide"),
+                peak_5h_calls=peak_val,
             )
             self._send_json(200, res)
             return

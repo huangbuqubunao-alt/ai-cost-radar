@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-14T17:49:20Z",
-  "last_live_verified_at": "2026-11-14T17:49:20Z",
+  "updated_at": "2026-11-14T19:47:16Z",
+  "last_live_verified_at": "2026-11-14T19:47:16Z",
   "quote_verified_date": "2026-11-13",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
@@ -9,6 +9,7 @@
     "cn_direct": 20,
     "global": 66
   },
+  "price_changes": [],
   "coding_plans": [
     {
       "id": "aliyun-coding-plan",

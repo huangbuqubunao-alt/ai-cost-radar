@@ -21,6 +21,8 @@ ALLOWED_EVENTS: frozenset[str] = frozenset(
         "result_view",
         "offer_impression",
         "affiliate_click",
+        "share_copy",
+        "share_summary",
         "share_open",
     }
 )
@@ -102,6 +104,7 @@ def summarize_daily_reconciliation(
 ) -> dict[str, Any]:
     uv_all: set[str] = set()
     uv_calc_done: set[str] = set()
+    uv_shares_copied: set[str] = set()
     uv_share_open: set[str] = set()
     offer_viewers: dict[str, set[str]] = {}
     offer_clickers: dict[str, set[str]] = {}
@@ -125,6 +128,8 @@ def summarize_daily_reconciliation(
 
         if ev == "result_view":
             uv_calc_done.add(bid)
+        elif ev in ("share_copy", "share_summary"):
+            uv_shares_copied.add(bid)
         elif ev == "share_open":
             uv_share_open.add(bid)
         elif ev == "offer_impression" and oid:
@@ -159,6 +164,7 @@ def summarize_daily_reconciliation(
         "metric_label_zh": "估算日 UV（按日轮换随机浏览器标识，跨设备/清理存储/拦截存在偏差）",
         "estimated_daily_uv": len(uv_all),
         "calculations_completed_uv": calc_uv_count,
+        "shares_copied_uv": len(uv_shares_copied),
         "share_opens_uv": len(uv_share_open),
         "routes_uv": {k: len(v) for k, v in sorted(route_uv.items())},
         "sources_uv": {k: len(v) for k, v in sorted(source_uv.items())},

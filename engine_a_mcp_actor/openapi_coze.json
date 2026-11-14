@@ -126,6 +126,31 @@
                     "type": "integer",
                     "description": "每次请求平均输出 Completion Token 数",
                     "default": 500
+                  },
+                  "cache_hit_rate": {
+                    "type": "number",
+                    "description": "Prompt 缓存命中率（0.0 到 1.0，默认 0.0；例如 0.5 表示 50% 输入命中缓存折扣价）",
+                    "default": 0.0
+                  },
+                  "reasoning_multiplier": {
+                    "type": "number",
+                    "description": "深度思考模型输出倍率（默认 1.0；未包含隐式思维链时可设为 2.5）",
+                    "default": 1.0
+                  },
+                  "output_includes_reasoning": {
+                    "type": "boolean",
+                    "description": "若 avg_output_tokens 已包含思考 Token 则设为 true，避免重复乘倍率",
+                    "default": false
+                  },
+                  "usage_mode": {
+                    "type": "string",
+                    "description": "使用场景：interactive_ide（交互式编程工具）或 automated_backend（自动化后端自动排除个人编程套餐）",
+                    "enum": ["interactive_ide", "automated_backend"],
+                    "default": "interactive_ide"
+                  },
+                  "peak_5h_calls": {
+                    "type": "integer",
+                    "description": "可选：最繁忙连续 5 小时峰值请求次数，用于核验 Pro 6,000 次 / Lite 1,200 次滚动窗口"
                   }
                 }
               }

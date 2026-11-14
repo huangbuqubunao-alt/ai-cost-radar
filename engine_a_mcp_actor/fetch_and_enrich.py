@@ -939,27 +939,126 @@ def build_coding_plans(affiliate_map: dict[str, str]) -> list[dict[str, Any]]:
     return plans
 
 
+def compute_price_changes(
+    prev_models: list[dict[str, Any]],
+    new_models: list[dict[str, Any]],
+    prev_plans: list[dict[str, Any]],
+    new_plans: list[dict[str, Any]],
+    detected_at: str,
+    prior_changes: list[dict[str, Any]] | None = None,
+    max_entries: int = 15,
+) -> list[dict[str, Any]]:
+    """
+    Compare previous `models_live.json` snapshot against refreshed models & Coding Plan tiers.
+    Records structured price deltas and carries forward recent history up to `max_entries`.
+    """
+    deltas: list[dict[str, Any]] = []
+    prev_by_id = {str(m.get("id")): m for m in prev_models if isinstance(m, dict) and m.get("id")}
+
+    if prev_by_id:
+        for m in new_models:
+            mid = str(m.get("id") or "")
+            if not mid:
+                continue
+            old = prev_by_id.get(mid)
+            if old is None:
+                continue
+            is_cn = m.get("region") == "cn_direct"
+            if is_cn:
+                old_in = round(float(old.get("input_rmb_per_1m") or 0.0), 4)
+                new_in = round(float(m.get("input_rmb_per_1m") or 0.0), 4)
+                old_out = round(float(old.get("output_rmb_per_1m") or 0.0), 4)
+                new_out = round(float(m.get("output_rmb_per_1m") or 0.0), 4)
+                unit = "¥"
+            else:
+                old_in = round(float(old.get("input_usd_per_1m") or 0.0), 4)
+                new_in = round(float(m.get("input_usd_per_1m") or 0.0), 4)
+                old_out = round(float(old.get("output_usd_per_1m") or 0.0), 4)
+                new_out = round(float(m.get("output_usd_per_1m") or 0.0), 4)
+                unit = "$"
+
+            if abs(old_in - new_in) >= 0.0005 or abs(old_out - new_out) >= 0.0005:
+                deltas.append(
+                    {
+                        "detected_at": detected_at,
+                        "entity_type": "model",
+                        "id": mid,
+                        "name": str(m.get("name") or mid),
+                        "change_type": "price_update",
+                        "summary_zh": (
+                            f"输入单价 {unit}{old_in:g} -> {unit}{new_in:g} / 1M，"
+                            f"输出单价 {unit}{old_out:g} -> {unit}{new_out:g} / 1M"
+                        ),
+                    }
+                )
+
+    prev_plan_by_id = {str(p.get("id")): p for p in prev_plans if isinstance(p, dict) and p.get("id")}
+    if prev_plan_by_id:
+        for p in new_plans:
+            pid = str(p.get("id") or "")
+            old_p = prev_plan_by_id.get(pid)
+            if not pid or old_p is None:
+                continue
+            old_m = round(float(old_p.get("monthly_rmb") or 0.0), 2)
+            new_m = round(float(p.get("monthly_rmb") or 0.0), 2)
+            old_pro = round(float(old_p.get("pro_monthly_rmb") or 0.0), 2)
+            new_pro = round(float(p.get("pro_monthly_rmb") or 0.0), 2)
+            if abs(old_m - new_m) >= 0.01 or abs(old_pro - new_pro) >= 0.01:
+                deltas.append(
+                    {
+                        "detected_at": detected_at,
+                        "entity_type": "coding_plan",
+                        "id": pid,
+                        "name": str(p.get("name") or pid),
+                        "change_type": "plan_price_update",
+                        "summary_zh": f"套餐报价调整：入门/首月 ¥{old_m:g} -> ¥{new_m:g}，Pro ¥{old_pro:g} -> ¥{new_pro:g}",
+                    }
+                )
+
+    combined: list[dict[str, Any]] = list(deltas)
+    seen_keys = {(c.get("id"), c.get("summary_zh")) for c in combined}
+    for item in prior_changes or []:
+        if not isinstance(item, dict):
+            continue
+        key = (item.get("id"), item.get("summary_zh"))
+        if key not in seen_keys:
+            seen_keys.add(key)
+            combined.append(item)
+        if len(combined) >= max_entries:
+            break
+    return combined[:max_entries]
+
+
 def refresh_models_live(output_path: Path = OUTPUT_PATH) -> dict[str, Any]:
     """Fetch, enrich, merge global + Mainland China models + Offers Catalog, and save models_live.json."""
     config = load_config()
     affiliate_map = resolve_affiliate_map(config)
 
     prev_live_verified_at: str | None = None
+    prev_all_models: list[dict[str, Any]] = []
     prev_global_models: list[dict[str, Any]] = []
+    prev_plans: list[dict[str, Any]] = []
+    prior_changes: list[dict[str, Any]] = []
     if output_path.exists():
         try:
             prev_obj = json.loads(output_path.read_text(encoding="utf-8"))
             prev_live_verified_at = prev_obj.get("last_live_verified_at") or prev_obj.get("updated_at")
+            prev_all_models = [dict(m) for m in (prev_obj.get("models") or []) if isinstance(m, dict)]
+            prev_plans = [dict(p) for p in (prev_obj.get("coding_plans") or []) if isinstance(p, dict)]
+            prior_changes = [dict(c) for c in (prev_obj.get("price_changes") or []) if isinstance(c, dict)]
             prev_source = str(prev_obj.get("source") or "")
             if "openrouter_live" in prev_source or "openrouter_cached" in prev_source:
                 prev_global_models = [
                     dict(m)
-                    for m in (prev_obj.get("models") or [])
-                    if isinstance(m, dict) and m.get("region") == "global"
+                    for m in prev_all_models
+                    if m.get("region") == "global"
                 ]
         except (OSError, json.JSONDecodeError):
             prev_live_verified_at = None
+            prev_all_models = []
             prev_global_models = []
+            prev_plans = []
+            prior_changes = []
 
     now_iso = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     raw_openrouter, source_label = fetch_openrouter_raw()
@@ -987,6 +1086,14 @@ def refresh_models_live(output_path: Path = OUTPUT_PATH) -> dict[str, Any]:
 
     merged = cn_models + global_models
     merged.sort(key=lambda m: (-m["value_score"], m["blended_usd_per_1m"]))
+    price_changes = compute_price_changes(
+        prev_models=prev_all_models,
+        new_models=merged,
+        prev_plans=prev_plans,
+        new_plans=coding_plans,
+        detected_at=now_iso,
+        prior_changes=prior_changes,
+    )
 
     payload = {
         "updated_at": now_iso,
@@ -999,6 +1106,7 @@ def refresh_models_live(output_path: Path = OUTPUT_PATH) -> dict[str, Any]:
             "cn_direct": len(cn_models),
             "global": len(global_models),
         },
+        "price_changes": price_changes,
         "coding_plans": coding_plans,
         "models": merged,
     }

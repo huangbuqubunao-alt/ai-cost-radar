@@ -80,7 +80,7 @@
   ```bash
   export ANTHROPIC_BASE_URL="https://api.lkeap.cloud.tencent.com/coding/anthropic"
   export ANTHROPIC_AUTH_TOKEN="sk-sp-你的腾讯套餐专属Key"
-  export ANTHROPIC_MODEL="hunyuan-t1"
+  export ANTHROPIC_MODEL="tc-code-latest"
   ```
 - **Cursor / Cline / CodeBuddy（OpenAI 兼容协议）**：
   - Base URL：`https://api.lkeap.cloud.tencent.com/coding/v3`（注意不是按量的 `api.lkeap.cloud.tencent.com/v1`）
