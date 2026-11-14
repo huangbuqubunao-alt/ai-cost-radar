@@ -1,0 +1,7 @@
+{
+  "routing-query": {
+    "eventTitle": "AI Model Price Routing / Budget Query",
+    "eventDescription": "Charged once ($0.005 USD) per AI model cost routing recommendation, API budget calculation, or free/ultra-cheap model catalog query.",
+    "eventPriceUsd": 0.005
+  }
+}

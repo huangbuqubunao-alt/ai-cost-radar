@@ -1,0 +1,84 @@
+{
+  "title": "AI LLM Price Router & Budget Calculator Input",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "action": {
+      "title": "Tool Action",
+      "type": "string",
+      "description": "Select which routing or budget tool to run.",
+      "editor": "select",
+      "enum": [
+        "recommend_cheapest_model",
+        "calculate_api_budget",
+        "list_free_and_ultra_cheap_models"
+      ],
+      "default": "recommend_cheapest_model"
+    },
+    "task_type": {
+      "title": "Task Type (for recommend_cheapest_model)",
+      "type": "string",
+      "description": "Workload profile: coding, reasoning, general, multimodal, cheap, or free.",
+      "editor": "textfield",
+      "default": "coding"
+    },
+    "min_context": {
+      "title": "Minimum Context Window",
+      "type": "integer",
+      "description": "Minimum required context length in tokens.",
+      "default": 32000
+    },
+    "region_preference": {
+      "title": "Region / Channel Preference",
+      "type": "string",
+      "description": "Filter by 'cn_direct' (Mainland China RMB), 'global' (OpenRouter USD), or 'any'.",
+      "editor": "select",
+      "enum": ["any", "global", "cn_direct"],
+      "default": "any"
+    },
+    "monthly_input_m": {
+      "title": "Monthly Input Tokens (Millions)",
+      "type": "number",
+      "description": "Estimated monthly input tokens in millions.",
+      "default": 10
+    },
+    "monthly_output_m": {
+      "title": "Monthly Output Tokens (Millions)",
+      "type": "number",
+      "description": "Estimated monthly output tokens in millions.",
+      "default": 2
+    },
+    "model_query": {
+      "title": "Model Query (for calculate_api_budget)",
+      "type": "string",
+      "description": "Model ID or keyword (e.g. 'claude-sonnet-4', 'deepseek-v3', 'qwen3', 'gpt-5').",
+      "editor": "textfield",
+      "default": "deepseek-v3"
+    },
+    "daily_requests": {
+      "title": "Daily Requests (for calculate_api_budget)",
+      "type": "integer",
+      "description": "Average daily API request volume.",
+      "default": 1000
+    },
+    "avg_input_tokens": {
+      "title": "Avg Input Tokens per Request",
+      "type": "integer",
+      "description": "Average input prompt tokens per request.",
+      "default": 1500
+    },
+    "avg_output_tokens": {
+      "title": "Avg Output Tokens per Request",
+      "type": "integer",
+      "description": "Average completion tokens per request.",
+      "default": 500
+    },
+    "refresh_live": {
+      "title": "Refresh Live OpenRouter Data First",
+      "type": "boolean",
+      "description": "Fetch fresh pricing from OpenRouter before answering.",
+      "default": false
+    }
+  },
+  "required": ["action"]
+}

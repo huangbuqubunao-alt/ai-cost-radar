@@ -30,6 +30,11 @@ PROJECT_ROOT: Path = ENGINE_DIR.parent
 CONFIG_PATH: Path = PROJECT_ROOT / "config.json"
 OUTPUT_PATH: Path = PROJECT_ROOT / "shared_data" / "models_live.json"
 
+if str(ENGINE_DIR) not in sys.path:
+    sys.path.insert(0, str(ENGINE_DIR))
+
+import pricing_core  # noqa: E402
+
 PRIORITY_VENDORS: tuple[str, ...] = (
     "openai/",
     "anthropic/",
@@ -115,7 +120,7 @@ DOMESTIC_CN_PROVIDERS: list[dict[str, Any]] = [
         "api_base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "api_model_id": "qwen3-coder-next",
         "cache_hit_factor": 0.2,
-        "perf_note": "⚡ 峰值 147 TPS · 阿里 Coding Plan 主力",
+        "perf_note": "百炼 Coding Plan 支持 · 256K 代码重构",
         "input_rmb_per_1m": 1.2,
         "output_rmb_per_1m": 4.8,
         "context_length": 262144,
@@ -131,7 +136,7 @@ DOMESTIC_CN_PROVIDERS: list[dict[str, Any]] = [
         "api_base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "api_model_id": "qwen3.5-plus",
         "cache_hit_factor": 0.2,
-        "perf_note": "🚀 100K长文本 125 TPS · 缓存命中2折",
+        "perf_note": "1M 上下文 · 显式/隐式缓存命中 2 折",
         "input_rmb_per_1m": 0.8,
         "output_rmb_per_1m": 2.0,
         "context_length": 1000000,
@@ -205,13 +210,13 @@ DOMESTIC_CN_PROVIDERS: list[dict[str, Any]] = [
     },
     {
         "id": "tencent-cloud/hunyuan-t1",
-        "name": "腾讯云: 混元 Hunyuan-T1 (极速深度推理 · 首字1.05s)",
+        "name": "腾讯云: 混元 Hunyuan-T1 (256K 深度推理)",
         "provider": "腾讯云 (Tencent Cloud)",
         "provider_config_key": "tencent_cps_url",
         "api_base_url": "https://api.lkeap.cloud.tencent.com/v1",
         "api_model_id": "hunyuan-t1-latest",
         "cache_hit_factor": 0.2,
-        "perf_note": "⚡ 首字 1.05s · 腾讯 Coding Plan 核心",
+        "perf_note": "腾讯 Coding Plan 支持 · 256K 深度思考",
         "input_rmb_per_1m": 1.0,
         "output_rmb_per_1m": 4.0,
         "context_length": 256000,
@@ -285,13 +290,13 @@ DOMESTIC_CN_PROVIDERS: list[dict[str, Any]] = [
     },
     {
         "id": "siliconflow/moonshotai/Kimi-K2.5",
-        "name": "硅基流动: Kimi-K2.5 (首字 0.99s 秒回编程旗舰)",
+        "name": "硅基流动: Kimi-K2.5 (256K 多轮工具编程旗舰)",
         "provider": "硅基流动 (SiliconFlow)",
         "provider_config_key": "siliconflow_invite_url",
         "api_base_url": "https://api.siliconflow.cn/v1",
         "api_model_id": "moonshotai/Kimi-K2.5",
         "cache_hit_factor": 0.25,
-        "perf_note": "🏆 实测 TTFT 0.99s 全场秒回第1",
+        "perf_note": "256K 长上下文 · 原生多步工具调用",
         "input_rmb_per_1m": 2.0,
         "output_rmb_per_1m": 8.0,
         "context_length": 262144,
@@ -301,13 +306,13 @@ DOMESTIC_CN_PROVIDERS: list[dict[str, Any]] = [
     },
     {
         "id": "siliconflow/THUDM/GLM-5",
-        "name": "硅基流动: 智谱 GLM-5 (代码重构与工具调用王)",
+        "name": "硅基流动: 智谱 GLM-5 (代码重构与工具调用)",
         "provider": "硅基流动 (SiliconFlow)",
         "provider_config_key": "siliconflow_invite_url",
         "api_base_url": "https://api.siliconflow.cn/v1",
         "api_model_id": "THUDM/GLM-5",
         "cache_hit_factor": 0.25,
-        "perf_note": "⚡ 157 TPS · Claude Code 热门平替",
+        "perf_note": "200K 上下文 · Claude Code 开源平替",
         "input_rmb_per_1m": 1.5,
         "output_rmb_per_1m": 6.0,
         "context_length": 200000,
@@ -317,13 +322,13 @@ DOMESTIC_CN_PROVIDERS: list[dict[str, Any]] = [
     },
     {
         "id": "siliconflow/MiniMaxAI/MiniMax-M2.5",
-        "name": "硅基流动: MiniMax-M2.5 (白天晚高峰零降速王)",
+        "name": "硅基流动: MiniMax-M2.5 (1M 超长上下文代码模型)",
         "provider": "硅基流动 (SiliconFlow)",
         "provider_config_key": "siliconflow_invite_url",
         "api_base_url": "https://api.siliconflow.cn/v1",
         "api_model_id": "MiniMaxAI/MiniMax-M2.5",
         "cache_hit_factor": 0.25,
-        "perf_note": "🛡️ 100K上下文全天稳定 102 TPS",
+        "perf_note": "1M 上下文 · 低单价多文件检索",
         "input_rmb_per_1m": 1.0,
         "output_rmb_per_1m": 4.0,
         "context_length": 1000000,
@@ -333,13 +338,13 @@ DOMESTIC_CN_PROVIDERS: list[dict[str, Any]] = [
     },
     {
         "id": "siliconflow/deepseek-ai/DeepSeek-V3",
-        "name": "硅基流动 SiliconFlow: DeepSeek-V3.2 高速推理",
+        "name": "硅基流动 SiliconFlow: DeepSeek-V3 满血按量",
         "provider": "硅基流动 (SiliconFlow)",
         "provider_config_key": "siliconflow_invite_url",
         "api_base_url": "https://api.siliconflow.cn/v1",
         "api_model_id": "deepseek-ai/DeepSeek-V3",
         "cache_hit_factor": 0.25,
-        "perf_note": "⚡ TTFT 1.02s 极速开源聚合",
+        "perf_note": "128K 上下文 · OpenAI 协议兼容",
         "input_rmb_per_1m": 2.0,
         "output_rmb_per_1m": 8.0,
         "context_length": 131072,
@@ -429,93 +434,8 @@ DOMESTIC_CN_PROVIDERS: list[dict[str, Any]] = [
     },
 ]
 
-# 2026.11 Domestic AI Coding Plan Monthly Subscriptions (for Claude Code / Cursor / Cline / Trae / OpenClaw)
-CODING_PLANS_2026: list[dict[str, Any]] = [
-    {
-        "id": "aliyun-coding-plan",
-        "name": "阿里云百炼 Coding Plan 包月套餐",
-        "vendor": "阿里云百炼 (Aliyun Bailian)",
-        "provider_config_key": "aliyun_bailian_url",
-        "monthly_rmb": 39.0,
-        "pro_monthly_rmb": 99.0,
-        "models_covered": ["qwen3-coder-next", "qwen3.5-plus", "deepseek-v3.2", "qwen3-235b"],
-        "speed_highlight": "峰值 147 TPS 全场最快输出",
-        "best_for": "Claude Code / Cline / 通义灵码高频重构，企业合规可开增值税专票",
-        "featured_partner": True,
-        "cta_zh": "🔥 特惠开通百炼 Coding Plan / 领算力券 →",
-        "cta_en": "🔥 Get Aliyun Bailian Coding Plan →",
-    },
-    {
-        "id": "tencent-coding-plan",
-        "name": "腾讯云 LKEAP Coding Plan 编程套餐",
-        "vendor": "腾讯云 (Tencent Cloud)",
-        "provider_config_key": "tencent_cps_url",
-        "monthly_rmb": 29.0,
-        "pro_monthly_rmb": 89.0,
-        "models_covered": ["hunyuan-t1", "hunyuan-2.0-thinking", "deepseek-v3.2", "deepseek-r1"],
-        "speed_highlight": "首字 1.05s 极速响应 · 专线稳定",
-        "best_for": "微信生态/小程序/云原生全栈开发，可搭配轻量云一键部署 OpenClaw/Dify",
-        "featured_partner": True,
-        "cta_zh": "⚡ 抢腾讯云 Coding Plan & 轻量云特惠 →",
-        "cta_en": "⚡ Claim Tencent Coding Plan & Cloud Deal →",
-    },
-    {
-        "id": "volcengine-coding-plan",
-        "name": "火山方舟 Coding Plan 畅享包",
-        "vendor": "字节跳动 · 火山引擎",
-        "provider_config_key": "volcengine_ark_url",
-        "monthly_rmb": 39.0,
-        "pro_monthly_rmb": 99.0,
-        "models_covered": ["doubao-seed-2.0-pro", "deepseek-v3.2", "kimi-k2.5"],
-        "speed_highlight": "Trae 同源底座 · 百万 TPM 大并发",
-        "best_for": "Trae / Cursor 多文件并发 Agent 任务，新客另赠 50 万体验 Token",
-        "featured_partner": False,
-        "cta_zh": "开通火山方舟 Coding 套餐 →",
-        "cta_en": "Explore Volcengine Coding Plan →",
-    },
-    {
-        "id": "siliconflow-coding-pack",
-        "name": "硅基流动多模型极速按量池 (赠 ¥16 额度)",
-        "vendor": "硅基流动 (SiliconFlow)",
-        "provider_config_key": "siliconflow_invite_url",
-        "monthly_rmb": 0.0,
-        "pro_monthly_rmb": 50.0,
-        "models_covered": ["Kimi-K2.5 (0.99s)", "GLM-5 (157 TPS)", "MiniMax-M2.5", "DeepSeek-R1"],
-        "speed_highlight": "Kimi-K2.5 首字 0.99s 全网最快秒回",
-        "best_for": "不想被固定包月绑定的灵活开发者，一个 API Key 随时切 Kimi / GLM-5 / MiniMax",
-        "featured_partner": False,
-        "cta_zh": "🚀 注册领免费 Token 测速体验 →",
-        "cta_en": "🚀 Claim SiliconFlow Free Token Bonus →",
-    },
-    {
-        "id": "aliyun-ecs-agent-host",
-        "name": "阿里云 2核4G / GPU 专属部署包 (OpenClaw / Dify)",
-        "vendor": "阿里云云小站特惠",
-        "provider_config_key": "aliyun_ambassador_url",
-        "monthly_rmb": 19.0,
-        "pro_monthly_rmb": 199.0,
-        "models_covered": ["私有化 LiteLLM 缓存网关", "Dify 企业工作流", "OpenClaw 24h Agent"],
-        "speed_highlight": "语义缓存直降 30%~60% 重复 API 请求",
-        "best_for": "需要 24 小时挂机跑自动化 Agent、自建语义缓存网关或团队共享中转台",
-        "featured_partner": True,
-        "cta_zh": "🖥️ 领阿里云服务器新客隐藏神券 →",
-        "cta_en": "🖥️ Claim Aliyun Cloud Server Subsidy →",
-    },
-    {
-        "id": "openrouter-global-coding",
-        "name": "OpenRouter 海外顶配混合路由 (Claude + GPT-6)",
-        "vendor": "OpenRouter (Global)",
-        "provider_config_key": "openrouter_url",
-        "monthly_rmb": 72.0,
-        "pro_monthly_rmb": 288.0,
-        "models_covered": ["Claude Sonnet 5.5", "GPT-6.1", "Gemini 3.8 Flash", "DeepSeek V4.1"],
-        "speed_highlight": "免绑多家外卡 · 自动 Fallback 防宕机",
-        "best_for": "出海项目与疑难架构攻坚（20% 难题调 Claude/GPT，80% 常规调国产低价模型）",
-        "featured_partner": False,
-        "cta_zh": "🌐 接入 OpenRouter 全球网关 →",
-        "cta_en": "🌐 Connect OpenRouter Unified API →",
-    },
-]
+# 2026.11 Verified Offers Catalog (Subscriptions vs Pay-As-You-Go Pools vs Cloud Hosts vs Gateways)
+CODING_PLANS_2026: list[dict[str, Any]] = pricing_core.get_offers_catalog()
 
 # Offline graceful fallback snapshot in case OpenRouter API has a network hiccup
 FALLBACK_OPENROUTER_RAW: list[dict[str, Any]] = [
@@ -1003,9 +923,9 @@ def build_domestic_cn_models(affiliate_map: dict[str, str]) -> list[dict[str, An
 
 
 def build_coding_plans(affiliate_map: dict[str, str]) -> list[dict[str, Any]]:
-    """Enrich 2026 Coding Plan monthly subscription tiers with live affiliate links."""
+    """Enrich 2026 offers catalog (subscriptions, payg pools, cloud hosts, gateways) with affiliate URLs."""
     plans: list[dict[str, Any]] = []
-    for item in CODING_PLANS_2026:
+    for item in pricing_core.get_offers_catalog():
         cfg_key = item["provider_config_key"]
         url = affiliate_map.get(cfg_key) or "https://bailian.console.aliyun.com/"
         plans.append(
@@ -1020,11 +940,24 @@ def build_coding_plans(affiliate_map: dict[str, str]) -> list[dict[str, Any]]:
 
 
 def refresh_models_live(output_path: Path = OUTPUT_PATH) -> dict[str, Any]:
-    """Fetch, enrich, merge global + Mainland China models + Coding Plans, and save models_live.json."""
+    """Fetch, enrich, merge global + Mainland China models + Offers Catalog, and save models_live.json."""
     config = load_config()
     affiliate_map = resolve_affiliate_map(config)
 
+    prev_live_verified_at: str | None = None
+    if output_path.exists():
+        try:
+            prev_obj = json.loads(output_path.read_text(encoding="utf-8"))
+            prev_live_verified_at = prev_obj.get("last_live_verified_at") or prev_obj.get("updated_at")
+        except (OSError, json.JSONDecodeError):
+            prev_live_verified_at = None
+
+    now_iso = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     raw_openrouter, source_label = fetch_openrouter_raw()
+    last_live_verified_at = (
+        now_iso if "openrouter_live" in source_label else (prev_live_verified_at or f"{pricing_core.QUOTE_VERIFIED_DATE}T00:00:00Z")
+    )
+
     global_models = normalize_openrouter_models(raw_openrouter, affiliate_map, limit=TARGET_OPENROUTER_COUNT)
     cn_models = build_domestic_cn_models(affiliate_map)
     coding_plans = build_coding_plans(affiliate_map)
@@ -1033,7 +966,9 @@ def refresh_models_live(output_path: Path = OUTPUT_PATH) -> dict[str, Any]:
     merged.sort(key=lambda m: (-m["value_score"], m["blended_usd_per_1m"]))
 
     payload = {
-        "updated_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "updated_at": now_iso,
+        "last_live_verified_at": last_live_verified_at,
+        "quote_verified_date": pricing_core.QUOTE_VERIFIED_DATE,
         "source": source_label,
         "fx_rate_usd_to_rmb": FX_USD_TO_RMB,
         "total_models": len(merged),

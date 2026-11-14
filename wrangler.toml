@@ -1,0 +1,11 @@
+name = "ai-cost-radar"
+compatibility_date = "2026-11-01"
+pages_build_output_dir = "engine_b_affiliate_web/dist"
+
+# Bind your Cloudflare D1 free-tier database at deployment time:
+#   npx wrangler d1 create ai-cost-radar-events
+#   npx wrangler d1 execute ai-cost-radar-events --remote --file=cloudflare/d1_schema.sql
+[[d1_databases]]
+binding = "DB"
+database_name = "ai-cost-radar-events"
+database_id = "c3108893-eea5-4dd2-a55f-f6743e9deb0b"

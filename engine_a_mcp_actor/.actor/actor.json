@@ -1,0 +1,32 @@
+{
+  "actorSpecification": 1,
+  "name": "ai-llm-price-router-mcp",
+  "title": "AI LLM Price Router & Token Budget Calculator (80+ Global & CN APIs)",
+  "description": "Real-time AI model cost router and API budget calculator across 80+ OpenRouter (USD) and Mainland China (RMB) LLM endpoints. Built for AI Agents, MCP workflows, and Pay-Per-Event ($0.005/query) automation.",
+  "version": "1.0",
+  "buildTag": "latest",
+  "dockerfile": "../Dockerfile",
+  "readme": "../README.md",
+  "input": "./input_schema.json",
+  "usesStandbyMode": true,
+  "webServerMcpPath": "/mcp",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "title": "AI Model Routing & Budget Results",
+      "views": {
+        "overview": {
+          "title": "Routing Queries & Recommendations",
+          "transformation": {
+            "fields": [
+              "action",
+              "charged_event",
+              "event_price_usd",
+              "result"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

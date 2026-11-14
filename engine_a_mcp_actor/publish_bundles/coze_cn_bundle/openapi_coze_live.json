@@ -1,0 +1,410 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "AI大模型实时价格库与Coding Plan额度核验API (AI Cost Radar Live Feed v3)",
+    "description": "免服务器直连每日刷新的海内外 80+ 款主流 AI 大模型（阿里云百炼 Qwen3、腾讯云 DeepSeek/混元、硅基流动 SiliconFlow、火山方舟豆包、Claude、GPT、Gemini）RMB/USD 双币种价格库与 2026 国内 Coding Plan 官方额度/续费规则核验表。",
+    "version": "0.0.2",
+    "contact": {
+      "name": "AI Cost Radar",
+      "url": "https://ai-cost-radar-nlu.pages.dev/coding-plan-2026/"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://ai-cost-radar-nlu.pages.dev",
+      "description": "公网 HTTPS 静态 JSON 实时价格源"
+    }
+  ],
+  "paths": {
+    "/api/models_live.json": {
+      "get": {
+        "operationId": "get_live_ai_models_pricing",
+        "summary": "获取80+款AI大模型RMB/USD单价、缓存折扣系数及2026官方Coding Plan额度规则",
+        "description": "返回最新构建的大模型单价、缓存命中系数(cache_hit_factor)、接入端点(api_base_url)、报价核验日期(quote_verified_date)以及区分订阅/按量池/云主机的 coding_plans 清单。",
+        "responses": {
+          "200": {
+            "description": "成功返回实时定价与套餐核验清单",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "updated_at": {
+                      "type": "string",
+                      "description": "构建刷新时间 (UTC)"
+                    },
+                    "last_live_verified_at": {
+                      "type": "string",
+                      "description": "最近一次成功拉取在线价格源的时间 (UTC)"
+                    },
+                    "quote_verified_date": {
+                      "type": "string",
+                      "description": "人工核验云厂商套餐规则与报价的日期"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "fx_rate_usd_to_rmb": {
+                      "type": "number"
+                    },
+                    "total_models": {
+                      "type": "integer"
+                    },
+                    "coding_plans": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "offer_type": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "official_source_url": {
+                            "type": "string"
+                          },
+                          "verified_date": {
+                            "type": "string"
+                          },
+                          "interactive_only": {
+                            "type": "boolean"
+                          },
+                          "monthly_rmb": {
+                            "type": "number"
+                          },
+                          "pro_monthly_rmb": {
+                            "type": "number"
+                          },
+                          "tiers": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "tier_id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "purchasable": {
+                                  "type": "boolean"
+                                },
+                                "first_month_rmb": {
+                                  "type": "number",
+                                  "nullable": true
+                                },
+                                "renewal_rmb": {
+                                  "type": "number"
+                                },
+                                "quota_5h": {
+                                  "type": "integer"
+                                },
+                                "quota_weekly": {
+                                  "type": "integer"
+                                },
+                                "quota_monthly": {
+                                  "type": "integer"
+                                },
+                                "status_note_zh": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          },
+                          "models_covered": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "best_for": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "commission_status": {
+                            "type": "string"
+                          },
+                          "endpoints": {
+                            "type": "object",
+                            "properties": {
+                              "claude_code": {
+                                "type": "object",
+                                "properties": {
+                                  "protocol": {
+                                    "type": "string"
+                                  },
+                                  "base_url": {
+                                    "type": "string"
+                                  },
+                                  "key_prefix": {
+                                    "type": "string"
+                                  },
+                                  "verified": {
+                                    "type": "boolean"
+                                  }
+                                }
+                              },
+                              "openai_compat": {
+                                "type": "object",
+                                "properties": {
+                                  "protocol": {
+                                    "type": "string"
+                                  },
+                                  "base_url": {
+                                    "type": "string"
+                                  },
+                                  "key_prefix": {
+                                    "type": "string"
+                                  },
+                                  "verified": {
+                                    "type": "boolean"
+                                  }
+                                }
+                              },
+                              "payg_openai": {
+                                "type": "object",
+                                "properties": {
+                                  "protocol": {
+                                    "type": "string"
+                                  },
+                                  "base_url": {
+                                    "type": "string"
+                                  },
+                                  "key_prefix": {
+                                    "type": "string"
+                                  },
+                                  "verified": {
+                                    "type": "boolean"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "models": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "region": {
+                            "type": "string"
+                          },
+                          "api_base_url": {
+                            "type": "string"
+                          },
+                          "api_model_id": {
+                            "type": "string"
+                          },
+                          "cache_hit_factor": {
+                            "type": "number"
+                          },
+                          "input_rmb_per_1m": {
+                            "type": "number"
+                          },
+                          "output_rmb_per_1m": {
+                            "type": "number"
+                          },
+                          "input_usd_per_1m": {
+                            "type": "number"
+                          },
+                          "output_usd_per_1m": {
+                            "type": "number"
+                          },
+                          "context_length": {
+                            "type": "integer"
+                          },
+                          "supports_tools": {
+                            "type": "boolean"
+                          },
+                          "is_free": {
+                            "type": "boolean"
+                          },
+                          "value_score": {
+                            "type": "number"
+                          },
+                          "signup_url": {
+                            "type": "string"
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "affiliate_url": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/budget": {
+      "get": {
+        "operationId": "calculate_api_budget",
+        "summary": "确定性计算月费并检查 Coding Plan 月额度与 5 小时峰值",
+        "description": "服务端执行公式，不调用付费模型。5000 次每天为月 150000 次，超过 Pro 月额度 60000 次。套餐模型与按量模型并非质量等价。",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "query",
+            "required": true,
+            "description": "从价格查询工具中选取完整 id，必须精确匹配",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "daily_requests",
+            "in": "query",
+            "required": false,
+            "description": "每天请求次数，按 30 天估算月请求数",
+            "schema": {
+              "type": "integer",
+              "default": 1000
+            }
+          },
+          {
+            "name": "avg_input_tokens",
+            "in": "query",
+            "required": false,
+            "description": "每次输入 Token 数",
+            "schema": {
+              "type": "integer",
+              "default": 1500
+            }
+          },
+          {
+            "name": "avg_output_tokens",
+            "in": "query",
+            "required": false,
+            "description": "每次输出 Token 数；已含思考时请设置 output_includes_reasoning",
+            "schema": {
+              "type": "integer",
+              "default": 500
+            }
+          },
+          {
+            "name": "cache_hit_rate",
+            "in": "query",
+            "required": false,
+            "description": "输入缓存命中率，0 到 1；默认 0",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "reasoning_multiplier",
+            "in": "query",
+            "required": false,
+            "description": "思考输出倍率，1 到 10；仅作用于推理模型",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "output_includes_reasoning",
+            "in": "query",
+            "required": false,
+            "description": "输出 Token 已包含思考 Token 时设为 true，避免重复乘倍率",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "usage_mode",
+            "in": "query",
+            "required": false,
+            "description": "interactive_ide 或 automated_backend；后端禁止使用 Coding Plan",
+            "schema": {
+              "type": "string",
+              "default": "interactive_ide"
+            }
+          },
+          {
+            "name": "peak_5h_calls",
+            "in": "query",
+            "required": false,
+            "description": "实际最繁忙连续 5 小时请求次数；未知请省略",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "预算与额度核验结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "summary_cn": {
+                      "type": "string"
+                    },
+                    "model_id": {
+                      "type": "string"
+                    },
+                    "monthly_requests": {
+                      "type": "integer"
+                    },
+                    "monthly_rmb": {
+                      "type": "number"
+                    },
+                    "monthly_usd": {
+                      "type": "number"
+                    },
+                    "input_cost_rmb": {
+                      "type": "number"
+                    },
+                    "output_cost_rmb": {
+                      "type": "number"
+                    },
+                    "web_calculator_url": {
+                      "type": "string"
+                    },
+                    "quote_verified_date": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数无效或模型 ID 不存在"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,69 +1,139 @@
-name: Daily AI Model Price Refresh & GitHub Pages Deploy
+name: Verify, refresh prices and publish sites
 
 on:
   push:
-    branches: ["main"]
+    branches: [main]
+  pull_request:
   schedule:
-    - cron: "0 0 * * *"
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 concurrency:
-  group: "pages"
+  group: site-${{ github.event_name == 'pull_request' && github.ref || 'production' }}
   cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-
-      - name: Refresh live OpenRouter & Mainland China RMB model catalog
-        run: python3 engine_a_mcp_actor/fetch_and_enrich.py
-
-      - name: Compile bilingual AI API & Cloud GPU cost calculator
-        run: python3 engine_b_affiliate_web/build_site.py --site-url "https://huangbuqubunao-alt.github.io/ai-cost-radar/"
-
-      - name: Stage static JSON API (/api/models_live.json) & .nojekyll
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check source syntax
         run: |
-          mkdir -p engine_b_affiliate_web/dist/api
-          cp shared_data/models_live.json engine_b_affiliate_web/dist/api/models_live.json
-          touch engine_b_affiliate_web/dist/.nojekyll
-          ls -lh engine_b_affiliate_web/dist engine_b_affiliate_web/dist/api
-
-      - name: Persist refreshed snapshot on scheduled or manual runs
-        if: github.event_name != 'push'
+          python3 -W error -m compileall -q engine_a_mcp_actor engine_b_affiliate_web engine_c_bounty_radar cloudflare test_codex_v3_acceptance.py test_upgrade_2026_roadmap.py
+          node --input-type=module --check < functions/events.js
+          node --input-type=module --check < functions/admin/stats.js
+          node --input-type=module --check < functions/api/budget.js
+      - name: Run all acceptance suites
+        run: python3 -W error -m unittest -v test_codex_v3_acceptance test_upgrade_2026_roadmap test_cloudflare_budget engine_a_mcp_actor.test_engine_a
+      - name: Fetch a fresh catalog (failure preserves deployed site)
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add shared_data/models_live.json engine_b_affiliate_web/dist
-          git diff --staged --quiet || (git commit -m "chore(data): auto-refresh live AI model prices [skip ci]" && git push origin HEAD:main) || true
-
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+          python3 engine_a_mcp_actor/fetch_and_enrich.py
+          python3 -c 'import json; p=json.load(open("shared_data/models_live.json")); assert "openrouter_live" in p["source"], "Live feed unavailable; refusing fallback publication"'
+      - name: Build production pages after tests
+        run: |
+          python3 -W error engine_b_affiliate_web/build_site.py --site-url https://ai-cost-radar-nlu.pages.dev/
+          python3 cloudflare/verify_release.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-static
+          path: engine_b_affiliate_web/dist
+          include-hidden-files: true
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-price-snapshot
+          path: shared_data/models_live.json
+          retention-days: 7
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
         with:
           path: engine_b_affiliate_web/dist
 
-  deploy:
+  cloudflare:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: cloudflare-production
+      url: https://ai-cost-radar-nlu.pages.dev/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: cloudflare-static
+          path: engine_b_affiliate_web/dist
+      - name: Deploy verified assets and Functions
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo '::error::Set CLOUDFLARE_API_TOKEN with Account / Cloudflare Pages / Edit'; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo '::error::Set CLOUDFLARE_ACCOUNT_ID'; exit 1; }
+          npx --yes wrangler@4.162.0 pages deploy engine_b_affiliate_web/dist --project-name ai-cost-radar --branch main
+      - name: Verify deployed catalog and protected statistics
+        run: python3 cloudflare/verify_release.py --remote https://ai-cost-radar-nlu.pages.dev/
+
+  github-mirror:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
     steps:
-      - name: Deploy to GitHub Pages
+      - uses: actions/configure-pages@v5
+      - uses: actions/deploy-pages@v4
         id: deployment
-        uses: actions/deploy-pages@v4
+
+  persist-snapshot:
+    needs: [cloudflare, github-mirror]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-price-snapshot
+          path: shared_data
+      - uses: actions/download-artifact@v4
+        with:
+          name: cloudflare-static
+          path: engine_b_affiliate_web/dist
+      - name: Persist exactly the released snapshot
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$SOURCE_SHA" ]; then
+            echo 'New source commit arrived; keep snapshot in workflow artifacts instead of overwriting it.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add shared_data/models_live.json engine_b_affiliate_web/dist
+          if ! git diff --staged --quiet; then
+            git commit -m 'chore(data): persist verified deployed snapshot [skip ci]'
+            git push origin HEAD:main
+          fi

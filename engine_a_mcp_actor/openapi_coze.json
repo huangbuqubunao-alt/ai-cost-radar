@@ -1,0 +1,246 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AI大模型实时比价路由与Token预算计算器 (AI LLM Price Router)",
+    "description": "实时汇总全球 OpenRouter 与国内主流云厂商（阿里云百炼 Qwen、腾讯云 DeepSeek/混元、硅基流动 SiliconFlow、火山引擎豆包）80+ 款大模型的最新输入/输出价格（RMB 人民币 & USD 美元双币种），提供最省钱模型智能推荐、月度/年度 API 预算测算及免费模型查询。可直接一键导入扣子 (Coze.cn) 插件商店开启付费调用变现（支付宝提现）。",
+    "version": "1.0.0",
+    "contact": {
+      "name": "AI Revenue Engine — Engine A"
+    },
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://your-public-endpoint.example.com",
+      "description": "部署后的公网 HTTPS 地址（例如阿里云函数计算 / 腾讯云 SCF / Railway / Cloudflare Tunnel 映射 mcp_server.py --http 8787）"
+    },
+    {
+      "url": "http://127.0.0.1:8787",
+      "description": "本地调试地址 (python3 mcp_server.py --http 8787)"
+    }
+  ],
+  "paths": {
+    "/api/recommend": {
+      "post": {
+        "operationId": "recommend_cheapest_model",
+        "summary": "根据任务类型、上下文长度与地区偏好推荐最便宜高性价比的AI大模型",
+        "description": "输入任务场景（写代码 coding、深度推理 reasoning、通用对话 general、多模态 multimodal、免费 free）以及每月预计输入/输出百万 Token 数量，自动对比 80+ 款国内外模型并返回最省钱付费首选、综合性价比首选、免费备选及直达开通链接。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "task_type": {
+                    "type": "string",
+                    "description": "任务类型：coding(代码开发)、reasoning(逻辑数学推理)、general(通用文本)、multimodal(图文多模态)、cheap(超低价)、free(完全免费)",
+                    "enum": ["coding", "reasoning", "general", "multimodal", "cheap", "free"],
+                    "default": "coding"
+                  },
+                  "min_context": {
+                    "type": "integer",
+                    "description": "要求的最小上下文窗口 Token 数，例如 32000、128000、1000000",
+                    "default": 32000
+                  },
+                  "region_preference": {
+                    "type": "string",
+                    "description": "API通道地区偏好：cn_direct(仅国内直连低延迟人民币通道)、global(全球OpenRouter美元通道)、any(国内外全部对比)",
+                    "enum": ["cn_direct", "global", "any"],
+                    "default": "any"
+                  },
+                  "monthly_input_m": {
+                    "type": "number",
+                    "description": "预计每月输入 Prompt Token 数量（单位：百万 Tokens，例如 10 代表 1000 万输入 Tokens）",
+                    "default": 10.0
+                  },
+                  "monthly_output_m": {
+                    "type": "number",
+                    "description": "预计每月输出 Completion Token 数量（单位：百万 Tokens，例如 2 代表 200 万输出 Tokens）",
+                    "default": 2.0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功返回最优模型路由推荐与月度双币种成本估算",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "query": { "type": "object" },
+                    "updated_at": { "type": "string" },
+                    "fx_rate_usd_to_rmb": { "type": "number" },
+                    "total_candidates_matched": { "type": "integer" },
+                    "cheapest_paid_pick": { "type": ["object", "null"] },
+                    "best_value_pick": { "type": ["object", "null"] },
+                    "best_free_pick": { "type": ["object", "null"] },
+                    "recommendations": {
+                      "type": "array",
+                      "items": { "type": "object" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/budget": {
+      "post": {
+        "operationId": "calculate_api_budget",
+        "summary": "计算指定AI大模型的每日/每月/每年API账单预算并寻找降本平替模型",
+        "description": "根据模型名称（如 deepseek-v3、qwen3、claude、gpt、doubao 等）、每日请求量及单次平均输入输出 Token 数，精准核算人民币 (RMB) 与美元 (USD) 成本，并自动推荐最高可省 80%+ 的同级别平替模型。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["model_query"],
+                "properties": {
+                  "model_query": {
+                    "type": "string",
+                    "description": "目标模型名称或关键字，例如 deepseek-v3、qwen3、claude-sonnet、gpt-5、doubao",
+                    "default": "deepseek-v3"
+                  },
+                  "daily_requests": {
+                    "type": "integer",
+                    "description": "预计每天 API 调用请求次数",
+                    "default": 1000
+                  },
+                  "avg_input_tokens": {
+                    "type": "integer",
+                    "description": "每次请求平均输入 Prompt Token 数",
+                    "default": 1500
+                  },
+                  "avg_output_tokens": {
+                    "type": "integer",
+                    "description": "每次请求平均输出 Completion Token 数",
+                    "default": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功返回日/月/年双币种账单预算及更低价的平替模型列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "query": { "type": "object" },
+                    "matched_model": { "type": "object" },
+                    "token_volume": { "type": "object" },
+                    "budget_estimate": {
+                      "type": "object",
+                      "properties": {
+                        "daily_usd": { "type": "number" },
+                        "monthly_usd": { "type": "number" },
+                        "yearly_usd": { "type": "number" },
+                        "daily_rmb": { "type": "number" },
+                        "monthly_rmb": { "type": "number" },
+                        "yearly_rmb": { "type": "number" }
+                      }
+                    },
+                    "cheaper_alternatives": {
+                      "type": "array",
+                      "items": { "type": "object" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/free-cheap": {
+      "post": {
+        "operationId": "list_free_and_ultra_cheap_models",
+        "summary": "列出当前可用的免费($0/¥0)与白菜价超低成本AI大模型API清单",
+        "description": "一键获取国内外完全免费的 API 模型（¥0 / $0）以及百万 Token 综合成本低于 ¥3.60 ($0.50) 的高性价比主力模型。",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "region": {
+                    "type": "string",
+                    "description": "地区筛选：cn_direct(国内直连通道)、global(全球OpenRouter通道)、any(全部)",
+                    "enum": ["cn_direct", "global", "any"],
+                    "default": "any"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功返回免费模型与超低价模型列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "region_filter": { "type": "string" },
+                    "updated_at": { "type": "string" },
+                    "total_free_models": { "type": "integer" },
+                    "total_ultra_cheap_paid_models": { "type": "integer" },
+                    "free_models": {
+                      "type": "array",
+                      "items": { "type": "object" }
+                    },
+                    "ultra_cheap_paid_models": {
+                      "type": "array",
+                      "items": { "type": "object" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health_check",
+        "summary": "检查AI比价路由API服务状态与实时模型库更新时间",
+        "description": "返回当前在线模型总数、汇率基准、最后更新时间以及 x402 支付状态。",
+        "responses": {
+          "200": {
+            "description": "服务正常运行",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "service": { "type": "string" },
+                    "total_models": { "type": "integer" },
+                    "updated_at": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

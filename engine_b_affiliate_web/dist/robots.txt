@@ -16,4 +16,4 @@ Allow: /
 User-agent: Baiduspider
 Allow: /
 
-Sitemap: https://huangbuqubunao-alt.github.io/ai-cost-radar/sitemap.xml
+Sitemap: https://ai-cost-radar-nlu.pages.dev/sitemap.xml

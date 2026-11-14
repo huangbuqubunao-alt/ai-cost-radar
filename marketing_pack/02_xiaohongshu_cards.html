@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>小红书 3:4 信息图卡片 — 每天 5,000 次调用，为什么 ¥200 包月仍不够用</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0b1120;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      padding: 32px;
+      display: flex;
+      gap: 28px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .card {
+      width: 540px;
+      height: 720px;
+      background: #111827;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 24px;
+      padding: 36px 32px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .tag {
+      display: inline-block;
+      font-size: 13px;
+      font-weight: 700;
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.14);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      padding: 5px 12px;
+      border-radius: 999px;
+      margin-bottom: 14px;
+    }
+    h1 {
+      font-size: 30px;
+      line-height: 1.28;
+      font-weight: 850;
+      letter-spacing: -0.02em;
+      margin-bottom: 14px;
+    }
+    .accent { color: #fbbf24; }
+    .emerald { color: #34d399; }
+    p.lead {
+      font-size: 15px;
+      color: #cbd5e1;
+      line-height: 1.6;
+    }
+    .box {
+      background: #0b1324;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 16px;
+      padding: 18px;
+      margin-top: 14px;
+    }
+    .box-title {
+      font-size: 15px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: #f8fafc;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+    th, td {
+      text-align: left;
+      padding: 9px 6px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+    }
+    th { color: #94a3b8; font-weight: 700; }
+    code {
+      font-family: "JetBrains Mono", Menlo, monospace;
+      font-size: 12px;
+      color: #34d399;
+      word-break: break-all;
+    }
+    .foot {
+      font-size: 12px;
+      color: #94a3b8;
+      border-top: 1px solid rgba(148, 163, 184, 0.16);
+      padding-top: 12px;
+      display: flex;
+      justify-content: space-between;
+    }
+  </style>
+</head>
+<body>
+  <!-- Card 1 -->
+  <section class="card">
+    <div>
+      <span class="tag">2026.11 官方文档实算核验</span>
+      <h1>每天 5,000 次调用，<br/>为什么 <span class="accent">¥200 包月</span> 仍然不够用？</h1>
+      <p class="lead">很多同学把「提问次数」当成了「模型调用次数」：在 Claude Code / Cline 中，1 次复杂提问平均触发 10～25 次模型调用！</p>
+      <div class="box">
+        <div class="box-title">🧮 30 天硬额度验算</div>
+        <p class="lead" style="font-size:14px;">
+          • 日均 <strong>5,000 次</strong> × 30 天 ＝ <strong>150,000 次/月（15 万次）</strong><br/>
+          • 百炼 / 腾讯云 / 火山 Pro 月上限 ＝ <strong>90,000 次/月（9 万次）</strong><br/>
+          • 直接 <strong class="accent">超额 60,000 次（6 万次）</strong>，且每 5 小时另有 6,000 次滚动上限！
+        </p>
+      </div>
+      <div class="box">
+        <div class="box-title">⚠️ 首月特惠 ≠ 续费长期成本</div>
+        <p class="lead" style="font-size:14px;">
+          • 阿里云百炼：Lite 已停新购；Pro 新客首月 <strong class="emerald">¥39.90</strong>，次月续费原价 <strong>¥200/月</strong><br/>
+          • 腾讯云 LKEAP：Lite 原价 <strong>¥40/月</strong> (限 1.8 万次)，Pro 原价 <strong>¥200/月</strong> (限 9 万次)
+        </p>
+      </div>
+    </div>
+    <div class="foot">
+      <span>核验日：2026-11-13</span>
+      <span>来源：阿里云百炼 &amp; 腾讯云官方文档</span>
+    </div>
+  </section>
+
+  <!-- Card 2 -->
+  <section class="card">
+    <div>
+      <span class="tag">避坑清单 · 端点与协议隔离</span>
+      <h1>买了包月还在扣余额？<br/>检查你的 <span class="emerald">专属 Base URL</span></h1>
+      <p class="lead">开通 Coding Plan 后必须使用专属 Key（如 <code>sk-sp-</code>）搭配专属端点；误填通用按量端点会继续产生按量账单！</p>
+      <div class="box">
+        <table>
+          <thead>
+            <tr>
+              <th>场景组合</th>
+              <th>官方专属端点 (Base URL)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>百炼套餐 + Claude Code</td>
+              <td><code>https://coding.dashscope.aliyuncs.com/apps/anthropic</code></td>
+            </tr>
+            <tr>
+              <td>百炼套餐 + Cursor/Cline</td>
+              <td><code>https://coding.dashscope.aliyuncs.com/v1</code></td>
+            </tr>
+            <tr>
+              <td>腾讯套餐 + Claude Code</td>
+              <td><code>https://api.lkeap.cloud.tencent.com/coding/anthropic</code></td>
+            </tr>
+            <tr>
+              <td>腾讯套餐 + OpenAI 兼容</td>
+              <td><code>https://api.lkeap.cloud.tencent.com/coding/v3</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="box">
+        <div class="box-title">🚫 自动化后端请勿买个人编程套餐</div>
+        <p class="lead" style="font-size:13.5px;">
+          官方条款明确仅限交互式编程工具使用；跑批处理、爬虫或对外 API 后端请选择按量池（百炼/腾讯按量或硅基流动）。
+        </p>
+      </div>
+    </div>
+    <div class="foot">
+      <span>在线复算：ai-cost-radar /coding-plan-2026/</span>
+      <span>含推广与匿名估算UV说明</span>
+    </div>
+  </section>
+</body>
+</html>
