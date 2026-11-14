@@ -14,6 +14,7 @@ Zero third-party dependencies (Python 3.12+ stdlib only).
 from __future__ import annotations
 
 from copy import deepcopy
+import math
 from typing import Any
 
 QUOTE_VERIFIED_DATE: str = "2026-11-13"
@@ -181,7 +182,7 @@ OFFERS_CATALOG_2026: list[dict[str, Any]] = [
         "name": "火山方舟 Coding Plan 编程套餐",
         "vendor": "字节跳动 · 火山引擎",
         "provider_config_key": "volcengine_ark_url",
-        "official_source_url": "https://www.volcengine.com/docs/82379",
+        "official_source_url": "https://www.volcengine.com/docs/82379/1925114",
         "verified_date": QUOTE_VERIFIED_DATE,
         "interactive_only": True,
         "commission_status": "no_affiliate_program",
@@ -226,6 +227,15 @@ OFFERS_CATALOG_2026: list[dict[str, Any]] = [
                 "env_url_name": "ANTHROPIC_BASE_URL",
                 "env_key_name": "ANTHROPIC_AUTH_TOKEN",
                 "env_model_name": "ANTHROPIC_MODEL",
+                "key_prefix": "ark-",
+                "verified": True,
+            },
+            "openai_compat": {
+                "protocol": "openai",
+                "base_url": "https://ark.cn-beijing.volces.com/api/coding/v3",
+                "env_url_name": "OPENAI_BASE_URL",
+                "env_key_name": "OPENAI_API_KEY",
+                "env_model_name": "OPENAI_MODEL",
                 "key_prefix": "ark-",
                 "verified": True,
             },
@@ -518,13 +528,15 @@ def _compute_overflow_hybrid(
     payg_rmb: float,
     pro_tier: dict[str, Any],
     peak_5h_calls: int | None,
+    seats: int = 1,
 ) -> dict[str, Any] | None:
     """
-    Compute exact "1 Pro Base (up to 90k calls) + PayG Overflow" hybrid monthly bill
-    when interactive usage exceeds the single-subscription monthly cap without exceeding the 5h window.
+    Compute exact "N Pro Base (up to N * 90k calls) + PayG Overflow" hybrid monthly bill
+    when interactive usage exceeds the combined Pro monthly cap without exceeding the 5h window.
     """
-    quota_monthly = int(pro_tier.get("quota_monthly") or 0)
-    quota_5h = int(pro_tier.get("quota_5h") or 0)
+    s = max(1, min(50, int(seats or 1)))
+    quota_monthly = int(pro_tier.get("quota_monthly") or 0) * s
+    quota_5h = int(pro_tier.get("quota_5h") or 0) * s
     if quota_monthly <= 0 or monthly_calls <= quota_monthly:
         return None
     if peak_5h_calls is not None and peak_5h_calls > quota_5h:
@@ -536,8 +548,10 @@ def _compute_overflow_hybrid(
     overflow_payg_rmb = round(payg_rmb * overflow_share, 2)
 
     raw_first = pro_tier.get("first_month_rmb")
-    renewal_plan_rmb = round(float(pro_tier["renewal_rmb"]), 2)
-    first_plan_rmb = round(float(raw_first), 2) if raw_first is not None else renewal_plan_rmb
+    unit_renewal = float(pro_tier["renewal_rmb"])
+    unit_first = float(raw_first) if raw_first is not None else unit_renewal
+    renewal_plan_rmb = round(unit_renewal * s, 2)
+    first_plan_rmb = round(unit_first * s, 2)
 
     first_total = round(first_plan_rmb + overflow_payg_rmb, 2)
     renewal_total = round(renewal_plan_rmb + overflow_payg_rmb, 2)
@@ -545,6 +559,7 @@ def _compute_overflow_hybrid(
     renewal_saving = round(payg_rmb - renewal_total, 2)
 
     return {
+        "seats_count": s,
         "covered_calls": covered_calls,
         "overflow_calls": overflow_calls,
         "overflow_payg_rmb": overflow_payg_rmb,
@@ -565,12 +580,16 @@ def evaluate_coding_plans(
     usage_mode: str = "interactive_ide",
     peak_5h_calls: int | None = None,
     model_id: str | dict[str, Any] | None = None,
+    team_size: int = 1,
 ) -> dict[str, Any]:
     """
-    Evaluate 2026 Coding Plan subscriptions against same-model Pay-As-You-Go cost and hard call caps.
+    Evaluate 2026 Coding Plan subscriptions against same-model Pay-As-You-Go cost and hard call caps
+    for 1..50 interactive IDE developer seats.
     """
+    seats = max(1, min(50, int(round(float(team_size or 1)))))
     d_calls = max(0, int(round(float(daily_calls or 0))))
     monthly_calls = d_calls * 30
+    per_seat_monthly_calls = math.ceil(monthly_calls / seats) if monthly_calls > 0 else 0
     payg_rmb = round(max(0.0, float(payg_monthly_rmb or 0.0)), 2)
     norm_mode = "automated_backend" if str(usage_mode or "").strip().lower() in (
         "automated_backend",
@@ -579,6 +598,12 @@ def evaluate_coding_plans(
         "batch",
         "non_interactive",
     ) else "interactive_ide"
+
+    total_pro_monthly_cap = PRO_MONTHLY_CAP * seats
+    total_pro_5h_cap = PRO_5H_CAP * seats
+    total_pro_weekly_cap = PRO_WEEKLY_CAP * seats
+    total_lite_monthly_cap = LITE_MONTHLY_CAP * seats
+    total_lite_5h_cap = LITE_5H_CAP * seats
 
     eligible: list[dict[str, Any]] = []
     excluded: list[dict[str, Any]] = []
@@ -600,12 +625,15 @@ def evaluate_coding_plans(
         purchasable_tiers = [t for t in offer.get("tiers", []) if t.get("purchasable")]
         chosen_tier: dict[str, Any] | None = None
         for tier in purchasable_tiers:
-            if monthly_calls <= int(tier["quota_monthly"]) and (d_calls * 7) <= int(tier["quota_weekly"]):
-                if peak_5h_calls is None or peak_5h_calls <= int(tier["quota_5h"]):
+            if (
+                monthly_calls <= int(tier["quota_monthly"]) * seats
+                and (d_calls * 7) <= int(tier["quota_weekly"]) * seats
+            ):
+                if peak_5h_calls is None or peak_5h_calls <= int(tier["quota_5h"]) * seats:
                     chosen_tier = tier
                     break
 
-        exceeds_pro_by = max(0, monthly_calls - PRO_MONTHLY_CAP)
+        exceeds_pro_by = max(0, monthly_calls - total_pro_monthly_cap)
         pro_tier = next((t for t in purchasable_tiers if t["tier_id"] == "pro"), purchasable_tiers[-1] if purchasable_tiers else None)
         ref_tier = chosen_tier or pro_tier
         if ref_tier is None:
@@ -613,8 +641,10 @@ def evaluate_coding_plans(
 
         covers_model = plan_covers_model(offer, model_id) if model_id is not None else True
         first_rmb = ref_tier.get("first_month_rmb")
-        renewal_rmb = float(ref_tier["renewal_rmb"])
-        effective_first_rmb = float(first_rmb) if first_rmb is not None else renewal_rmb
+        unit_renewal = float(ref_tier["renewal_rmb"])
+        unit_first = float(first_rmb) if first_rmb is not None else unit_renewal
+        renewal_rmb = round(unit_renewal * seats, 2)
+        effective_first_rmb = round(unit_first * seats, 2)
 
         overflow_hybrid = (
             _compute_overflow_hybrid(
@@ -622,30 +652,37 @@ def evaluate_coding_plans(
                 payg_rmb=payg_rmb,
                 pro_tier=pro_tier,
                 peak_5h_calls=peak_5h_calls,
+                seats=seats,
             )
             if (norm_mode == "interactive_ide" and pro_tier is not None)
             else None
         )
 
-        if chosen_tier is None and monthly_calls <= ref_tier["quota_monthly"]:
+        seat_prefix = f"{seats} 席 " if seats > 1 else ""
+        tier_cap_monthly = int(ref_tier["quota_monthly"]) * seats
+        tier_cap_5h = int(ref_tier["quota_5h"]) * seats
+
+        if chosen_tier is None and monthly_calls <= tier_cap_monthly:
             status = "exceeds_5h_cap"
-            verdict_zh = f"5 小时峰值 {peak_5h_calls:,} 次，超过 {ref_tier['name']} 的 {ref_tier['quota_5h']:,} 次窗口上限。"
+            verdict_zh = f"5 小时峰值 {peak_5h_calls:,} 次，超过 {seat_prefix}{ref_tier['name']} 的 {tier_cap_5h:,} 次窗口上限。"
             first_month_saving = None
             renewal_saving = None
         elif chosen_tier is None:
             status = "exceeds_monthly_cap"
+            pro_label = f"{seats} 份 Pro" if seats > 1 else "1 份 Pro"
+            cap_label = f"{seats} 席 Pro 合计月额度" if seats > 1 else "Pro 月额度"
             if overflow_hybrid and overflow_hybrid["saves_on_renewal"] and covers_model:
                 verdict_zh = (
                     f"按 30 天预计 {_fmt_wan_calls(monthly_calls)}（{monthly_calls:,} 次），"
-                    f"超出 Pro 月额度 {_fmt_wan_calls(exceeds_pro_by)}（上限 {PRO_MONTHLY_CAP:,} 次/月，不能按 ¥200 全包封顶）；"
-                    f"但可采用「1 份 Pro 打底前 9 万次 + 超额 {_fmt_wan_calls(overflow_hybrid['overflow_calls'])}走按量 API」："
+                    f"超出 {cap_label} {_fmt_wan_calls(exceeds_pro_by)}（上限 {total_pro_monthly_cap:,} 次/月，不能按 ¥{renewal_rmb:.0f} 全包封顶）；"
+                    f"但可采用「{pro_label} 打底前 {_fmt_wan_calls(overflow_hybrid['covered_calls'])} + 超额 {_fmt_wan_calls(overflow_hybrid['overflow_calls'])}走按量 API」："
                     f"首月约 ¥{overflow_hybrid['first_month_total_rmb']:.2f}（省 ¥{overflow_hybrid['first_month_saving_rmb']:.2f}），"
                     f"续费月约 ¥{overflow_hybrid['renewal_total_rmb']:.2f}（仍净省 ¥{overflow_hybrid['renewal_saving_rmb']:.2f}）。"
                 )
             else:
                 verdict_zh = (
                     f"按 30 天预计 {_fmt_wan_calls(monthly_calls)}（{monthly_calls:,} 次），"
-                    f"超出 Pro 月额度 {_fmt_wan_calls(exceeds_pro_by)}（上限 {PRO_MONTHLY_CAP:,} 次/月）；"
+                    f"超出 {cap_label} {_fmt_wan_calls(exceeds_pro_by)}（上限 {total_pro_monthly_cap:,} 次/月）；"
                     "单靠个人包月套餐不够用，超出部分需走按量 API 或拆分多账号/企业方案。"
                 )
             first_month_saving = None
@@ -654,10 +691,12 @@ def evaluate_coding_plans(
             first_month_saving = round(payg_rmb - effective_first_rmb, 2)
             renewal_saving = round(payg_rmb - renewal_rmb, 2)
             cov_prefix = "套餐含同系模型，" if covers_model else "跨模型国产平替（套餐不含所选原模型），"
+            chosen_cap_monthly = int(chosen_tier["quota_monthly"]) * seats
+            tier_display = f"{seat_prefix}{chosen_tier['name']}"
             if renewal_saving > 0:
                 status = "recommended_even_on_renewal"
                 verdict_zh = (
-                    f"{cov_prefix}匹配 {chosen_tier['name']}（月上限 {chosen_tier['quota_monthly']:,} 次）："
+                    f"{cov_prefix}匹配 {tier_display}（月上限 {chosen_cap_monthly:,} 次）："
                     f"同基准按量预计 ¥{payg_rmb:.2f}/月，"
                     + (f"首月 ¥{effective_first_rmb:.2f} 省 ¥{first_month_saving:.2f}，" if first_rmb is not None else "")
                     + f"续费 ¥{renewal_rmb:.0f}/月 仍净省 ¥{renewal_saving:.2f}。"
@@ -673,7 +712,7 @@ def evaluate_coding_plans(
                 status = "payg_cheaper"
                 verdict_zh = (
                     f"建议直接按量付费：按量仅需 ¥{payg_rmb:.2f}/月，"
-                    f"低于 {chosen_tier['name']} 价格（¥{effective_first_rmb:.2f}～¥{renewal_rmb:.0f}/月）。"
+                    f"低于 {tier_display} 价格（¥{effective_first_rmb:.2f}～¥{renewal_rmb:.0f}/月）。"
                 )
 
         eligible.append(
@@ -686,14 +725,17 @@ def evaluate_coding_plans(
                 "official_source_url": offer["official_source_url"],
                 "verified_date": offer["verified_date"],
                 "status": status,
+                "seats_count": seats,
                 "matched_tier": chosen_tier["tier_id"] if chosen_tier else "exceeds_pro",
-                "matched_tier_name": chosen_tier["name"] if chosen_tier else verdict_zh,
+                "matched_tier_name": (f"{seat_prefix}{chosen_tier['name']}" if chosen_tier else verdict_zh),
+                "unit_first_month_rmb": unit_first,
+                "unit_renewal_rmb": unit_renewal,
                 "first_month_rmb": effective_first_rmb,
                 "has_first_month_promo": first_rmb is not None,
                 "renewal_rmb": renewal_rmb,
-                "quota_5h": ref_tier["quota_5h"],
-                "quota_weekly": ref_tier["quota_weekly"],
-                "quota_monthly": ref_tier["quota_monthly"],
+                "quota_5h": int(ref_tier["quota_5h"]) * seats,
+                "quota_weekly": int(ref_tier["quota_weekly"]) * seats,
+                "quota_monthly": tier_cap_monthly,
                 "first_month_savings_rmb": first_month_saving,
                 "renewal_savings_rmb": renewal_saving,
                 "overflow_hybrid": overflow_hybrid,
@@ -735,50 +777,80 @@ def evaluate_coding_plans(
             "（官方条款仅限交互式编程工具），请使用下方按量付费 API 或自建缓存网关。"
         )
         window_note_zh = "非交互式后端不适用个人套餐的 5 小时滚动窗口。"
-    elif monthly_calls > PRO_MONTHLY_CAP:
-        over = monthly_calls - PRO_MONTHLY_CAP
-        base_warn = (
-            f"按 30 天预计 {_fmt_wan_calls(monthly_calls)}（{monthly_calls:,} 次模型调用），"
-            f"超出 Pro 月额度 {_fmt_wan_calls(over)}（百炼/腾讯/火山 Pro 月上限均为 {PRO_MONTHLY_CAP:,} 次）——"
-            "切勿误以为 ¥200 包月可无限封顶！"
-        )
+    elif monthly_calls > total_pro_monthly_cap:
+        over = monthly_calls - total_pro_monthly_cap
+        if seats == 1:
+            base_warn = (
+                f"按 30 天预计 {_fmt_wan_calls(monthly_calls)}（{monthly_calls:,} 次模型调用），"
+                f"超出 Pro 月额度 {_fmt_wan_calls(over)}（百炼/腾讯/火山 Pro 月上限均为 {PRO_MONTHLY_CAP:,} 次）——"
+                "切勿误以为 ¥200 包月可无限封顶！"
+            )
+            pro_phrase = f"1 份 {best_hybrid_plan['name']} Pro 打底前 9 万次" if best_hybrid_plan else ""
+            window_note_zh = (
+                f"除月上限 {PRO_MONTHLY_CAP:,} 次外，Pro 每 5 小时限 {PRO_5H_CAP:,} 次、每周限 {PRO_WEEKLY_CAP:,} 次。"
+            )
+        else:
+            base_warn = (
+                f"按 {seats} 人团队 30 天合计 {_fmt_wan_calls(monthly_calls)}（人均约 {per_seat_monthly_calls:,} 次/月），"
+                f"超出 {seats} 席 Pro 合计月上限 {_fmt_wan_calls(over)}（合计上限 {total_pro_monthly_cap:,} 次/月）——"
+            )
+            pro_phrase = (
+                f"{seats} 份 {best_hybrid_plan['name']} Pro 打底前 {_fmt_wan_calls(best_hybrid_plan['overflow_hybrid']['covered_calls'])}"
+                if best_hybrid_plan
+                else ""
+            )
+            window_note_zh = (
+                f"{seats} 席独立订阅合计每 5 小时限 {total_pro_5h_cap:,} 次、每周限 {total_pro_weekly_cap:,} 次（每席严禁跨人共用 sk-sp- 密钥）。"
+            )
         if best_hybrid_plan is not None:
             bh = best_hybrid_plan["overflow_hybrid"]
             headline_zh = (
                 base_warn
-                + f"但可采用「1 份 {best_hybrid_plan['name']} Pro 打底前 9 万次 + 超额 {_fmt_wan_calls(bh['overflow_calls'])}走按量 API」："
+                + f"但可采用「{pro_phrase} + 超额 {_fmt_wan_calls(bh['overflow_calls'])}走按量 API」："
                 f"首月约 ¥{bh['first_month_total_rmb']:.2f} / 续费月约 ¥{bh['renewal_total_rmb']:.2f}，"
                 f"比全程纯按量（¥{payg_rmb:.2f}）仍净省 ¥{bh['renewal_saving_rmb']:.2f}/月。"
             )
         else:
-            headline_zh = base_warn + f"当前模型全程纯按量仅约 ¥{payg_rmb:.2f}/月，无需叠加 ¥200 包月。"
-        window_note_zh = (
-            f"除月上限 {PRO_MONTHLY_CAP:,} 次外，Pro 每 5 小时限 {PRO_5H_CAP:,} 次、每周限 {PRO_WEEKLY_CAP:,} 次。"
-        )
+            headline_zh = base_warn + f"当前模型全程纯按量仅约 ¥{payg_rmb:.2f}/月，无需叠加包月。"
     else:
         if peak_5h_calls is None:
             window_note_zh = (
-                f"月额度足够，5 小时窗口待确认（Pro 每 5 小时上限 {PRO_5H_CAP:,} 次 / 腾讯及火山 Lite 每 5 小时上限 {LITE_5H_CAP:,} 次；"
+                f"月额度足够，5 小时窗口待确认（{'合计 ' if seats > 1 else ''}Pro 每 5 小时上限 {total_pro_5h_cap:,} 次 / 腾讯及火山 Lite 每 5 小时上限 {total_lite_5h_cap:,} 次；"
                 "注意单位为模型调用次数，单次用户提问在 Claude Code/Cline 中可能触发 5～30 次调用）。"
             )
-        elif peak_5h_calls > PRO_5H_CAP:
-            window_note_zh = f"5 小时峰值（{peak_5h_calls:,} 次）已超出 Pro 窗口上限（{PRO_5H_CAP:,} 次/5h），高峰期将触发限流。"
+        elif peak_5h_calls > total_pro_5h_cap:
+            window_note_zh = f"5 小时峰值（{peak_5h_calls:,} 次）已超出 {'合计 ' if seats > 1 else ''}Pro 窗口上限（{total_pro_5h_cap:,} 次/5h），高峰期将触发限流。"
         else:
             window_note_zh = f"月额度与 5 小时峰值窗口（{peak_5h_calls:,} 次）均在套餐上限内。"
 
-        if monthly_calls > LITE_MONTHLY_CAP:
-            over_lite = monthly_calls - LITE_MONTHLY_CAP
-            headline_zh = (
-                f"按 30 天预计 {monthly_calls:,} 次模型调用：已超出腾讯/火山 Lite 月额度 {over_lite:,} 次（Lite 上限 {LITE_MONTHLY_CAP:,} 次/月），"
-                f"需对标 Pro 档（上限 {PRO_MONTHLY_CAP:,} 次/月，续费原价 ¥200/月）评估盈亏。"
-            )
+        if seats == 1:
+            if monthly_calls > LITE_MONTHLY_CAP:
+                over_lite = monthly_calls - LITE_MONTHLY_CAP
+                headline_zh = (
+                    f"按 30 天预计 {monthly_calls:,} 次模型调用：已超出腾讯/火山 Lite 月额度 {over_lite:,} 次（Lite 上限 {LITE_MONTHLY_CAP:,} 次/月），"
+                    f"需对标 Pro 档（上限 {PRO_MONTHLY_CAP:,} 次/月，续费原价 ¥200/月）评估盈亏。"
+                )
+            else:
+                headline_zh = (
+                    f"按 30 天预计 {monthly_calls:,} 次模型调用：在腾讯/火山 Lite（18,000 次/月，¥40/月）与各家 Pro（90,000 次/月）月度总额度内。"
+                )
         else:
-            headline_zh = (
-                f"按 30 天预计 {monthly_calls:,} 次模型调用：在腾讯/火山 Lite（18,000 次/月，¥40/月）与各家 Pro（90,000 次/月）月度总额度内。"
-            )
+            if monthly_calls > total_lite_monthly_cap:
+                headline_zh = (
+                    f"按 {seats} 人团队 30 天合计 {monthly_calls:,} 次调用（人均约 {per_seat_monthly_calls:,} 次/月）："
+                    f"已超 {seats} 席 Lite 合计上限（{total_lite_monthly_cap:,} 次/月），"
+                    f"需对标 {seats} 席独立 Pro（合计上限 {total_pro_monthly_cap:,} 次/月，续费合计 ¥{200 * seats:,}/月）对比团队共享按量池（¥{payg_rmb:.2f}/月）。"
+                )
+            else:
+                headline_zh = (
+                    f"按 {seats} 人团队 30 天合计 {monthly_calls:,} 次调用（人均约 {per_seat_monthly_calls:,} 次/月）："
+                    f"处于 {seats} 席腾讯/火山 Lite（合计 {total_lite_monthly_cap:,} 次/月，¥{40 * seats:,}/月）与各家 Pro（合计 {total_pro_monthly_cap:,} 次/月）额度内。"
+                )
 
     return {
         "usage_mode": norm_mode,
+        "team_size": seats,
+        "per_seat_monthly_calls": per_seat_monthly_calls,
         "daily_calls": d_calls,
         "monthly_calls_30d": monthly_calls,
         "payg_baseline_rmb": payg_rmb,

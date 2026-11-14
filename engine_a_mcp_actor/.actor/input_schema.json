@@ -73,6 +73,31 @@
       "description": "Average completion tokens per request.",
       "default": 500
     },
+    "cache_hit_rate": {
+      "title": "Prompt Cache Hit Rate (0.0 - 0.9)",
+      "type": "number",
+      "description": "Fraction of input tokens hitting prompt cache (e.g. 0.5 for 50% hit rate).",
+      "default": 0
+    },
+    "usage_mode": {
+      "title": "Usage Mode",
+      "type": "string",
+      "description": "Choose 'interactive_ide' (Cursor/Claude Code/Cline) or 'automated_backend' (excludes personal Coding Plans).",
+      "editor": "select",
+      "enum": ["interactive_ide", "automated_backend"],
+      "default": "interactive_ide"
+    },
+    "peak_5h_calls": {
+      "title": "Optional Peak 5-Hour Calls",
+      "type": "integer",
+      "description": "Optional peak API calls within a rolling 5-hour window to verify 1,200/6,000 hard caps."
+    },
+    "team_size": {
+      "title": "Developer Seats (team_size, 1-50)",
+      "type": "integer",
+      "description": "Number of interactive IDE developer seats (1..50). Compares N compliant Coding Plan seats against a shared team Pay-As-You-Go API pool.",
+      "default": 1
+    },
     "refresh_live": {
       "title": "Refresh Live OpenRouter Data First",
       "type": "boolean",

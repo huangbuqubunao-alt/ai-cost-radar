@@ -282,6 +282,7 @@ def calculate_api_budget(
     output_includes_reasoning: bool = False,
     usage_mode: str = "interactive_ide",
     peak_5h_calls: int | None = None,
+    team_size: int = 1,
 ) -> dict[str, Any]:
     """
     Calculate daily/monthly/annual USD & RMB API budget for a given model, evaluate Coding Plan quotas
@@ -407,6 +408,7 @@ def calculate_api_budget(
         usage_mode=usage_mode,
         peak_5h_calls=peak_5h_calls,
         model_id=best_match,
+        team_size=team_size,
     )
     self_host_eval = pricing_core.evaluate_self_host_vs_payg(current_payg_rmb=monthly_rmb)
     api_model_id = str(best_match.get("api_model_id") or best_match["id"])
@@ -423,6 +425,7 @@ def calculate_api_budget(
             "output_includes_reasoning": inc_cot,
             "usage_mode": coding_eval["usage_mode"],
             "peak_5h_calls": int(peak_5h_calls) if peak_5h_calls is not None else None,
+            "team_size": coding_eval["team_size"],
         },
         "quote_verified_date": catalog.get("quote_verified_date", pricing_core.QUOTE_VERIFIED_DATE),
         "last_live_verified_at": catalog.get("last_live_verified_at") or catalog.get("updated_at"),
@@ -617,6 +620,13 @@ MCP_TOOLS_SPEC: list[dict[str, Any]] = [
                     "description": "'interactive_ide' (Claude Code/Cursor/Cline) or 'automated_backend' (excludes personal Coding Plans).",
                     "default": "interactive_ide",
                 },
+                "team_size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50,
+                    "description": "Number of interactive IDE developer seats (1..50, default 1). Compares N compliant personal Coding Plan seats against a shared team Pay-As-You-Go API pool.",
+                    "default": 1,
+                },
             },
             "required": ["model_query"],
         },
@@ -664,6 +674,7 @@ def dispatch_tool_call(tool_name: str, arguments: dict[str, Any] | None) -> dict
             output_includes_reasoning=args.get("output_includes_reasoning", False),
             usage_mode=args.get("usage_mode", "interactive_ide"),
             peak_5h_calls=args.get("peak_5h_calls"),
+            team_size=args.get("team_size", 1),
         )
     if tool_name == "list_free_and_ultra_cheap_models":
         return list_free_and_ultra_cheap_models(
@@ -971,6 +982,7 @@ class ModelRouterHTTPHandler(BaseHTTPRequestHandler):
                 output_includes_reasoning=inc_reasoning,
                 usage_mode=qs.get("usage_mode", "interactive_ide"),
                 peak_5h_calls=peak_val,
+                team_size=int(float(qs.get("team_size", 1))),
             )
             self._send_json(200, res)
             return

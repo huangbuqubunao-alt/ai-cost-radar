@@ -315,6 +315,12 @@ FAQ_ENTRIES: list[dict[str, str]] = [
         "q_en": "When does hosting a LiteLLM / Dify cache gateway or renting an elastic GPU actually save money?",
         "a_en": "Self-hosting is never zero-cost: Cache Gateway Monthly Total = cloud server rent (~¥68) + uncached API spend + storage/egress (~¥15); Elastic GPU Monthly Total = hourly GPU rate × monthly active hours + storage/egress. This tool only recommends a cloud server or GPU when total self-hosted cost is meaningfully lower than your current pay-as-you-go API bill; otherwise staying on pay-as-you-go is cheaper.",
     },
+    {
+        "q": "多人研发团队或月调用超 90,000 次时，怎么选「多席位 Coding Plan」与「Pro 打底＋按量溢出」？",
+        "a": "个人 Coding Plan 专属密钥（如 sk-sp-）严禁接入共享网关供多人混用。多人研发团队需按实际 IDE 开发者人数采购独立席位（N × Pro / Lite），并与「团队共享按量 API 池 + LiteLLM 缓存」对比续费总账单：若人均调用较轻（共享按量总费低于 N × ¥200），直接共用按量池更省钱；若单人或团队总调用超出 N × 90,000 次/月上限，系统会自动测算「N 份 Pro 打底前 N×9 万次 + 超额部分走按量 API」混合账单，仅在续费月仍净省时才推荐。",
+        "q_en": "How should multi-developer teams or >90,000-call workloads choose between multi-seat Coding Plans and 'Pro Base + PayG Overflow'?",
+        "a_en": "Personal Coding Plan keys (such as sk-sp-) cannot be pooled behind a shared team proxy. Multi-developer teams must purchase one compliant subscription seat per IDE developer (N × Pro / Lite) and compare total renewal cost against a shared Pay-As-You-Go API pool: when average per-developer volume is light (shared PayG < N × ¥200), a shared PayG pool is cheaper; when total interactive calls exceed N × 90,000/month, this calculator models 'N × Pro Base + PayG Overflow' and only recommends it if renewal months still yield net savings.",
+    },
 ]
 
 SEO_ROUTES: list[dict[str, Any]] = [
@@ -385,6 +391,11 @@ SEO_ROUTES: list[dict[str, Any]] = [
             "reasoningMultiplier": 2.5,
             "usageMode": "interactive_ide",
             "baselineId": "tencent-cloud/deepseek-r1",
+            "compareIds": [
+                "tencent-cloud/deepseek-r1",
+                "aliyun-bailian/qwen3.5-plus",
+                "aliyun-bailian/qwen3-coder-next",
+            ],
         },
     },
     {

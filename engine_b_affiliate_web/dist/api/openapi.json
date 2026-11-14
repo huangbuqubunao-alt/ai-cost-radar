@@ -408,6 +408,18 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "name": "team_size",
+            "in": "query",
+            "required": false,
+            "description": "交互式编程团队人数（1～50，默认 1），对比 N 席独立 Coding Plan 订阅与共享按量池",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 1
+            }
           }
         ],
         "responses": {
@@ -426,6 +438,12 @@
                     },
                     "model_id": {
                       "type": "string"
+                    },
+                    "team_size": {
+                      "type": "integer"
+                    },
+                    "per_seat_monthly_requests": {
+                      "type": "integer"
                     },
                     "monthly_requests": {
                       "type": "integer"

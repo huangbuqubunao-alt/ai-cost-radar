@@ -110,6 +110,10 @@ def main():
             assert budget.get("status") == "ok" and budget.get("model_id") == "aliyun-bailian/qwen3-coder-next", f"Invalid /api/budget: {budget}"
             assert budget.get("monthly_requests") == 150000, f"Unexpected /api/budget monthly_requests: {budget}"
             assert budget.get("recommended_overflow_hybrid_plan_id") == "aliyun-coding-plan", f"Missing v3.4 overflow hybrid recommendation: {budget}"
+            st_team, body_team = request_remote("api/budget?model_id=qwen3-coder-next&daily_requests=6000&avg_input_tokens=4000&avg_output_tokens=1000&cache_hit_rate=0.5&team_size=5")
+            assert st_team == 200, f"/api/budget team_size=5 returned HTTP {st_team}: {body_team}"
+            team_budget = json.loads(body_team)
+            assert team_budget.get("team_size") == 5 and team_budget.get("recommended_same_family_plan_id") == "aliyun-coding-plan", f"Unexpected /api/budget team_size=5 payload: {team_budget}"
             st_feed, body_feed = request_remote("feeds/price-changes.xml")
             assert st_feed == 200 and "<feed" in body_feed, f"/feeds/price-changes.xml returned HTTP {st_feed}"
             st_admin, _ = request_remote("admin/stats")

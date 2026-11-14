@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 import ssl
 import urllib.error
@@ -437,9 +438,17 @@ def _evaluate_coding_plan_verdict(
     peak: int | None = None,
     model: dict[str, Any] | str | None = None,
     offers: list[dict[str, Any]] | None = None,
+    team_size: int = 1,
 ) -> dict[str, Any]:
+    seats = max(1, min(50, int(round(float(team_size or 1)))))
     d_calls = max(0, int(daily_calls))
     monthly_calls = d_calls * 30
+    per_seat_monthly_calls = math.ceil(monthly_calls / seats) if monthly_calls > 0 else 0
+    total_pro_monthly = PRO_MONTHLY_CAP * seats
+    total_pro_weekly = PRO_WEEKLY_CAP * seats
+    total_pro_5h = PRO_5H_CAP * seats
+    total_lite_monthly = LITE_MONTHLY_CAP * seats
+    total_lite_5h = LITE_5H_CAP * seats
     is_backend = str(usage_mode or "").strip().lower() in (
         "automated_backend",
         "backend",
@@ -469,8 +478,11 @@ def _evaluate_coding_plan_verdict(
         purchasable_tiers = [t for t in offer.get("tiers", []) if t.get("purchasable")]
         chosen_tier: dict[str, Any] | None = None
         for tier in purchasable_tiers:
-            if monthly_calls <= int(tier["quota_monthly"]) and (d_calls * 7) <= int(tier["quota_weekly"]):
-                if peak is None or peak <= int(tier["quota_5h"]):
+            if (
+                monthly_calls <= int(tier["quota_monthly"]) * seats
+                and (d_calls * 7) <= int(tier["quota_weekly"]) * seats
+            ):
+                if peak is None or peak <= int(tier["quota_5h"]) * seats:
                     chosen_tier = tier
                     break
 
@@ -484,26 +496,32 @@ def _evaluate_coding_plan_verdict(
 
         covers_model = _plan_covers_model(offer, model) if model is not None else True
         first_rmb = ref_tier.get("first_month_rmb")
-        renewal_rmb = float(ref_tier["renewal_rmb"])
-        effective_first_rmb = float(first_rmb) if first_rmb is not None else renewal_rmb
+        unit_renewal = float(ref_tier["renewal_rmb"])
+        unit_first = float(first_rmb) if first_rmb is not None else unit_renewal
+        renewal_rmb = round(unit_renewal * seats, 2)
+        effective_first_rmb = round(unit_first * seats, 2)
 
         overflow_hybrid: dict[str, Any] | None = None
         if (
             norm_mode == "interactive_ide"
             and pro_tier is not None
-            and monthly_calls > int(pro_tier["quota_monthly"])
-            and (peak is None or peak <= int(pro_tier["quota_5h"]))
+            and monthly_calls > int(pro_tier["quota_monthly"]) * seats
+            and (peak is None or peak <= int(pro_tier["quota_5h"]) * seats)
         ):
-            covered_calls = int(pro_tier["quota_monthly"])
+            covered_calls = int(pro_tier["quota_monthly"]) * seats
             overflow_calls = monthly_calls - covered_calls
             overflow_payg_rmb = round(payg_rmb * (overflow_calls / float(monthly_calls)), 2)
-            first_plan = round(effective_first_rmb, 2)
-            renew_plan = round(renewal_rmb, 2)
+            pro_raw_first = pro_tier.get("first_month_rmb")
+            pro_unit_renewal = float(pro_tier["renewal_rmb"])
+            pro_unit_first = float(pro_raw_first) if pro_raw_first is not None else pro_unit_renewal
+            first_plan = round(pro_unit_first * seats, 2)
+            renew_plan = round(pro_unit_renewal * seats, 2)
             first_tot = round(first_plan + overflow_payg_rmb, 2)
             renew_tot = round(renew_plan + overflow_payg_rmb, 2)
             first_sav = round(payg_rmb - first_tot, 2)
             renew_sav = round(payg_rmb - renew_tot, 2)
             overflow_hybrid = {
+                "seats_count": seats,
                 "covered_calls": covered_calls,
                 "overflow_calls": overflow_calls,
                 "overflow_payg_rmb": overflow_payg_rmb,
@@ -516,7 +534,7 @@ def _evaluate_coding_plan_verdict(
                 "saves_on_renewal": bool(renew_sav > 0),
             }
 
-        if chosen_tier is None and monthly_calls <= int(ref_tier["quota_monthly"]):
+        if chosen_tier is None and monthly_calls <= int(ref_tier["quota_monthly"]) * seats:
             status = "exceeds_5h_cap"
             first_month_saving = None
             renewal_saving = None
@@ -544,13 +562,14 @@ def _evaluate_coding_plan_verdict(
                 "official_source_url": offer.get("official_source_url", ""),
                 "verified_date": offer.get("verified_date", QUOTE_VERIFIED_DATE),
                 "status": status,
+                "seats_count": seats,
                 "matched_tier": chosen_tier["tier_id"] if chosen_tier else "exceeds_pro",
                 "first_month_rmb": effective_first_rmb,
                 "has_first_month_promo": first_rmb is not None,
                 "renewal_rmb": renewal_rmb,
-                "quota_5h": ref_tier["quota_5h"],
-                "quota_weekly": ref_tier["quota_weekly"],
-                "quota_monthly": ref_tier["quota_monthly"],
+                "quota_5h": int(ref_tier["quota_5h"]) * seats,
+                "quota_weekly": int(ref_tier["quota_weekly"]) * seats,
+                "quota_monthly": int(ref_tier["quota_monthly"]) * seats,
                 "first_month_savings_rmb": first_month_saving,
                 "renewal_savings_rmb": renewal_saving,
                 "overflow_hybrid": overflow_hybrid,
@@ -587,6 +606,8 @@ def _evaluate_coding_plan_verdict(
     if is_backend:
         return {
             "usage_mode": "automated_backend",
+            "team_size": seats,
+            "per_seat_monthly_calls": per_seat_monthly_calls,
             "monthly_calls_30d": monthly_calls,
             "recommended_same_family_plan_id": None,
             "recommended_overflow_hybrid_plan_id": None,
@@ -599,49 +620,69 @@ def _evaluate_coding_plan_verdict(
             "window_note_zh": "非交互式后端不可使用个人编程套餐。",
         }
 
-    if monthly_calls > PRO_MONTHLY_CAP:
-        over = monthly_calls - PRO_MONTHLY_CAP
-        base_headline = (
-            f"按 30 天预计 {_fmt_wan(monthly_calls)}（{monthly_calls:,} 次模型调用），"
-            f"超出 Pro 月额度 {_fmt_wan(over)}（百炼/腾讯/火山 Pro 月上限均为 {PRO_MONTHLY_CAP:,} 次）——"
-            "¥200 包月套餐不够用，超出部分需走按量 API 或多账号/企业方案！"
-        )
+    if monthly_calls > total_pro_monthly:
+        over = monthly_calls - total_pro_monthly
+        if seats == 1:
+            base_headline = (
+                f"按 30 天预计 {_fmt_wan(monthly_calls)}（{monthly_calls:,} 次模型调用），"
+                f"超出 Pro 月额度 {_fmt_wan(over)}（百炼/腾讯/火山 Pro 月上限均为 {PRO_MONTHLY_CAP:,} 次）——"
+                "¥200 包月套餐不够用，超出部分需走按量 API 或多账号/企业方案！"
+            )
+            pro_phrase = f"1 份 {best_hybrid['name']} Pro 打底前 9 万次" if best_hybrid else ""
+        else:
+            base_headline = (
+                f"按 {seats} 人团队 30 天合计 {_fmt_wan(monthly_calls)}（人均约 {per_seat_monthly_calls:,} 次/月），"
+                f"超出 {seats} 席 Pro 合计月额度 {_fmt_wan(over)}（合计上限 {total_pro_monthly:,} 次）——"
+            )
+            pro_phrase = (
+                f"{seats} 份 {best_hybrid['name']} Pro 打底前 {_fmt_wan(best_hybrid['overflow_hybrid']['covered_calls'])}"
+                if best_hybrid
+                else ""
+            )
         if best_hybrid is not None:
             bh = best_hybrid["overflow_hybrid"]
             headline = (
                 base_headline
-                + f"可采用「1 份 {best_hybrid['name']} Pro 打底前 9 万次 + 超额 {_fmt_wan(bh['overflow_calls'])}走按量 API」："
+                + f"可采用「{pro_phrase} + 超额 {_fmt_wan(bh['overflow_calls'])}走按量 API」："
                 f"首月约 ¥{bh['first_month_total_rmb']:.2f} / 续费月约 ¥{bh['renewal_total_rmb']:.2f}，"
                 f"净省 ¥{bh['renewal_saving_rmb']:.2f}/月。"
             )
         else:
-            headline = base_headline + f"当前模型全程纯按量仅约 ¥{payg_rmb:.2f}/月，无需叠加 ¥200 包月。"
-        window_note = f"Pro 另有每 5 小时 {PRO_5H_CAP:,} 次、每周 {PRO_WEEKLY_CAP:,} 次硬上限。"
+            headline = base_headline + f"当前模型全程纯按量仅约 ¥{payg_rmb:.2f}/月，无需叠加包月。"
+        window_note = f"{'合计 ' if seats > 1 else ''}Pro 另有每 5 小时 {total_pro_5h:,} 次、每周 {total_pro_weekly:,} 次硬上限。"
     else:
         window_note = (
-            f"月额度足够，5 小时窗口待确认（Pro 每 5h 限 {PRO_5H_CAP:,} 次 / 腾讯与火山 Lite 每 5h 限 {LITE_5H_CAP:,} 次；"
+            f"月额度足够，5 小时窗口待确认（{'合计 ' if seats > 1 else ''}Pro 每 5h 限 {total_pro_5h:,} 次 / 腾讯与火山 Lite 每 5h 限 {total_lite_5h:,} 次；"
             "注意单位为模型调用次数，一次提问可能触发 5～30 次调用）。"
         )
-        if monthly_calls > LITE_MONTHLY_CAP:
-            over_lite = monthly_calls - LITE_MONTHLY_CAP
-            headline = (
-                f"按 30 天预计 {monthly_calls:,} 次调用：超出腾讯/火山 Lite 月上限 {over_lite:,} 次（Lite 限 18,000 次/月，百炼 Lite 已停新购），"
-                f"需对标 Pro 档（90,000 次/月，百炼新客首月 ¥39.90、各家续费原价 ¥200/月；当前同模型按量约 ¥{payg_rmb:.2f}/月）。"
-            )
+        if seats == 1:
+            if monthly_calls > LITE_MONTHLY_CAP:
+                over_lite = monthly_calls - LITE_MONTHLY_CAP
+                headline = (
+                    f"按 30 天预计 {monthly_calls:,} 次调用：超出腾讯/火山 Lite 月上限 {over_lite:,} 次（Lite 限 18,000 次/月，百炼 Lite 已停新购），"
+                    f"需对标 Pro 档（90,000 次/月，百炼新客首月 ¥39.90、各家续费原价 ¥200/月；当前同模型按量约 ¥{payg_rmb:.2f}/月）。"
+                )
+            else:
+                headline = (
+                    f"按 30 天预计 {monthly_calls:,} 次调用：在腾讯/火山 Lite（¥40/月，18,000 次/月）与各家 Pro（90,000 次/月）额度内；"
+                    f"当前同模型按量约 ¥{payg_rmb:.2f}/月，请同时对比首月特惠与次月 ¥200 续费原价。"
+                )
         else:
             headline = (
-                f"按 30 天预计 {monthly_calls:,} 次调用：在腾讯/火山 Lite（¥40/月，18,000 次/月）与各家 Pro（90,000 次/月）额度内；"
-                f"当前同模型按量约 ¥{payg_rmb:.2f}/月，请同时对比首月特惠与次月 ¥200 续费原价。"
+                f"按 {seats} 人团队 30 天合计 {monthly_calls:,} 次调用（人均约 {per_seat_monthly_calls:,} 次/月）："
+                f"在 {seats} 席独立套餐上限内（合计上限 {total_pro_monthly:,} 次/月，续费合计 ¥{200 * seats:,}/月；共享按量池约 ¥{payg_rmb:.2f}/月）。"
             )
-    if peak is not None and monthly_calls <= PRO_MONTHLY_CAP:
-        if peak > PRO_5H_CAP:
-            window_note = f"5 小时峰值 {peak:,} 次，超过 Pro 窗口上限 {PRO_5H_CAP:,} 次。"
-        elif peak > LITE_5H_CAP:
+    if peak is not None and monthly_calls <= total_pro_monthly:
+        if peak > total_pro_5h:
+            window_note = f"5 小时峰值 {peak:,} 次，超过 {'合计 ' if seats > 1 else ''}Pro 窗口上限 {total_pro_5h:,} 次。"
+        elif peak > total_lite_5h:
             window_note = "5 小时峰值超过 Lite 上限，处于 Pro 窗口额度内。"
         else:
             window_note = "5 小时峰值处于 Lite 和 Pro 窗口额度内。"
     return {
         "usage_mode": "interactive_ide",
+        "team_size": seats,
+        "per_seat_monthly_calls": per_seat_monthly_calls,
         "monthly_calls_30d": monthly_calls,
         "recommended_same_family_plan_id": rec_same_family,
         "recommended_overflow_hybrid_plan_id": rec_overflow_hybrid,
@@ -860,6 +901,8 @@ def _run_budget(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, Any],
 
     raw_peak = _get_param(inp, "peak_5h_calls", None)
     peak = max(0, int(raw_peak)) if raw_peak is not None else None
+    raw_seats = _get_param(inp, "team_size", 1)
+    seats = max(1, min(50, int(round(float(raw_seats or 1)))))
     coding_eval = _evaluate_coding_plan_verdict(
         int(round(reqs)),
         monthly_rmb,
@@ -867,6 +910,7 @@ def _run_budget(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, Any],
         peak,
         model=best_match,
         offers=catalog.get("coding_plans") if isinstance(catalog.get("coding_plans"), list) else None,
+        team_size=seats,
     )
 
     alts = []
@@ -903,6 +947,7 @@ def _run_budget(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, Any],
             "cache": hit_rate,
             "inc_cot": int(inc_cot),
             **({"peak5h": peak} if peak is not None else {}),
+            **({"seats": seats} if seats > 1 else {}),
             "reason": r_mult if r_mult > 1 else 0,
             "mode": coding_eval["usage_mode"],
             "baseline": best_match["id"],

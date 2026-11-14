@@ -7,11 +7,11 @@
   "build_date": "2026-11-14",
   "updated_at": "2026-11-14",
   "quote_verified_date": "2026-11-13",
-  "last_live_verified_at": "2026-11-14 20:43:56",
+  "last_live_verified_at": "2026-11-14 21:44:17",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
   "official_rule_audit": {
-    "checked_at": "2026-11-14T20:43:56Z",
+    "checked_at": "2026-11-14T21:44:17Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -27,9 +27,22 @@
       {
         "plan_id": "tencent-coding-plan",
         "url": "https://cloud.tencent.com/document/product/1823/130092",
-        "status": "csr_shell_manual_check",
-        "matched_groups": [],
+        "status": "verified_markers",
+        "matched_groups": [
+          "lite_monthly_cap_18k",
+          "lite_renewal_40",
+          "pro_monthly_cap_90k",
+          "pro_renewal_200"
+        ],
         "missing_groups": []
+      },
+      {
+        "plan_id": "volcengine-coding-plan",
+        "url": "https://www.volcengine.com/docs/82379/1925114",
+        "status": "unreachable",
+        "matched_groups": [],
+        "missing_groups": [],
+        "note": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1081)>"
       }
     ]
   },
@@ -207,7 +220,7 @@
       "name": "火山方舟 Coding Plan 编程套餐",
       "vendor": "字节跳动 · 火山引擎",
       "provider_config_key": "volcengine_ark_url",
-      "official_source_url": "https://www.volcengine.com/docs/82379",
+      "official_source_url": "https://www.volcengine.com/docs/82379/1925114",
       "verified_date": "2026-11-13",
       "interactive_only": true,
       "commission_status": "no_affiliate_program",
@@ -257,6 +270,15 @@
           "env_url_name": "ANTHROPIC_BASE_URL",
           "env_key_name": "ANTHROPIC_AUTH_TOKEN",
           "env_model_name": "ANTHROPIC_MODEL",
+          "key_prefix": "ark-",
+          "verified": true
+        },
+        "openai_compat": {
+          "protocol": "openai",
+          "base_url": "https://ark.cn-beijing.volces.com/api/coding/v3",
+          "env_url_name": "OPENAI_BASE_URL",
+          "env_key_name": "OPENAI_API_KEY",
+          "env_model_name": "OPENAI_MODEL",
           "key_prefix": "ark-",
           "verified": true
         },

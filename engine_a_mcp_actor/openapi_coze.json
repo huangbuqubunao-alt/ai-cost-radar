@@ -151,6 +151,13 @@
                   "peak_5h_calls": {
                     "type": "integer",
                     "description": "可选：最繁忙连续 5 小时峰值请求次数，用于核验 Pro 6,000 次 / Lite 1,200 次滚动窗口"
+                  },
+                  "team_size": {
+                    "type": "integer",
+                    "description": "可选：交互式编程团队人数（1～50，默认 1），对比 N 席独立 Coding Plan 订阅与共享按量池",
+                    "minimum": 1,
+                    "maximum": 50,
+                    "default": 1
                   }
                 }
               }
@@ -159,7 +166,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功返回日/月/年双币种账单预算及更低价的平替模型列表",
+            "description": "成功返回日/月/年双币种账单预算、Coding Plan 多席位与超额混合计费核验及更低价平替模型列表",
             "content": {
               "application/json": {
                 "schema": {
@@ -179,6 +186,9 @@
                         "yearly_rmb": { "type": "number" }
                       }
                     },
+                    "coding_plan_evaluation": { "type": "object" },
+                    "self_host_evaluation": { "type": "object" },
+                    "client_endpoints": { "type": "object" },
                     "cheaper_alternatives": {
                       "type": "array",
                       "items": { "type": "object" }

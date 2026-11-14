@@ -11,12 +11,14 @@ keys, computes value_score & capability tags, and writes ../shared_data/models_l
 from __future__ import annotations
 
 import datetime as dt
+import gzip
 import json
 import math
 import ssl
 import sys
 import urllib.error
 import urllib.request
+import zlib
 from pathlib import Path
 from typing import Any
 
@@ -1045,8 +1047,21 @@ OFFICIAL_DOC_AUDIT_SPECS: list[dict[str, Any]] = [
         "name": "腾讯云 LKEAP Coding Plan 编程套餐",
         "url": "https://cloud.tencent.com/document/product/1823/130092",
         "marker_groups": {
+            "lite_monthly_cap_18k": ("18,000", "18000", "1.8万"),
+            "lite_renewal_40": ("40",),
             "pro_monthly_cap_90k": ("90,000", "90000", "9万"),
             "pro_renewal_200": ("200",),
+        },
+    },
+    {
+        "plan_id": "volcengine-coding-plan",
+        "name": "火山方舟 Coding Plan 编程套餐",
+        "url": "https://www.volcengine.com/docs/82379/1925114",
+        "marker_groups": {
+            "tiers_lite_pro": ("Lite 套餐", "Pro 套餐"),
+            "quota_window_5h": ("每5小时限额", "每 5 小时"),
+            "dedicated_coding_endpoint": ("api/coding/v3", "api/coding"),
+            "interactive_ide_only": ("不可用于 API 调用", "不能用于 API 调用"),
         },
     },
 ]
@@ -1058,11 +1073,38 @@ def _fetch_doc_html_for_audit(url: str, timeout: int = 8) -> str:
         headers={
             "User-Agent": "Mozilla/5.0 (compatible; AI-Cost-Radar-RuleAudit/1.0)",
             "Accept": "text/html,application/xhtml+xml",
+            "Accept-Encoding": "gzip, deflate",
         },
     )
     ctx = _build_ssl_context()
-    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
-        return resp.read().decode("utf-8", errors="ignore")
+    last_exc: Exception | None = None
+    for attempt in range(2):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+                raw = resp.read()
+                headers = getattr(resp, "headers", None) or {}
+                enc = str(headers.get("Content-Encoding", "") or "").lower()
+                if "gzip" in enc or raw[:2] == b"\x1f\x8b":
+                    try:
+                        raw = gzip.decompress(raw)
+                    except OSError:
+                        pass
+                elif "deflate" in enc:
+                    for wbits in (zlib.MAX_WBITS, -zlib.MAX_WBITS):
+                        try:
+                            raw = zlib.decompress(raw, wbits)
+                            break
+                        except zlib.error:
+                            continue
+                return raw.decode("utf-8", errors="ignore")
+        except (urllib.error.URLError, ssl.SSLError, TimeoutError, ConnectionError) as exc:
+            last_exc = exc
+            if attempt == 0:
+                continue
+            raise
+    if last_exc is not None:
+        raise last_exc
+    return ""
 
 
 def _strip_html_visible_text(raw_html: str) -> str:
@@ -1115,7 +1157,12 @@ def audit_official_coding_plan_docs(
 
         visible_text = _strip_html_visible_text(raw_html)
         lower_text = visible_text.lower()
-        has_doc_body = len(visible_text) >= 400 and "coding plan" in lower_text and "pro" in lower_text
+        has_doc_body = (
+            len(visible_text) >= 400
+            and "coding plan" in lower_text
+            and "pro" in lower_text
+            and any(k in visible_text for k in ("上限", "月限", "每5小时限额", "每 5 小时", "请求次数", "调用次数"))
+        )
         if not has_doc_body:
             vendor_reports.append(
                 {
@@ -1235,13 +1282,14 @@ def refresh_models_live(output_path: Path = OUTPUT_PATH) -> dict[str, Any]:
     merged = cn_models + global_models
     merged.sort(key=lambda m: (-m["value_score"], m["blended_usd_per_1m"]))
     rule_audit = audit_official_coding_plan_docs(checked_at=now_iso)
+    non_drift_prior = [c for c in prior_changes if c.get("change_type") != "plan_rule_drift_warning"]
     base_changes = compute_price_changes(
         prev_models=prev_all_models,
         new_models=merged,
         prev_plans=prev_plans,
         new_plans=coding_plans,
         detected_at=now_iso,
-        prior_changes=prior_changes,
+        prior_changes=non_drift_prior,
     )
     drift_warnings = rule_audit.get("drift_warnings") or []
     seen_change_keys = {(c.get("id"), c.get("summary_zh")) for c in drift_warnings}

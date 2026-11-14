@@ -507,6 +507,24 @@ def render_html_template(
       margin-bottom: 14px;
     }}
 
+    .control-two-col {{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 14px;
+    }}
+
+    .control-two-col .control-group {{
+      margin-bottom: 0;
+    }}
+
+    @media (max-width: 560px) {{
+      .control-two-col {{
+        grid-template-columns: 1fr;
+      }}
+    }}
+
     .control-label-row {{
       display: flex;
       justify-content: space-between;
@@ -1811,9 +1829,19 @@ def render_html_template(
             </div>
           </div>
 
-          <div class="control-group">
-            <label class="control-label" for="peak5h" data-i18n="labelPeak5h">最忙的连续 5 小时调用次数（可选）</label>
-            <input type="number" class="num-input" id="peak5h" min="0" step="1" placeholder="未知" />
+          <div class="control-two-col">
+            <div class="control-group">
+              <div class="control-label-row">
+                <label class="control-label" for="teamSizeInput" data-i18n="labelTeamSize">编程团队 IDE 席位数（1～50 人）</label>
+              </div>
+              <input type="number" class="num-input" id="teamSizeInput" min="1" max="50" step="1" value="1" />
+            </div>
+            <div class="control-group">
+              <div class="control-label-row">
+                <label class="control-label" for="peak5h" data-i18n="labelPeak5h">最忙的连续 5 小时调用次数（可选）</label>
+              </div>
+              <input type="number" class="num-input" id="peak5h" min="0" step="1" placeholder="未知" />
+            </div>
           </div>
           <div class="control-group">
             <div class="control-label-row">
@@ -1927,6 +1955,7 @@ def render_html_template(
             <span class="verdict-share-hint" data-i18n="verdictShareHint">可将当前输入参数、同模型按量与套餐核验结论发给团队复算：</span>
             <div class="verdict-share-btns">
               <button type="button" class="icon-btn" id="copySummaryBtn" data-i18n="copySummaryBtn">复制对账结论单</button>
+              <button type="button" class="icon-btn" id="copyMarkdownBtn" data-i18n="copyMarkdownBtn">复制 Markdown 选型表</button>
             </div>
           </div>
         </div>
@@ -2201,6 +2230,7 @@ def render_html_template(
       lang: safeGetStorage("ai_cost_lang", "zh") === "en" ? "en" : "zh",
       theme: safeGetStorage("ai_cost_theme", "dark"),
       dailyCalls: 2500,
+      teamSize: 1,
       peak5h: null,
       inputTokens: 2000,
       outputTokens: 800,
@@ -2529,8 +2559,13 @@ def render_html_template(
       return false;
     }}
 
+    function getSeats() {{
+      return Math.max(1, Math.min(50, Math.round(Number(state.teamSize) || 1)));
+    }}
+
     function evaluateSingleSubscription(plan, monthlyCalls, paygRmb, baselineModel) {{
       const isEn = state.lang === "en";
+      const seats = getSeats();
       const coversModel = baselineModel ? planCoversModel(plan, baselineModel) : true;
       const baseShort = shortModelName(baselineModel, isEn);
       if (state.usageMode === "automated_backend" && plan.interactive_only) {{
@@ -2548,46 +2583,56 @@ def render_html_template(
       const purchasable = (plan.tiers || []).filter(t => t.purchasable);
       let matched = null;
       for (const t of purchasable) {{
-        const weekFits = (state.dailyCalls * 7) <= Number(t.quota_weekly || 999999);
-        if (monthlyCalls <= Number(t.quota_monthly) && weekFits && (state.peak5h === null || state.peak5h <= t.quota_5h)) {{
+        const capMonthly = Number(t.quota_monthly) * seats;
+        const capWeekly = Number(t.quota_weekly || 999999) * seats;
+        const cap5h = Number(t.quota_5h) * seats;
+        const weekFits = (state.dailyCalls * 7) <= capWeekly;
+        if (monthlyCalls <= capMonthly && weekFits && (state.peak5h === null || state.peak5h <= cap5h)) {{
           matched = t;
           break;
         }}
       }}
       const proTier = purchasable.find(t => t.tier_id === "pro") || purchasable[purchasable.length - 1];
-      if (!matched && proTier && monthlyCalls <= proTier.quota_monthly) {{
+      const combinedProMonthly = Number((proTier && proTier.quota_monthly) || PRO_MONTHLY_CAP) * seats;
+      const combinedProWeekly = Number((proTier && proTier.quota_weekly) || 45000) * seats;
+      const combinedPro5h = Number((proTier && proTier.quota_5h) || PRO_5H_CAP) * seats;
+      if (!matched && proTier && monthlyCalls <= combinedProMonthly) {{
         return {{
           coversModel,
           badgeHtml: `<span class="badge badge-warn">${{isEn ? "5h or Weekly Window Exceeded" : "5 小时或单周峰值超限"}}</span>`,
           priceMain: isEn ? "Peak Window Insufficient" : "高峰期额度不足",
-          tierSummary: isEn ? `${{proTier.tier_id.toUpperCase()}} Tier` : proTier.name,
-          detailText: state.peak5h !== null && state.peak5h > proTier.quota_5h
+          tierSummary: isEn
+            ? `${{seats > 1 ? seats + "× " : ""}}${{proTier.tier_id.toUpperCase()}} Tier`
+            : `${{seats > 1 ? seats + " 席 × " : ""}}${{proTier.name}}`,
+          detailText: state.peak5h !== null && state.peak5h > combinedPro5h
             ? (isEn
-                ? `5-hour peak (${{fmtNum(state.peak5h)}} calls) exceeds the ${{fmtNum(proTier.quota_5h)}}-call rolling window.`
-                : `5 小时峰值 ${{fmtNum(state.peak5h)}} 次，超过窗口上限 ${{fmtNum(proTier.quota_5h)}} 次。`)
+                ? `5-hour peak (${{fmtNum(state.peak5h)}} calls) exceeds the ${{fmtNum(combinedPro5h)}}-call rolling window.`
+                : `5 小时峰值 ${{fmtNum(state.peak5h)}} 次，超过窗口上限 ${{fmtNum(combinedPro5h)}} 次。`)
             : (isEn
-                ? `7-day volume (${{fmtNum(state.dailyCalls * 7)}} calls) exceeds the ${{fmtNum(proTier.quota_weekly)}}-call weekly cap.`
-                : `按日均推算 7 天调用 ${{fmtNum(state.dailyCalls * 7)}} 次，超过单周滚动上限 ${{fmtNum(proTier.quota_weekly)}} 次。`)
+                ? `7-day volume (${{fmtNum(state.dailyCalls * 7)}} calls) exceeds the ${{fmtNum(combinedProWeekly)}}-call weekly cap.`
+                : `按日均推算 7 天调用 ${{fmtNum(state.dailyCalls * 7)}} 次，超过单周滚动上限 ${{fmtNum(combinedProWeekly)}} 次。`)
         }};
       }}
       if (!matched) {{
-        const over = Math.max(0, monthlyCalls - PRO_MONTHLY_CAP);
+        const over = Math.max(0, monthlyCalls - combinedProMonthly);
         let overflowHybrid = null;
-        if (proTier && monthlyCalls > Number(proTier.quota_monthly || PRO_MONTHLY_CAP) && (state.peak5h === null || state.peak5h <= Number(proTier.quota_5h || PRO_5H_CAP))) {{
-          const coveredCalls = Number(proTier.quota_monthly || PRO_MONTHLY_CAP);
+        if (proTier && monthlyCalls > combinedProMonthly && (state.peak5h === null || state.peak5h <= combinedPro5h)) {{
+          const coveredCalls = combinedProMonthly;
           const overflowCalls = Math.max(0, monthlyCalls - coveredCalls);
           const overflowShare = monthlyCalls > 0 ? (overflowCalls / monthlyCalls) : 0;
           const overflowPaygRmb = Math.round(paygRmb * overflowShare * 100) / 100;
-          const firstPlanRmb = proTier.first_month_rmb !== null && proTier.first_month_rmb !== undefined
+          const unitFirst = proTier.first_month_rmb !== null && proTier.first_month_rmb !== undefined
             ? Number(proTier.first_month_rmb)
             : Number(proTier.renewal_rmb);
-          const renewalPlanRmb = Number(proTier.renewal_rmb);
+          const firstPlanRmb = Math.round(unitFirst * seats * 100) / 100;
+          const renewalPlanRmb = Math.round(Number(proTier.renewal_rmb) * seats * 100) / 100;
           const firstTotalRmb = Math.round((firstPlanRmb + overflowPaygRmb) * 100) / 100;
           const renewalTotalRmb = Math.round((renewalPlanRmb + overflowPaygRmb) * 100) / 100;
           const firstSaveRmb = Math.round((paygRmb - firstTotalRmb) * 100) / 100;
           const renewSaveRmb = Math.round((paygRmb - renewalTotalRmb) * 100) / 100;
           overflowHybrid = {{
             tierId: proTier.tier_id,
+            seats,
             coveredCalls,
             overflowCalls,
             overflowPaygRmb,
@@ -2601,94 +2646,107 @@ def render_html_template(
           }};
         }}
         if (coversModel && overflowHybrid && overflowHybrid.savesOnRenewal) {{
+          const proPrefixEn = seats > 1 ? `${{seats}}× Pro` : "Pro";
+          const proPrefixZh = seats > 1 ? `${{seats}}席 Pro` : "Pro";
+          const capShortEn = `${{Math.round(overflowHybrid.coveredCalls / 1000)}}k`;
           return {{
             excluded: false,
             exceedsCap: true,
             coversModel,
             overflowHybrid,
-            badgeHtml: `<span class="badge badge-save">${{isEn ? `Pro Base + Overflow · Save ¥${{overflowHybrid.renewSaveRmb.toFixed(0)}}/mo` : `Pro 垫底+溢出按量 · 续费省 ¥${{overflowHybrid.renewSaveRmb.toFixed(0)}}`}}</span>`,
+            badgeHtml: `<span class="badge badge-save">${{isEn ? `${{proPrefixEn}} Base + Overflow · Save ¥${{overflowHybrid.renewSaveRmb.toFixed(0)}}/mo` : `${{proPrefixZh}} 垫底+溢出按量 · 续费省 ¥${{overflowHybrid.renewSaveRmb.toFixed(0)}}`}}</span>`,
             priceMain: isEn
               ? `Hybrid ¥${{overflowHybrid.renewalTotalRmb.toFixed(2)}}/mo`
               : `组合续费 ¥${{overflowHybrid.renewalTotalRmb.toFixed(2)}}/月`,
             tierSummary: isEn
-              ? `1st mo ¥${{overflowHybrid.firstTotalRmb.toFixed(2)}} · 90k Pro + ${{fmtNum(over)}} PayG`
-              : `首月组合 ¥${{overflowHybrid.firstTotalRmb.toFixed(2)}} · 9万包月+溢出按量`,
+              ? `1st mo ¥${{overflowHybrid.firstTotalRmb.toFixed(2)}} · ${{capShortEn}} ${{proPrefixEn}} + ${{fmtNum(over)}} PayG`
+              : `首月组合 ¥${{overflowHybrid.firstTotalRmb.toFixed(2)}} · ${{fmtWanCalls(overflowHybrid.coveredCalls)}}包月+溢出按量`,
             detailText: isEn
-              ? `30-day est. ${{fmtNum(monthlyCalls)}} calls exceeds 90k Pro cap by ${{fmtNum(over)}}: 90,000 calls on Pro (¥${{overflowHybrid.renewalPlanRmb.toFixed(0)}} renewal) + ${{fmtNum(over)}} overflow calls on PayG (¥${{overflowHybrid.overflowPaygRmb.toFixed(2)}}) = ¥${{overflowHybrid.renewalTotalRmb.toFixed(2)}}/mo total (saves ¥${{overflowHybrid.renewSaveRmb.toFixed(2)}}/mo vs pure PayG).`
-              : `按 30 天预计 ${{fmtWanCalls(monthlyCalls)}}，超出 Pro 月额度 ${{fmtWanCalls(over)}}；前 9 万次走 Pro 包月（续费 ¥${{overflowHybrid.renewalPlanRmb.toFixed(0)}}）＋ 溢出 ${{fmtWanCalls(over)}} 走同模型按量（¥${{overflowHybrid.overflowPaygRmb.toFixed(2)}}）＝ 续费月总账 ¥${{overflowHybrid.renewalTotalRmb.toFixed(2)}}（比纯按量省 ¥${{overflowHybrid.renewSaveRmb.toFixed(2)}}/月）。`
+              ? `30-day est. ${{fmtNum(monthlyCalls)}} calls exceeds ${{capShortEn}} ${{proPrefixEn}} cap by ${{fmtNum(over)}}: ${{fmtNum(overflowHybrid.coveredCalls)}} calls on ${{proPrefixEn}} (¥${{fmtNum(overflowHybrid.renewalPlanRmb)}} renewal) + ${{fmtNum(over)}} overflow calls on PayG (¥${{overflowHybrid.overflowPaygRmb.toFixed(2)}}) = ¥${{overflowHybrid.renewalTotalRmb.toFixed(2)}}/mo total (saves ¥${{overflowHybrid.renewSaveRmb.toFixed(2)}}/mo vs pure PayG).`
+              : `按 30 天预计 ${{fmtWanCalls(monthlyCalls)}}，超出 ${{proPrefixZh}} 月额度 ${{fmtWanCalls(over)}}；前 ${{fmtWanCalls(overflowHybrid.coveredCalls)}} 走 ${{proPrefixZh}} 包月（续费 ¥${{fmtNum(overflowHybrid.renewalPlanRmb)}}）＋ 溢出 ${{fmtWanCalls(over)}} 走同模型按量（¥${{overflowHybrid.overflowPaygRmb.toFixed(2)}}）＝ 续费月总账 ¥${{overflowHybrid.renewalTotalRmb.toFixed(2)}}（比纯按量省 ¥${{overflowHybrid.renewSaveRmb.toFixed(2)}}/月）。`
           }};
         }}
+        const proRenewTotal = proTier ? Number(proTier.renewal_rmb) * seats : 0;
+        const proFirstTotal = proTier && proTier.first_month_rmb !== null && proTier.first_month_rmb !== undefined ? Number(proTier.first_month_rmb) * seats : null;
         return {{
           excluded: false,
           exceedsCap: true,
           coversModel,
           overflowHybrid,
-          badgeHtml: `<span class="badge badge-warn">${{isEn ? `Over Pro Cap by ${{fmtNum(over)}}` : `超出 Pro 月上限 ${{fmtWanCalls(over)}}`}}</span>`,
+          badgeHtml: `<span class="badge badge-warn">${{isEn ? `Over ${{seats > 1 ? seats + "×" : ""}}Pro Cap by ${{fmtNum(over)}}` : `超出 ${{seats > 1 ? seats + "席" : ""}}Pro 月上限 ${{fmtWanCalls(over)}}`}}</span>`,
           priceMain: proTier
-            ? (isEn ? `Pro Renewal ¥${{Number(proTier.renewal_rmb).toFixed(0)}}/mo` : `Pro 续费 ¥${{Number(proTier.renewal_rmb).toFixed(0)}}/月`)
+            ? (isEn ? `${{seats > 1 ? seats + "× " : ""}}Pro Renewal ¥${{fmtNum(proRenewTotal)}}/mo` : `${{seats > 1 ? seats + "席 " : ""}}Pro 续费 ¥${{fmtNum(proRenewTotal)}}/月`)
             : (isEn ? "Exceeds Monthly Cap" : "超出月上限"),
-          tierSummary: proTier && proTier.first_month_rmb
-            ? (isEn ? `¥${{Number(proTier.first_month_rmb).toFixed(2)}} 1st mo · 90,000 calls/mo cap` : `新客首月 ¥${{Number(proTier.first_month_rmb).toFixed(2)}} · 月限 90,000 次`)
-            : (isEn ? "90,000 calls/mo · 6,000/5h cap" : `月上限 90,000 次 · 5h 限 6,000 次`),
+          tierSummary: proFirstTotal !== null
+            ? (isEn ? `¥${{proFirstTotal.toFixed(2)}} 1st mo · ${{fmtNum(combinedProMonthly)}} calls/mo cap` : `新客首月 ¥${{proFirstTotal.toFixed(2)}} · 月限 ${{fmtNum(combinedProMonthly)}} 次`)
+            : (isEn ? `${{fmtNum(combinedProMonthly)}} calls/mo · ${{fmtNum(combinedPro5h)}}/5h cap` : `月上限 ${{fmtNum(combinedProMonthly)}} 次 · 5h 限 ${{fmtNum(combinedPro5h)}} 次`),
           detailText: isEn
-            ? `30-day estimate is ${{fmtNum(monthlyCalls)}} calls, exceeding the 90,000/mo Pro cap by ${{fmtNum(over)}} calls; excess usage must run on Pay-As-You-Go API.`
-            : `按 30 天预计 ${{fmtWanCalls(monthlyCalls)}}（${{fmtNum(monthlyCalls)}} 次），超出 Pro 月额度 ${{fmtWanCalls(over)}}；单买 1 个个人套餐不够用，超出部分需走按量 API。`
+            ? `30-day estimate is ${{fmtNum(monthlyCalls)}} calls, exceeding the ${{fmtNum(combinedProMonthly)}}/mo ${{seats > 1 ? seats + "× " : ""}}Pro cap by ${{fmtNum(over)}} calls; excess usage must run on Pay-As-You-Go API.`
+            : `按 30 天预计 ${{fmtWanCalls(monthlyCalls)}}（${{fmtNum(monthlyCalls)}} 次），超出 ${{seats > 1 ? seats + "席 " : ""}}Pro 月额度 ${{fmtWanCalls(over)}}；${{seats > 1 ? `${{seats}} 个独立席位仍不够用` : "单买 1 个个人套餐不够用"}}，超出部分需走按量 API。`
         }};
       }}
 
-      const firstRmb = matched.first_month_rmb !== null && matched.first_month_rmb !== undefined
+      const unitFirst = matched.first_month_rmb !== null && matched.first_month_rmb !== undefined
         ? Number(matched.first_month_rmb)
         : Number(matched.renewal_rmb);
       const hasPromo = matched.first_month_rmb !== null && matched.first_month_rmb !== undefined;
-      const renewalRmb = Number(matched.renewal_rmb);
+      const firstRmb = Math.round(unitFirst * seats * 100) / 100;
+      const renewalRmb = Math.round(Number(matched.renewal_rmb) * seats * 100) / 100;
+      const totalQuotaMonthly = Number(matched.quota_monthly) * seats;
       const peakNote = state.peak5h === null
         ? (isEn ? "Monthly cap fits; 5h peak window unconfirmed." : "月额度足够，5 小时窗口待确认。")
         : (isEn ? "Fits both monthly cap and provided 5h peak." : "月额度与所填 5 小时峰值均在该档上限内。");
       const saveFirst = paygRmb - firstRmb;
       const saveRenew = paygRmb - renewalRmb;
-      const tierEnLabel = matched.tier_id === "lite" ? "Lite" : "Pro";
+      const baseTierEn = matched.tier_id === "lite" ? "Lite" : "Pro";
+      const tierEnLabel = seats > 1 ? `${{seats}}× ${{baseTierEn}}` : baseTierEn;
+      const tierZhLabel = seats > 1 ? `${{seats}} 席 × ${{matched.name}}` : matched.name;
 
       let badgeHtml = "";
       let detailText = "";
       if (saveRenew > 0 && coversModel) {{
         badgeHtml = `<span class="badge badge-save">${{isEn ? `Same-Family · Save ¥${{saveRenew.toFixed(0)}}/mo` : `套餐含同系模型 · 续费省 ¥${{saveRenew.toFixed(0)}}`}}</span>`;
         detailText = isEn
-          ? `Covers same model family on ${{tierEnLabel}} (${{fmtNum(matched.quota_monthly)}}/mo cap): baseline PayG ≈ ¥${{paygRmb.toFixed(2)}}/mo; `
+          ? `Covers same model family on ${{tierEnLabel}} (${{fmtNum(totalQuotaMonthly)}}/mo cap): baseline PayG ≈ ¥${{paygRmb.toFixed(2)}}/mo; `
             + (hasPromo ? `1st mo ¥${{firstRmb.toFixed(2)}} saves ¥${{saveFirst.toFixed(2)}}, ` : "")
-            + `renewal ¥${{renewalRmb.toFixed(0)}}/mo saves ¥${{saveRenew.toFixed(2)}}. ${{peakNote}}`
-          : `套餐含同系模型，匹配 ${{matched.name}}（月限 ${{fmtNum(matched.quota_monthly)}} 次）：同基准按量约 ¥${{paygRmb.toFixed(2)}}/月，`
+            + `renewal ¥${{fmtNum(renewalRmb)}}/mo saves ¥${{saveRenew.toFixed(2)}}. ${{peakNote}}`
+          : `套餐含同系模型，匹配 ${{tierZhLabel}}（月限 ${{fmtNum(totalQuotaMonthly)}} 次）：同基准按量约 ¥${{paygRmb.toFixed(2)}}/月，`
             + (hasPromo ? `首月 ¥${{firstRmb.toFixed(2)}} 省 ¥${{saveFirst.toFixed(2)}}，` : "")
-            + `续费 ¥${{renewalRmb.toFixed(0)}}/月 仍省 ¥${{saveRenew.toFixed(2)}}。${{peakNote}}`;
+            + `续费 ¥${{fmtNum(renewalRmb)}}/月 仍省 ¥${{saveRenew.toFixed(2)}}。${{peakNote}}`;
       }} else if (saveRenew > 0 && !coversModel) {{
         const sampleModels = (plan.models_covered || []).slice(0, 3).join(" / ");
         badgeHtml = `<span class="badge badge-neutral">${{isEn ? `Cross-Model Switch · Δ¥${{saveRenew.toFixed(0)}}` : `跨模型国产平替 · 差额 ¥${{saveRenew.toFixed(0)}}`}}</span>`;
         detailText = isEn
-          ? `Does NOT include "${{baseShort}}" natively (offers ${{sampleModels}} instead): switching models on ${{tierEnLabel}} (¥${{renewalRmb.toFixed(0)}}/mo) costs ¥${{saveRenew.toFixed(2)}} less than baseline PayG. ${{peakNote}}`
-          : `套餐不含所选「${{baseShort}}」原模型（可用 ${{sampleModels}} 等平替）：若接受切换模型，匹配 ${{matched.name}} 后续费 ¥${{renewalRmb.toFixed(0)}}/月 比原按量少支 ¥${{saveRenew.toFixed(2)}}。${{peakNote}}`;
+          ? `Does NOT include "${{baseShort}}" natively (offers ${{sampleModels}} instead): switching models on ${{tierEnLabel}} (¥${{fmtNum(renewalRmb)}}/mo) costs ¥${{saveRenew.toFixed(2)}} less than baseline PayG. ${{peakNote}}`
+          : `套餐不含所选「${{baseShort}}」原模型（可用 ${{sampleModels}} 等平替）：若接受切换模型，匹配 ${{tierZhLabel}} 后续费 ¥${{fmtNum(renewalRmb)}}/月 比原按量少支 ¥${{saveRenew.toFixed(2)}}。${{peakNote}}`;
       }} else if (hasPromo && saveFirst > 0) {{
         badgeHtml = `<span class="badge badge-warn">${{isEn ? "1st Mo Promo Only · Renewal Pricier" : "仅首月省 · 续费反贵"}}</span>`;
         detailText = isEn
-          ? `Baseline PayG is ¥${{paygRmb.toFixed(2)}}/mo: 1st-month promo (¥${{firstRmb.toFixed(2)}}) saves ¥${{saveFirst.toFixed(2)}}, but ¥${{renewalRmb.toFixed(0)}}/mo renewal costs ¥${{Math.abs(saveRenew).toFixed(2)}} MORE than PayG. ${{peakNote}}`
-          : `对比所选按量基准（¥${{paygRmb.toFixed(2)}}/月）：首月特惠 ¥${{firstRmb.toFixed(2)}} 可省 ¥${{saveFirst.toFixed(2)}}，但次月恢复 ¥${{renewalRmb.toFixed(0)}}/月续费后将比按量贵 ¥${{Math.abs(saveRenew).toFixed(2)}}。${{peakNote}}`;
+          ? `Baseline PayG is ¥${{paygRmb.toFixed(2)}}/mo: 1st-month promo (¥${{firstRmb.toFixed(2)}}) saves ¥${{saveFirst.toFixed(2)}}, but ¥${{fmtNum(renewalRmb)}}/mo renewal costs ¥${{Math.abs(saveRenew).toFixed(2)}} MORE than PayG. ${{peakNote}}`
+          : `对比所选按量基准（¥${{paygRmb.toFixed(2)}}/月）：首月特惠 ¥${{firstRmb.toFixed(2)}} 可省 ¥${{saveFirst.toFixed(2)}}，但次月恢复 ¥${{fmtNum(renewalRmb)}}/月续费后将比按量贵 ¥${{Math.abs(saveRenew).toFixed(2)}}。${{peakNote}}`;
       }} else {{
         badgeHtml = `<span class="badge badge-neutral">${{isEn ? "Pay-As-You-Go Cheaper" : "按量付费更便宜"}}</span>`;
         detailText = isEn
-          ? `Baseline PayG is only ¥${{paygRmb.toFixed(2)}}/mo, below ${{tierEnLabel}} (¥${{firstRmb.toFixed(2)}}–¥${{renewalRmb.toFixed(0)}}/mo); stay on PayG.`
-          : `所选基准按量仅需 ¥${{paygRmb.toFixed(2)}}/月，低于 ${{matched.name}}（¥${{firstRmb.toFixed(2)}}～¥${{renewalRmb.toFixed(0)}}/月），无需包月。`;
+          ? `Baseline PayG is only ¥${{paygRmb.toFixed(2)}}/mo, below ${{tierEnLabel}} (¥${{firstRmb.toFixed(2)}}–¥${{fmtNum(renewalRmb)}}/mo); stay on PayG.`
+          : `所选基准按量仅需 ¥${{paygRmb.toFixed(2)}}/月，低于 ${{tierZhLabel}}（¥${{firstRmb.toFixed(2)}}～¥${{fmtNum(renewalRmb)}}/月），无需包月。`;
       }}
 
       const liteStopped = (plan.tiers || []).some(t => t.tier_id === "lite" && !t.purchasable);
       const priceMain = hasPromo
-        ? (isEn ? `1st Mo ¥${{firstRmb.toFixed(2)}} / Renew ¥${{renewalRmb.toFixed(0)}}` : `首月 ¥${{firstRmb.toFixed(2)}} / 续费 ¥${{renewalRmb.toFixed(0)}}`)
-        : (isEn ? `Catalog ¥${{renewalRmb.toFixed(0)}}/mo` : `目录价 ¥${{renewalRmb.toFixed(0)}}/月`);
+        ? (isEn ? `1st Mo ¥${{firstRmb.toFixed(2)}} / Renew ¥${{fmtNum(renewalRmb)}}` : `首月 ¥${{firstRmb.toFixed(2)}} / 续费 ¥${{fmtNum(renewalRmb)}}`)
+        : (isEn ? `Catalog ¥${{fmtNum(renewalRmb)}}/mo` : `目录价 ¥${{fmtNum(renewalRmb)}}/月`);
       const tierSummary = isEn
-        ? `${{tierEnLabel}} · ${{fmtNum(matched.quota_monthly)}} calls/mo` + (liteStopped ? " (Lite closed)" : "")
-        : `${{matched.name}} · 月限 ${{fmtNum(matched.quota_monthly)}} 次` + (liteStopped ? " (Lite已停新购)" : "");
+        ? `${{tierEnLabel}} · ${{fmtNum(totalQuotaMonthly)}} calls/mo` + (liteStopped ? " (Lite closed)" : "")
+        : `${{tierZhLabel}} · 月限 ${{fmtNum(totalQuotaMonthly)}} 次` + (liteStopped ? " (Lite已停新购)" : "");
 
       return {{
         excluded: false,
         exceedsCap: false,
         coversModel,
+        seats,
+        firstRmb,
+        renewalRmb,
+        totalQuotaMonthly,
         saveRenew,
         saveFirst,
         matched,
@@ -2706,7 +2764,13 @@ def render_html_template(
       if (!grid || CODING_PLANS.length === 0) return;
 
       const isEn = state.lang === "en";
+      const seats = getSeats();
       const monthlyCalls = state.dailyCalls * 30;
+      const perSeatCalls = monthlyCalls > 0 ? Math.ceil(monthlyCalls / seats) : 0;
+      const combinedProCap = PRO_MONTHLY_CAP * seats;
+      const combinedLiteCap = LITE_MONTHLY_CAP * seats;
+      const combinedPro5h = PRO_5H_CAP * seats;
+      const combinedLite5h = LITE_5H_CAP * seats;
       const paygRmb = baseCost.rmb;
       const baseShort = shortModelName(baselineModel, isEn);
 
@@ -2719,35 +2783,55 @@ def render_html_template(
           <div class="verdict-headline">当前场景为「非交互式自动化后端 / API 服务」：已自动排除百炼、腾讯云与火山方舟个人 Coding Plan</div>
           <div class="verdict-sub">三大厂官方规则均限定个人编程套餐仅可用于 Claude Code / Cursor / Cline 等交互式 IDE，严禁用于后端接口或批处理。请直接对比下方按量付费池或云服务器自建 LiteLLM/Dify 语义缓存方案。</div>
         `;
-      }} else if (monthlyCalls > PRO_MONTHLY_CAP) {{
-        const over = monthlyCalls - PRO_MONTHLY_CAP;
+      }} else if (monthlyCalls > combinedProCap) {{
+        const over = monthlyCalls - combinedProCap;
         verdictEl.className = "verdict-banner danger";
-        verdictEl.innerHTML = isEn ? `
-          <div class="verdict-headline">30-Day Estimate: ${{fmtNum(monthlyCalls)}} Model API Calls — Exceeds Pro Monthly Cap (90,000) by ${{fmtNum(over)}} Calls</div>
-          <div class="verdict-sub">Aliyun Bailian Pro & Tencent Pro share hard caps of 6,000/5h · 45,000/wk · 90,000/mo (Tencent Lite: 1,200 / 9,000 / 18,000; Aliyun Lite closed to new buyers). A single ¥200/mo plan is NOT unlimited at this volume.</div>
-        ` : `
-          <div class="verdict-headline">按 30 天预计 ${{fmtWanCalls(monthlyCalls)}}（${{fmtNum(monthlyCalls)}} 次模型调用），超出 Pro 月额度 ${{fmtWanCalls(over)}}（上限 90,000 次/月）</div>
-          <div class="verdict-sub">阿里云百炼 Pro 与腾讯云 Pro 官方上限均为 6,000次/5h · 45,000次/周 · 90,000次/月（腾讯 Lite 为 1,200 / 9,000 / 18,000 次，百炼 Lite 已停新购）。当前调用量下切勿误以为单个 ¥200 套餐可无限封顶！超出部分需走按量 API 或评估缓存网关。</div>
-        `;
+        if (seats > 1) {{
+          verdictEl.innerHTML = isEn ? `
+            <div class="verdict-headline">30-Day Estimate: ${{fmtNum(monthlyCalls)}} Model API Calls (${{seats}} IDE Seats) — Exceeds ${{seats}}× Pro Cap (${{fmtNum(combinedProCap)}}) by ${{fmtNum(over)}} Calls</div>
+            <div class="verdict-sub">Each Pro seat caps at 90,000/mo (${{seats}} seats = ${{fmtNum(combinedProCap)}}/mo combined; personal sk-sp- keys cannot be shared behind a proxy). Compare "${{seats}}× Pro Base + PayG Overflow" vs shared Pay-As-You-Go below.</div>
+          ` : `
+            <div class="verdict-headline">按 30 天预计 ${{fmtWanCalls(monthlyCalls)}}（${{seats}} 个 IDE 席位合计 ${{fmtNum(monthlyCalls)}} 次），超出 ${{seats}} 席 Pro 总额度 ${{fmtWanCalls(over)}}（上限 ${{fmtNum(combinedProCap)}} 次/月）</div>
+            <div class="verdict-sub">单席 Pro 上限 90,000 次/月（${{seats}} 席合计 ${{fmtNum(combinedProCap)}} 次/月，sk-sp- 个人密钥严禁代理共享）。请对比下方「${{seats}} 席 Pro 垫底＋溢出按量」与团队共享按量池总账。</div>
+          `;
+        }} else {{
+          verdictEl.innerHTML = isEn ? `
+            <div class="verdict-headline">30-Day Estimate: ${{fmtNum(monthlyCalls)}} Model API Calls — Exceeds Pro Monthly Cap (90,000) by ${{fmtNum(over)}} Calls</div>
+            <div class="verdict-sub">Aliyun Bailian Pro & Tencent Pro share hard caps of 6,000/5h · 45,000/wk · 90,000/mo (Tencent Lite: 1,200 / 9,000 / 18,000; Aliyun Lite closed to new buyers). A single ¥200/mo plan is NOT unlimited at this volume.</div>
+          ` : `
+            <div class="verdict-headline">按 30 天预计 ${{fmtWanCalls(monthlyCalls)}}（${{fmtNum(monthlyCalls)}} 次模型调用），超出 Pro 月额度 ${{fmtWanCalls(over)}}（上限 90,000 次/月）</div>
+            <div class="verdict-sub">阿里云百炼 Pro 与腾讯云 Pro 官方上限均为 6,000次/5h · 45,000次/周 · 90,000次/月（腾讯 Lite 为 1,200 / 9,000 / 18,000 次，百炼 Lite 已停新购）。当前调用量下切勿误以为单个 ¥200 套餐可无限封顶！超出部分需走按量 API 或评估缓存网关。</div>
+          `;
+        }}
       }} else {{
-        const overLite = monthlyCalls > LITE_MONTHLY_CAP;
+        const overLite = monthlyCalls > combinedLiteCap;
         verdictEl.className = "verdict-banner";
-        verdictEl.innerHTML = isEn ? `
-          <div class="verdict-headline">30-Day Estimate: ${{fmtNum(monthlyCalls)}} Model Calls — ${{overLite ? `Exceeds Tencent/Volcengine Lite (18,000/mo); compare Pro (90,000/mo, ¥200 renewal) vs "${{esc(baseShort)}}" (¥${{paygRmb.toFixed(2)}}/mo)` : `Within Tencent/Volcengine Lite (18,000/mo, ¥40) & Pro (90,000/mo) monthly caps`}}</div>
-          <div class="verdict-sub">Monthly quota fits; 5-hour rolling window unconfirmed (Pro: 6,000/5h · Lite: 1,200/5h; 1 user prompt in agent IDEs often triggers 5–30 model calls).</div>
-        ` : `
-          <div class="verdict-headline">按 30 天预计 ${{fmtNum(monthlyCalls)}} 次模型调用：${{overLite ? `已超出腾讯/火山 Lite 月上限（18,000 次），需按 Pro 档（90,000 次/月，续费 ¥200/月）与所选基准「${{esc(baseShort)}}（¥${{paygRmb.toFixed(2)}}/月）」对账` : `在腾讯/火山 Lite（18,000 次/月，¥40/月）与各家 Pro（90,000 次/月）月总额度内`}}</div>
-          <div class="verdict-sub">月额度足够，5 小时窗口待确认（Pro 每 5 小时上限 6,000 次 / Lite 每 5 小时上限 1,200 次；注意单位是模型调用次数，一次提问常触发多次调用）。</div>
-        `;
+        if (seats > 1) {{
+          verdictEl.innerHTML = isEn ? `
+            <div class="verdict-headline">30-Day Estimate: ${{fmtNum(monthlyCalls)}} Model Calls across ${{seats}} IDE Seats (~${{fmtNum(perSeatCalls)}}/seat) — ${{overLite ? `Compare ${{seats}}× Pro (${{fmtNum(combinedProCap)}}/mo, ¥${{fmtNum(200 * seats)}} renewal) vs "${{esc(baseShort)}}" Shared PayG (¥${{paygRmb.toFixed(2)}}/mo)` : `Within ${{seats}}× Lite (${{fmtNum(combinedLiteCap)}}/mo, ¥${{fmtNum(40 * seats)}}) & ${{seats}}× Pro (${{fmtNum(combinedProCap)}}/mo) caps`}}</div>
+            <div class="verdict-sub">Compliance note: Personal Coding Plan keys (sk-sp-) are 1-per-developer and cannot be pooled in a shared gateway. Combined 5h cap: ${{fmtNum(combinedPro5h)}} (Pro) / ${{fmtNum(combinedLite5h)}} (Lite).</div>
+          ` : `
+            <div class="verdict-headline">按 30 天预计 ${{fmtNum(monthlyCalls)}} 次模型调用（${{seats}} 个 IDE 席位，人均 ~${{fmtNum(perSeatCalls)}} 次/月）：${{overLite ? `已超 ${{seats}} 席 Lite 上限（${{fmtNum(combinedLiteCap)}} 次），需按 ${{seats}} 席 Pro（续费 ¥${{fmtNum(200 * seats)}}/月）与团队共享按量「${{esc(baseShort)}}（¥${{paygRmb.toFixed(2)}}/月）」对账` : `在 ${{seats}} 席 Lite（¥${{fmtNum(40 * seats)}}/月）与 ${{seats}} 席 Pro（上限 ${{fmtNum(combinedProCap)}} 次/月）总额度内`}}</div>
+            <div class="verdict-sub">合规提醒：个人 Coding Plan 密钥（sk-sp-）须按实际 IDE 人数一人一席配置，不可放入共享网关。${{seats}} 席合计 5 小时窗口上限：Pro ${{fmtNum(combinedPro5h)}} 次 / Lite ${{fmtNum(combinedLite5h)}} 次。</div>
+          `;
+        }} else {{
+          verdictEl.innerHTML = isEn ? `
+            <div class="verdict-headline">30-Day Estimate: ${{fmtNum(monthlyCalls)}} Model Calls — ${{overLite ? `Exceeds Tencent/Volcengine Lite (18,000/mo); compare Pro (90,000/mo, ¥200 renewal) vs "${{esc(baseShort)}}" (¥${{paygRmb.toFixed(2)}}/mo)` : `Within Tencent/Volcengine Lite (18,000/mo, ¥40) & Pro (90,000/mo) monthly caps`}}</div>
+            <div class="verdict-sub">Monthly quota fits; 5-hour rolling window unconfirmed (Pro: 6,000/5h · Lite: 1,200/5h; 1 user prompt in agent IDEs often triggers 5–30 model calls).</div>
+          ` : `
+            <div class="verdict-headline">按 30 天预计 ${{fmtNum(monthlyCalls)}} 次模型调用：${{overLite ? `已超出腾讯/火山 Lite 月上限（18,000 次），需按 Pro 档（90,000 次/月，续费 ¥200/月）与所选基准「${{esc(baseShort)}}（¥${{paygRmb.toFixed(2)}}/月）」对账` : `在腾讯/火山 Lite（18,000 次/月，¥40/月）与各家 Pro（90,000 次/月）月总额度内`}}</div>
+            <div class="verdict-sub">月额度足够，5 小时窗口待确认（Pro 每 5 小时上限 6,000 次 / Lite 每 5 小时上限 1,200 次；注意单位是模型调用次数，一次提问常触发多次调用）。</div>
+          `;
+        }}
       }}
 
-      if (state.usageMode === "interactive_ide" && monthlyCalls <= PRO_MONTHLY_CAP && state.peak5h !== null) {{
-        const overPeak = state.peak5h > 6000;
+      if (state.usageMode === "interactive_ide" && monthlyCalls <= combinedProCap && state.peak5h !== null) {{
+        const overPeak = state.peak5h > combinedPro5h;
         const text = isEn
-          ? (overPeak ? "5-hour peak exceeds the 6,000-call Pro window cap." :
-             state.peak5h > 1200 ? "5-hour peak exceeds Lite (1,200), fits within Pro (6,000)." : "5-hour peak fits within both Lite and Pro rolling windows.")
-          : (overPeak ? "5 小时峰值超过 Pro 窗口上限 6,000 次" :
-             state.peak5h > 1200 ? "5 小时峰值超过 Lite 上限，处于 Pro 窗口额度内" : "5 小时峰值处于 Lite 和 Pro 窗口额度内");
+          ? (overPeak ? `5-hour peak exceeds the ${{fmtNum(combinedPro5h)}}-call Pro window cap.` :
+             state.peak5h > combinedLite5h ? `5-hour peak exceeds Lite (${{fmtNum(combinedLite5h)}}), fits within Pro (${{fmtNum(combinedPro5h)}}).` : "5-hour peak fits within both Lite and Pro rolling windows.")
+          : (overPeak ? `5 小时峰值超过 Pro 窗口上限 ${{fmtNum(combinedPro5h)}} 次` :
+             state.peak5h > combinedLite5h ? "5 小时峰值超过 Lite 上限，处于 Pro 窗口额度内" : "5 小时峰值处于 Lite 和 Pro 窗口额度内");
         verdictEl.querySelector(".verdict-sub").textContent = text;
         if (overPeak) verdictEl.className = "verdict-banner danger";
       }}
@@ -2787,18 +2871,23 @@ def render_html_template(
           const bestSub = sameFamilyWins[0];
           const p = bestSub.plan;
           const t = bestSub.ev.matched;
+          const planEnName = (PLAN_EN_TITLES[p.id] || [p.name])[0];
+          const firstTotal = bestSub.ev.firstRmb;
+          const renewTotal = bestSub.ev.renewalRmb;
           const firstStr = t.first_month_rmb !== null && t.first_month_rmb !== undefined
-            ? (isEn ? `¥${{Number(t.first_month_rmb).toFixed(2)}} 1st mo, ¥${{Number(t.renewal_rmb).toFixed(0)}}/mo renewal` : `新客首月 ¥${{Number(t.first_month_rmb).toFixed(2)}}，次月续费 ¥${{Number(t.renewal_rmb).toFixed(0)}}/月`)
-            : (isEn ? `¥${{Number(t.renewal_rmb).toFixed(0)}}/mo catalog price` : `目录原价 ¥${{Number(t.renewal_rmb).toFixed(0)}}/月`);
+            ? (isEn ? `¥${{firstTotal.toFixed(2)}} 1st mo, ¥${{fmtNum(renewTotal)}}/mo renewal` : `新客首月 ¥${{firstTotal.toFixed(2)}}，次月续费 ¥${{fmtNum(renewTotal)}}/月`)
+            : (isEn ? `¥${{fmtNum(renewTotal)}}/mo catalog price` : `目录原价 ¥${{fmtNum(renewTotal)}}/月`);
+          const seatTitleEn = seats > 1 ? `${{seats}}× ${{t.tier_id.toUpperCase()}}` : t.tier_id.toUpperCase();
+          const seatTitleZh = seats > 1 ? `${{seats}} 席 × ${{t.name}}` : t.name;
           primaryRecEl.innerHTML = `
             <div class="primary-rec-head">
-              <span>${{isEn ? `Primary Recommendation: ${{esc(p.cta_en ? p.cta_en.replace(/^View\\s+/i, "") : p.name)}} (${{esc(t.tier_id.toUpperCase())}})` : `当前工作负载主推荐：${{esc(p.name)}} · ${{esc(t.name)}}`}}</span>
+              <span>${{isEn ? `Primary Recommendation: ${{esc(planEnName)}} (${{esc(seatTitleEn)}})` : `当前工作负载主推荐：${{esc(p.name)}} · ${{esc(seatTitleZh)}}`}}</span>
               <span class="badge badge-save">${{isEn ? `Covers Same Family · Save ¥${{bestSub.ev.saveRenew.toFixed(0)}}/mo` : `套餐含同系模型 · 续费月仍省 ¥${{bestSub.ev.saveRenew.toFixed(0)}}`}}</span>
             </div>
             <div class="primary-rec-desc">
               ${{isEn
-                ? `Price & Caps: ${{firstStr}} (${{fmtNum(t.quota_5h)}}/5h · ${{fmtNum(t.quota_weekly)}}/wk · ${{fmtNum(t.quota_monthly)}}/mo; interactive IDE only). <a href="${{esc(p.official_source_url)}}" target="_blank" rel="noopener" style="color:var(--emerald-text);text-decoration:underline;">Official Rules</a>.`
-                : `价格与额度：${{firstStr}}（上限 ${{fmtNum(t.quota_5h)}}/5h · ${{fmtNum(t.quota_weekly)}}/周 · ${{fmtNum(t.quota_monthly)}}/月；仅限交互式 IDE）。<br>依据与推广说明：<a href="${{esc(p.official_source_url)}}" target="_blank" rel="noopener" style="color:var(--emerald-text);text-decoration:underline;">官方套餐规则</a> · ${{esc(p.commission_note_zh || "官方直达入口")}}。`}}
+                ? `Price & Caps: ${{firstStr}} (${{fmtNum(t.quota_5h * seats)}}/5h · ${{fmtNum(t.quota_weekly * seats)}}/wk · ${{fmtNum(t.quota_monthly * seats)}}/mo${{seats > 1 ? ` across ${{seats}} IDE seats` : ""}}; interactive IDE only). <a href="${{esc(p.official_source_url)}}" target="_blank" rel="noopener" style="color:var(--emerald-text);text-decoration:underline;">Official Rules</a>.`
+                : `价格与额度：${{firstStr}}（上限 ${{fmtNum(t.quota_5h * seats)}}/5h · ${{fmtNum(t.quota_weekly * seats)}}/周 · ${{fmtNum(t.quota_monthly * seats)}}/月${{seats > 1 ? `，${{seats}} 席独立 sk-sp- 密钥合计` : ""}}；仅限交互式 IDE）。<br>依据与推广说明：<a href="${{esc(p.official_source_url)}}" target="_blank" rel="noopener" style="color:var(--emerald-text);text-decoration:underline;">官方套餐规则</a> · ${{esc(p.commission_note_zh || "官方直达入口")}}。`}}
             </div>
             <a class="cta-primary ${{p.featured_partner ? "cn-cta" : ""}}" href="${{esc(p.url)}}" target="_blank" rel="${{relAttr(p.url, p.provider_config_key, p)}}" data-offer-id="${{esc(p.id)}}" data-card-slot="primary_result">
               ${{esc(isEn ? (p.cta_en || "View Official Coding Plan") : (p.cta_zh || "前往官网核对套餐与专属端点"))}}
@@ -2809,15 +2898,17 @@ def render_html_template(
           const p = bestHy.plan;
           const oh = bestHy.ev.overflowHybrid;
           const planEnName = (PLAN_EN_TITLES[p.id] || [p.name])[0];
+          const proHeadEn = seats > 1 ? `${{seats}}× Pro Base (${{Math.round(oh.coveredCalls / 1000)}}k)` : "Pro Base (90k)";
+          const proHeadZh = seats > 1 ? `${{seats}} 席 Pro 垫底（${{fmtWanCalls(oh.coveredCalls)}}）` : "Pro 垫底（9万次）";
           primaryRecEl.innerHTML = `
             <div class="primary-rec-head">
-              <span>${{isEn ? `Primary Recommendation: ${{esc(planEnName)}} Pro Base (90k) + PayG Overflow` : `当前工作负载主推荐：${{esc(p.name)}} Pro 垫底（9万次）＋ 溢出按量组合`}}</span>
+              <span>${{isEn ? `Primary Recommendation: ${{esc(planEnName)}} ${{proHeadEn}} + PayG Overflow` : `当前工作负载主推荐：${{esc(p.name)}} ${{proHeadZh}}＋ 溢出按量组合`}}</span>
               <span class="badge badge-save">${{isEn ? `Save ¥${{oh.renewSaveRmb.toFixed(0)}}/mo vs Pure PayG` : `组合续费仍省 ¥${{oh.renewSaveRmb.toFixed(0)}}/月`}}</span>
             </div>
             <div class="primary-rec-desc">
               ${{isEn
-                ? `Hybrid Split Math: First 90,000 calls on Pro (¥${{oh.firstPlanRmb.toFixed(2)}} 1st mo / ¥${{oh.renewalPlanRmb.toFixed(0)}} renewal) + ${{fmtNum(oh.overflowCalls)}} overflow calls on same-model PayG (¥${{oh.overflowPaygRmb.toFixed(2)}}) = <strong>¥${{oh.firstTotalRmb.toFixed(2)}} 1st mo / ¥${{oh.renewalTotalRmb.toFixed(2)}} renewal total</strong> (vs ¥${{paygRmb.toFixed(2)}}/mo pure PayG). Configure your sk-sp- plan endpoint separately from your standard PayG fallback key.`
-                : `超额拆单精算：前 90,000 次走 Pro 包月（首月 ¥${{oh.firstPlanRmb.toFixed(2)}} / 续费 ¥${{oh.renewalPlanRmb.toFixed(0)}}）＋ 超出 ${{fmtNum(oh.overflowCalls)}} 次走同模型按量（¥${{oh.overflowPaygRmb.toFixed(2)}}）＝ <strong>首月总账 ¥${{oh.firstTotalRmb.toFixed(2)}}、续费月总账 ¥${{oh.renewalTotalRmb.toFixed(2)}}</strong>（纯按量需 ¥${{paygRmb.toFixed(2)}}/月）。<br>实操提醒：请将包月 sk-sp- 专属端点与通用按量端点分开保存，月额度耗尽后切回按量密钥。`}}
+                ? `Hybrid Split Math: First ${{fmtNum(oh.coveredCalls)}} calls on ${{seats > 1 ? seats + "× " : ""}}Pro (¥${{oh.firstPlanRmb.toFixed(2)}} 1st mo / ¥${{fmtNum(oh.renewalPlanRmb)}} renewal) + ${{fmtNum(oh.overflowCalls)}} overflow calls on same-model PayG (¥${{oh.overflowPaygRmb.toFixed(2)}}) = <strong>¥${{oh.firstTotalRmb.toFixed(2)}} 1st mo / ¥${{oh.renewalTotalRmb.toFixed(2)}} renewal total</strong> (vs ¥${{paygRmb.toFixed(2)}}/mo pure PayG). Configure your sk-sp- plan endpoint separately from your standard PayG fallback key.`
+                : `超额拆单精算：前 ${{fmtNum(oh.coveredCalls)}} 次走 ${{seats > 1 ? seats + " 席 " : ""}}Pro 包月（首月 ¥${{oh.firstPlanRmb.toFixed(2)}} / 续费 ¥${{fmtNum(oh.renewalPlanRmb)}}）＋ 超出 ${{fmtNum(oh.overflowCalls)}} 次走同模型按量（¥${{oh.overflowPaygRmb.toFixed(2)}}）＝ <strong>首月总账 ¥${{oh.firstTotalRmb.toFixed(2)}}、续费月总账 ¥${{oh.renewalTotalRmb.toFixed(2)}}</strong>（纯按量需 ¥${{paygRmb.toFixed(2)}}/月）。<br>实操提醒：请将包月 sk-sp- 专属端点与通用按量端点分开保存，月额度耗尽后切回按量密钥。`}}
             </div>
             <a class="cta-primary ${{p.featured_partner ? "cn-cta" : ""}}" href="${{esc(p.url)}}" target="_blank" rel="${{relAttr(p.url, p.provider_config_key, p)}}" data-offer-id="${{esc(p.id)}}" data-card-slot="primary_result">
               ${{esc(isEn ? (p.cta_en || "View Official Coding Plan") : (p.cta_zh || "前往官网核对套餐与专属端点"))}}
@@ -2841,11 +2932,11 @@ def render_html_template(
           `;
         }} else {{
           const mCta = getModelCtaInfo(baselineModel);
-          const enReason = state.usageMode === "interactive_ide" && state.peak5h > 6000
-            ? "5-hour peak exceeds the 6,000-call Pro window"
-            : monthlyCalls > PRO_MONTHLY_CAP
-              ? `${{fmtNum(monthlyCalls)}} calls/mo exceeds the 90,000/mo personal Pro cap and pure PayG is cheaper than Pro + overflow`
-              : `Current Pay-As-You-Go bill (¥${{paygRmb.toFixed(2)}}/mo) is already cheaper than monthly plans or self-hosting`;
+          const enReason = state.usageMode === "interactive_ide" && state.peak5h !== null && state.peak5h > combinedPro5h
+            ? `5-hour peak exceeds the ${{fmtNum(combinedPro5h)}}-call Pro window`
+            : monthlyCalls > combinedProCap
+              ? `${{fmtNum(monthlyCalls)}} calls/mo exceeds the ${{fmtNum(combinedProCap)}}/mo ${{seats > 1 ? seats + "× " : "personal "}}Pro cap and pure PayG is cheaper than Pro + overflow`
+              : `Current Pay-As-You-Go bill (¥${{paygRmb.toFixed(2)}}/mo) is already cheaper than ${{seats > 1 ? seats + "× " : ""}}monthly plans or self-hosting`;
           primaryRecEl.innerHTML = `
             <div class="primary-rec-head">
               <span>${{isEn ? "Primary Recommendation: Stay on Pay-As-You-Go API" : "当前工作负载主推荐：直接使用按量付费 API（无需硬凑包月或买主机）"}}</span>
@@ -2854,7 +2945,7 @@ def render_html_template(
             <div class="primary-rec-desc">
               ${{isEn
                 ? `Why: ${{enReason}}. Direct official console link (selected partner links carry referral codes with zero markup).`
-                : `原因：${{state.usageMode === "interactive_ide" && state.peak5h > 6000 ? "5 小时峰值超出 Pro 窗口" : monthlyCalls > PRO_MONTHLY_CAP ? `月调用 ${{fmtWanCalls(monthlyCalls)}} 超出 Pro 9 万次上限，且当前低单价模型纯按量（¥${{paygRmb.toFixed(2)}}/月）比「Pro 垫底+溢出」更省` : `当前基准按量仅约 ¥${{paygRmb.toFixed(2)}}/月，低于包月续费或云主机自建总成本`}}，按实际 Token 结算更划算。<br>推广说明：直达官方控制台（部分含合作伙伴推广码，无任何加价）。`}}
+                : `原因：${{state.usageMode === "interactive_ide" && state.peak5h !== null && state.peak5h > combinedPro5h ? "5 小时峰值超出 Pro 窗口" : monthlyCalls > combinedProCap ? `月调用 ${{fmtWanCalls(monthlyCalls)}} 超出 ${{seats > 1 ? seats + "席 " : ""}}Pro 上限，且当前低单价模型纯按量（¥${{paygRmb.toFixed(2)}}/月）比「Pro 垫底+溢出」更省` : `当前基准按量仅约 ¥${{paygRmb.toFixed(2)}}/月，低于${{seats > 1 ? seats + "席" : ""}}包月续费或云主机自建总成本`}}，按实际 Token 结算更划算。<br>推广说明：直达官方控制台（部分含合作伙伴推广码，无任何加价）。`}}
             </div>
             <a class="cta-primary ${{mCta.isCn ? "cn-cta" : ""}}" href="${{esc(mCta.url)}}" target="_blank" rel="${{relAttr(mCta.url, baselineModel.provider_config_key)}}" data-offer-id="${{esc(mCta.offerId)}}" data-card-slot="primary_result">
               ${{esc(mCta.label)}}${{isEn ? " (Pay-As-You-Go)" : "（按量开通）"}}
@@ -3463,6 +3554,8 @@ def render_html_template(
     function buildShareUrl() {{
       const params = new URLSearchParams();
       params.set("calls", String(state.dailyCalls));
+      const seats = getSeats();
+      if (seats > 1) params.set("seats", String(seats));
       if (state.peak5h !== null) params.set("peak5h", String(state.peak5h));
       params.set("in", String(state.inputTokens));
       params.set("out", String(state.outputTokens));
@@ -3485,6 +3578,7 @@ def render_html_template(
     function buildVerdictSummaryText() {{
       const isEn = state.lang === "en";
       const cur = state.currency;
+      const seats = getSeats();
       const monthlyCalls = state.dailyCalls * 30;
       const baselineModel = getBaselineModel();
       const baseCost = calcModelMonthly(baselineModel);
@@ -3502,7 +3596,7 @@ def render_html_template(
       if (isEn) {{
         return [
           `[AI Cost Radar · Billing Audit (${{QUOTE_VERIFIED_DATE}})]`,
-          `- Workload: ${{fmtNum(state.dailyCalls)}} calls/day (${{fmtNum(monthlyCalls)}}/30d) · In ${{fmtNum(state.inputTokens)}} / Out ${{fmtNum(state.outputTokens)}} tok · Cache ${{cacheNote}} · Mode: ${{state.usageMode}}`,
+          `- Workload: ${{fmtNum(state.dailyCalls)}} calls/day (${{fmtNum(monthlyCalls)}}/30d · ${{seats}} IDE ${{seats === 1 ? "seat" : "seats"}}) · In ${{fmtNum(state.inputTokens)}} / Out ${{fmtNum(state.outputTokens)}} tok · Cache ${{cacheNote}} · Mode: ${{state.usageMode}}`,
           `- Same-Model PayG Baseline (${{formatModelTitle(baselineModel, true)}}): ${{baseBill}}/mo`,
           `- Tiered Routing (${{rPct}}% ${{shortModelName(hy.routineModel, true)}} + ${{hPct}}% ${{shortModelName(baselineModel, true)}}): ${{hyBill}}/mo (Save ${{hy.hybridPct.toFixed(0)}}%)`,
           `- Verdict: ${{verdictClean}}`,
@@ -3511,11 +3605,134 @@ def render_html_template(
       }}
       return [
         `【AI Cost Radar · 算力与套餐对账单（核验日 ${{QUOTE_VERIFIED_DATE}}）】`,
-        `- 调用规模：${{fmtNum(state.dailyCalls)}} 次/天（30天 ${{fmtNum(monthlyCalls)}} 次）· 单次输入 ${{fmtNum(state.inputTokens)}} / 输出 ${{fmtNum(state.outputTokens)}} tok · 缓存命中 ${{cacheNote}}`,
+        `- 调用规模：${{fmtNum(state.dailyCalls)}} 次/天（30天 ${{fmtNum(monthlyCalls)}} 次 · ${{seats}} 个 IDE 席位）· 单次输入 ${{fmtNum(state.inputTokens)}} / 输出 ${{fmtNum(state.outputTokens)}} tok · 缓存命中 ${{cacheNote}}`,
         `- 同模型按量基准（${{baselineModel.name}}）：${{baseBill}}/月`,
         `- 分层路由方案（${{rPct}}% ${{shortModelName(hy.routineModel, false)}} ＋ ${{hPct}}% ${{shortModelName(baselineModel, false)}}）：${{hyBill}}/月（省 ${{hy.hybridPct.toFixed(0)}}%）`,
         `- 核验结论：${{verdictClean}}`,
         `- 一键复算链接：${{shareUrl}}`
+      ].join("\\n");
+    }}
+
+    function buildMarkdownProcurementTable() {{
+      const isEn = state.lang === "en";
+      const cur = state.currency;
+      const seats = getSeats();
+      const monthlyCalls = state.dailyCalls * 30;
+      const baselineModel = getBaselineModel();
+      const baseCost = calcModelMonthly(baselineModel);
+      const paygRmb = baseCost.rmb;
+      const baseBill = fmtMoney(baseCost.usd, baseCost.rmb, cur);
+      const poolByBatch = MODELS.filter(m => state.includeBatch || !m.is_batch);
+      const regionPool = poolByBatch.filter(matchesRegion);
+      const hy = resolveHybridSelection(regionPool, baselineModel, baseCost);
+      const rPct = Math.round(hy.ratio * 100);
+      const hPct = 100 - rPct;
+      const hyBill = fmtMoney(hy.hybridUsd, hy.hybridRmb, cur);
+      const cacheNote = state.cacheEnabled ? `${{Math.round(state.cacheHitRate * 100)}}%` : "0%";
+      const shareUrl = buildShareUrl();
+
+      const subEvals = CODING_PLANS
+        .filter(p => (p.offer_type || "subscription") === "subscription")
+        .map(plan => ({{ plan, ev: evaluateSingleSubscription(plan, monthlyCalls, paygRmb, baselineModel) }}));
+      const sameFamilyBest = subEvals
+        .filter(x => !x.ev.excluded && !x.ev.exceedsCap && x.ev.matched && x.ev.coversModel && x.ev.saveRenew > 0)
+        .sort((a, b) => b.ev.saveRenew - a.ev.saveRenew)[0];
+      const hybridBest = subEvals
+        .filter(x => !x.ev.excluded && x.ev.exceedsCap && x.ev.coversModel && x.ev.overflowHybrid && x.ev.overflowHybrid.savesOnRenewal)
+        .sort((a, b) => b.ev.overflowHybrid.renewSaveRmb - a.ev.overflowHybrid.renewSaveRmb)[0];
+      const fallbackSub = subEvals.find(x => x.ev.coversModel) || subEvals[0];
+      const pickedSub = sameFamilyBest || hybridBest || fallbackSub;
+
+      let planOptLabel = isEn ? "CN Coding Plan Subscription" : "国内 Coding Plan 包月套餐";
+      let planCostCol = "--";
+      let planRuleCol = "--";
+      let planVerdictCol = "--";
+
+      if (pickedSub) {{
+        const p = pickedSub.plan;
+        const ev = pickedSub.ev;
+        const pName = isEn ? (PLAN_EN_TITLES[p.id] || [p.name])[0] : p.name;
+        if (ev.excluded) {{
+          planOptLabel = pName;
+          planCostCol = isEn ? "N/A (IDE Only)" : "不可用于后端";
+          planRuleCol = isEn ? "Official terms prohibit automated backends" : "官方条款严禁非交互式后端";
+          planVerdictCol = isEn ? "Excluded" : "场景排除";
+        }} else if (ev.exceedsCap && ev.overflowHybrid && ev.overflowHybrid.savesOnRenewal && ev.coversModel) {{
+          const oh = ev.overflowHybrid;
+          planOptLabel = isEn
+            ? `${{pName}} (${{seats}}× Pro + PayG Overflow)`
+            : `${{pName}}（${{seats}}席 Pro＋溢出按量）`;
+          planCostCol = isEn
+            ? `¥${{oh.firstTotalRmb.toFixed(2)}} 1st / ¥${{oh.renewalTotalRmb.toFixed(2)}} renew`
+            : `首月 ¥${{oh.firstTotalRmb.toFixed(2)}} / 续费 ¥${{oh.renewalTotalRmb.toFixed(2)}}`;
+          planRuleCol = isEn
+            ? `${{fmtNum(oh.coveredCalls)}} calls on sk-sp- + ${{fmtNum(oh.overflowCalls)}} PayG`
+            : `前 ${{fmtNum(oh.coveredCalls)}} 次 sk-sp- 包月 + 超额 ${{fmtNum(oh.overflowCalls)}} 次按量`;
+          planVerdictCol = isEn
+            ? `Recommended · Save ¥${{oh.renewSaveRmb.toFixed(2)}}/mo`
+            : `推荐组合 · 续费省 ¥${{oh.renewSaveRmb.toFixed(2)}}/月`;
+        }} else if (ev.matched) {{
+          const tierEn = seats > 1 ? `${{seats}}× ${{ev.matched.tier_id.toUpperCase()}}` : ev.matched.tier_id.toUpperCase();
+          const tierZh = seats > 1 ? `${{seats}}席×${{ev.matched.name}}` : ev.matched.name;
+          planOptLabel = `${{pName}} (${{isEn ? tierEn : tierZh}})`;
+          planCostCol = isEn
+            ? `¥${{ev.firstRmb.toFixed(2)}} 1st / ¥${{fmtNum(ev.renewalRmb)}} renew`
+            : `首月 ¥${{ev.firstRmb.toFixed(2)}} / 续费 ¥${{fmtNum(ev.renewalRmb)}}`;
+          planRuleCol = isEn
+            ? `${{fmtNum(ev.totalQuotaMonthly)}}/mo cap · 1 sk-sp- key per IDE seat`
+            : `月限 ${{fmtNum(ev.totalQuotaMonthly)}} 次 · 一人一席 sk-sp- 专属端点`;
+          if (ev.saveRenew > 0 && ev.coversModel) {{
+            planVerdictCol = isEn
+              ? `Recommended · Save ¥${{ev.saveRenew.toFixed(2)}}/mo`
+              : `同系首选 · 续费省 ¥${{ev.saveRenew.toFixed(2)}}/月`;
+          }} else if (ev.saveRenew > 0 && !ev.coversModel) {{
+            planVerdictCol = isEn
+              ? `Cross-model switch · Save ¥${{ev.saveRenew.toFixed(2)}}/mo`
+              : `跨模型平替 · 少支 ¥${{ev.saveRenew.toFixed(2)}}/月`;
+          }} else {{
+            planVerdictCol = isEn
+              ? `Pricier on renewal (+¥${{Math.abs(ev.saveRenew).toFixed(2)}}/mo)`
+              : `续费反贵（多支 ¥${{Math.abs(ev.saveRenew).toFixed(2)}}/月）`;
+          }}
+        }} else {{
+          planOptLabel = `${{pName}} (${{seats}}× PRO)`;
+          planCostCol = isEn ? `Over ${{fmtNum(PRO_MONTHLY_CAP * seats)}}/mo cap` : `超出 ${{fmtNum(PRO_MONTHLY_CAP * seats)}} 次/月上限`;
+          planRuleCol = isEn ? "Pure PayG cheaper than Pro + overflow" : "低单价模型纯按量比包月更省";
+          planVerdictCol = isEn ? "Stay on PayG" : "建议纯按量";
+        }}
+      }}
+
+      const gwTotal = 68 + paygRmb * 0.65 + 15;
+      const gwSave = paygRmb - gwTotal;
+
+      if (isEn) {{
+        return [
+          `### AI Cost Radar · Procurement Audit (${{QUOTE_VERIFIED_DATE}})`,
+          `- **Workload**: ${{fmtNum(state.dailyCalls)}} API calls/day (${{fmtNum(monthlyCalls)}}/30d · ${{seats}} IDE ${{seats === 1 ? "seat" : "seats"}}) · In ${{fmtNum(state.inputTokens)}} / Out ${{fmtNum(state.outputTokens)}} tok · Cache ${{cacheNote}} · Mode: \\`${{state.usageMode}}\\``,
+          ``,
+          `| Procurement Option | Monthly Bill (1st Mo / Renewal) | Quota & Key Compliance | Verdict vs Baseline |`,
+          `| :--- | :--- | :--- | :--- |`,
+          `| Same-Model PayG Pool (${{formatModelTitle(baselineModel, true)}}) | ${{baseBill}}/mo | $0 base · Pay per token · Shared team key OK | Baseline (100%) |`,
+          `| ${{planOptLabel}} | ${{planCostCol}} | ${{planRuleCol}} | ${{planVerdictCol}} |`,
+          `| Tiered Routing (${{rPct}}% ${{shortModelName(hy.routineModel, true)}} + ${{hPct}}% ${{shortModelName(baselineModel, true)}}) | ${{hyBill}}/mo | LiteLLM weighted PayG pool | Save ${{hy.hybridPct.toFixed(0)}}% |`,
+          `| Cloud Host + LiteLLM/Dify Cache Gateway | ¥${{gwTotal.toFixed(2)}}/mo | ¥68 host + 65% uncached API + ¥15 egress | ${{gwSave > 20 ? `Save ¥${{gwSave.toFixed(0)}}/mo` : "Pricier than PayG"}} |`,
+          ``,
+          `> Reproducible Audit & Dedicated Endpoint Config: ${{shareUrl}}`
+        ].join("\\n");
+      }}
+
+      return [
+        `### AI Cost Radar · 团队算力与套餐选型对账表（核验日 ${{QUOTE_VERIFIED_DATE}}）`,
+        `- **测算负载**：日均 ${{fmtNum(state.dailyCalls)}} 次调用（30天 ${{fmtNum(monthlyCalls)}} 次 · ${{seats}} 个 IDE 席位）· 单次输入 ${{fmtNum(state.inputTokens)}} / 输出 ${{fmtNum(state.outputTokens)}} tok · 缓存命中 ${{cacheNote}} · 场景：\\`${{state.usageMode === "automated_backend" ? "非交互式后端" : "交互式编程 IDE"}}\\``,
+        ``,
+        `| 采购方案 | 月度费用（首月 / 续费） | 额度边界与密钥合规要求 | 对比基准结论 |`,
+        `| :--- | :--- | :--- | :--- |`,
+        `| 同模型共享按量池（${{baselineModel.name}}） | ${{baseBill}}/月 | ¥0 月租 · 按 Token 实结 · 支持团队共享密钥 | 当前对账基准 (100%) |`,
+        `| ${{planOptLabel}} | ${{planCostCol}} | ${{planRuleCol}} | ${{planVerdictCol}} |`,
+        `| 混合分层路由（${{rPct}}% ${{shortModelName(hy.routineModel, false)}} ＋ ${{hPct}}% ${{shortModelName(baselineModel, false)}}） | ${{hyBill}}/月 | LiteLLM 按量权重分流 | 按量分层省 ${{hy.hybridPct.toFixed(0)}}% |`,
+        `| 云主机自建 LiteLLM/Dify 语义缓存网关 | ¥${{gwTotal.toFixed(2)}}/月 | ¥68 主机 + 65% 未命中 API + ¥15 流量 | ${{gwSave > 20 ? `预计月省 ¥${{gwSave.toFixed(0)}}` : "总成本高于当前按量"}} |`,
+        ``,
+        `> 一键复算与专属端点核对链接：${{shareUrl}}`
       ].join("\\n");
     }}
 
@@ -3537,6 +3754,9 @@ def render_html_template(
         if (PAGE_PRESET.baselineId && MODELS.some(m => m.id === PAGE_PRESET.baselineId)) {{
           state.baselineId = PAGE_PRESET.baselineId;
         }}
+        if (Array.isArray(PAGE_PRESET.compareIds)) {{
+          state.compareIds = PAGE_PRESET.compareIds.filter(id => MODELS.some(m => m.id === id)).slice(0, 3);
+        }}
       }}
 
       const params = new URLSearchParams(window.location.search);
@@ -3556,6 +3776,13 @@ def render_html_template(
       }}
 
 
+      if (params.has("seats")) {{
+        const st = Number(params.get("seats"));
+        if (Number.isFinite(st) && st >= 1 && st <= 50) {{
+          state.teamSize = Math.round(st);
+          hasShareParams = true;
+        }}
+      }}
       if (params.has("calls")) {{
         const v = Number(params.get("calls"));
         if (Number.isFinite(v) && v >= 1 && v <= 2000000) {{ state.dailyCalls = Math.round(v); hasShareParams = true; }}
@@ -3670,6 +3897,7 @@ def render_html_template(
       document.getElementById("inputTokensRange").value = String(Math.min(32000, state.inputTokens));
       document.getElementById("outputTokensNum").value = String(state.outputTokens);
       document.getElementById("outputTokensRange").value = String(Math.min(8000, state.outputTokens));
+      document.getElementById("teamSizeInput").value = String(getSeats());
       document.getElementById("peak5h").value = state.peak5h ?? "";
       document.getElementById("usageModeSelect").value = state.usageMode;
       document.getElementById("cacheToggle").checked = state.cacheEnabled;
@@ -3852,13 +4080,18 @@ def render_html_template(
     function updateAll(userTriggered) {{
       const cur = state.currency;
       const isEn = state.lang === "en";
+      const seats = getSeats();
       const monthlyCalls = state.dailyCalls * 30;
       const inM = (monthlyCalls * state.inputTokens) / 1000000;
       const outM = (monthlyCalls * state.outputTokens) / 1000000;
 
-      document.getElementById("monthlyCallsMeta").textContent = isEn
-        ? `30-Day Est: ${{fmtNum(monthlyCalls)}} API calls`
-        : `30天预计: ${{fmtNum(monthlyCalls)}} 次模型调用`;
+      document.getElementById("monthlyCallsMeta").textContent = seats > 1
+        ? (isEn
+            ? `30-Day Est: ${{fmtNum(monthlyCalls)}} calls (${{seats}} seats · ~${{fmtNum(Math.ceil(monthlyCalls / seats))}}/seat)`
+            : `30天预计: ${{fmtNum(monthlyCalls)}} 次调用 (${{seats}}席人均 ~${{fmtNum(Math.ceil(monthlyCalls / seats))}}次)`)
+        : (isEn
+            ? `30-Day Est: ${{fmtNum(monthlyCalls)}} API calls`
+            : `30天预计: ${{fmtNum(monthlyCalls)}} 次模型调用`);
       document.getElementById("monthlyInputMeta").textContent = state.cacheEnabled
         ? (isEn ? `Input/mo: ${{inM.toFixed(1)}}M (${{Math.round(state.cacheHitRate * 100)}}% cached)` : `月输入: ${{inM.toFixed(1)}}M (缓存命中 ${{Math.round(state.cacheHitRate * 100)}}%)`)
         : (isEn ? `Input/mo: ${{inM.toFixed(1)}}M Tokens` : `月输入: ${{inM.toFixed(1)}}M Tokens`);
@@ -4112,6 +4345,7 @@ def render_html_template(
       promptCustomPrefix: "Custom Prompts:",
       promptCustomMid: "prompts/day ×",
       promptCustomSuffix: "calls/prompt",
+      labelTeamSize: "IDE Developer Seats (1–50)",
       labelPeak5h: "Peak Calls in Busiest Rolling 5 Hours (Optional)",
       labelInputTokens: "Avg Input Tokens per Call",
       labelOutputTokens: "Avg Output Tokens per Call",
@@ -4127,6 +4361,7 @@ def render_html_template(
       openHybridConfigBtn: "Export LiteLLM YAML",
       verdictShareHint: "Share current inputs, same-model PayG & plan verdict with your team:",
       copySummaryBtn: "Copy Verdict Brief",
+      copyMarkdownBtn: "Copy Markdown Table",
       codingPlanTitle: "2026 CN Coding Plan Subscriptions vs Same-Model Pay-As-You-Go",
       codingPlanDesc: "Aliyun Bailian Pro & Tencent Pro share 6,000/5h · 45,000/wk · 90,000/mo call caps; Tencent Lite is 1,200 / 9,000 / 18,000; Aliyun Lite is closed to new buyers.",
       modelsSectionTitle: "Live Pay-As-You-Go Model Directory (Under Identical Workload)",
@@ -4377,6 +4612,18 @@ def render_html_template(
       promptInput.addEventListener("input", syncCustomPromptCalls);
       turnsInput.addEventListener("input", syncCustomPromptCalls);
 
+      document.getElementById("teamSizeInput").addEventListener("input", e => {{
+        const raw = Number(e.target.value);
+        if (Number.isFinite(raw) && raw >= 1) {{
+          state.teamSize = Math.min(50, Math.max(1, Math.round(raw)));
+          updateAll(true);
+        }}
+      }});
+      document.getElementById("teamSizeInput").addEventListener("change", e => {{
+        state.teamSize = getSeats();
+        e.target.value = String(state.teamSize);
+        updateAll(true);
+      }});
       document.getElementById("peak5h").addEventListener("input", e => {{
         const n = e.target.valueAsNumber;
         state.peak5h = Number.isSafeInteger(n) && n >= 0 ? n : null;
@@ -4514,6 +4761,16 @@ def render_html_template(
         const summaryText = buildVerdictSummaryText();
         trackEvent("share_copy", {{ slot_id: "verdict_brief" }});
         copyTextWithFeedback(summaryText, e.currentTarget, state.lang === "en" ? "Verdict Brief Copied" : "已复制对账结论单");
+      }});
+
+      document.getElementById("copyMarkdownBtn").addEventListener("click", e => {{
+        const shareUrl = buildShareUrl();
+        try {{
+          window.history.replaceState(null, "", shareUrl);
+        }} catch (_) {{}}
+        const mdText = buildMarkdownProcurementTable();
+        trackEvent("share_summary", {{ slot_id: "markdown_table" }});
+        copyTextWithFeedback(mdText, e.currentTarget, state.lang === "en" ? "Markdown Table Copied" : "已复制 Markdown 选型表");
       }});
 
       document.getElementById("themeToggleBtn").addEventListener("click", () => {{

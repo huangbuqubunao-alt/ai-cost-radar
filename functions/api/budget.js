@@ -73,8 +73,11 @@ export function calculateBudget(catalog, params) {
   const mode = params.get("usage_mode") || "interactive_ide";
   if (!["interactive_ide", "automated_backend"].includes(mode)) throw new Error("Invalid usage_mode");
   const peak = params.has("peak_5h_calls") ? number(params, "peak_5h_calls", 0, 10000000) : null;
+  const seats = number(params, "team_size", 1, 50);
+  if (seats < 1 || !Number.isInteger(seats)) throw new Error("Invalid team_size");
   if (![daily, input, output, ...(peak === null ? [] : [peak])].every(Number.isInteger)) throw new Error("Request and token counts must be integers");
   const monthly = daily * 30;
+  const perSeatMonthly = monthly > 0 ? Math.ceil(monthly / seats) : 0;
   const effectiveMultiplier = includesReasoning || !(model.tags || []).includes("reasoning") ? 1 : multiplier;
   const factor = model.cache_hit_factor ?? 1;
   const round = (value) => Math.round((value + Number.EPSILON) * 1000000) / 1000000;
@@ -88,23 +91,33 @@ export function calculateBudget(catalog, params) {
   const plans = (catalog.coding_plans || []).filter((plan) => plan.offer_type === "subscription").map((plan) => {
     const coversSelectedModel = planCoversModel(plan, model);
     const tiers = (plan.tiers || []).map((tier) => {
-      const monthlyFits = monthly <= tier.quota_monthly;
-      const averageWeekFits = daily * 7 <= tier.quota_weekly;
-      const peakFits = peak === null ? null : peak <= tier.quota_5h;
+      const capMonthly = tier.quota_monthly * seats;
+      const capWeekly = tier.quota_weekly * seats;
+      const cap5h = tier.quota_5h * seats;
+      const monthlyFits = monthly <= capMonthly;
+      const averageWeekFits = daily * 7 <= capWeekly;
+      const peakFits = peak === null ? null : peak <= cap5h;
       const basicFits = tier.purchasable && mode === "interactive_ide" && monthlyFits && averageWeekFits;
       const eligible = basicFits ? peakFits : false;
-      const effectiveFirstRmb = tier.first_month_rmb ?? tier.renewal_rmb;
+      const effectiveFirstRmb = round((tier.first_month_rmb ?? tier.renewal_rmb) * seats);
+      const totalRenewalRmb = round(tier.renewal_rmb * seats);
       return {
         ...tier,
+        seats_count: seats,
+        combined_quota_monthly: capMonthly,
+        combined_quota_weekly: capWeekly,
+        combined_quota_5h: cap5h,
+        total_first_month_rmb: effectiveFirstRmb,
+        total_renewal_rmb: totalRenewalRmb,
         monthly_fits: monthlyFits,
         estimated_week_fits: averageWeekFits,
         peak_5h_fits: peakFits,
         eligible_by_provided_usage: eligible,
-        excess_monthly_requests: Math.max(0, monthly - tier.quota_monthly),
+        excess_monthly_requests: Math.max(0, monthly - capMonthly),
         first_month_saving_rmb: eligible ? round(rmb.total_cost - effectiveFirstRmb) : null,
-        renewal_saving_rmb: eligible ? round(rmb.total_cost - tier.renewal_rmb) : null,
+        renewal_saving_rmb: eligible ? round(rmb.total_cost - totalRenewalRmb) : null,
         estimated_first_month_saving_rmb: basicFits ? round(rmb.total_cost - effectiveFirstRmb) : null,
-        estimated_renewal_saving_rmb: basicFits ? round(rmb.total_cost - tier.renewal_rmb) : null,
+        estimated_renewal_saving_rmb: basicFits ? round(rmb.total_cost - totalRenewalRmb) : null,
       };
     });
     const proTier = (plan.tiers || []).find((t) => t.tier_id === "pro" && t.purchasable)
@@ -114,19 +127,20 @@ export function calculateBudget(catalog, params) {
     if (
       proTier &&
       mode === "interactive_ide" &&
-      monthly > proTier.quota_monthly &&
-      (peak === null || peak <= proTier.quota_5h)
+      monthly > proTier.quota_monthly * seats &&
+      (peak === null || peak <= proTier.quota_5h * seats)
     ) {
-      const coveredCalls = proTier.quota_monthly;
+      const coveredCalls = proTier.quota_monthly * seats;
       const overflowCalls = monthly - coveredCalls;
       const overflowPaygRmb = Math.round((rmb.total_cost * (overflowCalls / monthly) + Number.EPSILON) * 100) / 100;
-      const firstPlanRmb = proTier.first_month_rmb ?? proTier.renewal_rmb;
-      const renewalPlanRmb = proTier.renewal_rmb;
+      const firstPlanRmb = Math.round(((proTier.first_month_rmb ?? proTier.renewal_rmb) * seats + Number.EPSILON) * 100) / 100;
+      const renewalPlanRmb = Math.round((proTier.renewal_rmb * seats + Number.EPSILON) * 100) / 100;
       const firstTotalRmb = Math.round((firstPlanRmb + overflowPaygRmb + Number.EPSILON) * 100) / 100;
       const renewalTotalRmb = Math.round((renewalPlanRmb + overflowPaygRmb + Number.EPSILON) * 100) / 100;
       const firstSavingRmb = Math.round((rmb.total_cost - firstTotalRmb + Number.EPSILON) * 100) / 100;
       const renewalSavingRmb = Math.round((rmb.total_cost - renewalTotalRmb + Number.EPSILON) * 100) / 100;
       overflowHybrid = {
+        seats_count: seats,
         covered_calls: coveredCalls,
         overflow_calls: overflowCalls,
         overflow_payg_rmb: overflowPaygRmb,
@@ -148,6 +162,7 @@ export function calculateBudget(catalog, params) {
       models_covered: plan.models_covered,
       interactive_only: plan.interactive_only,
       endpoints: plan.endpoints,
+      seats_count: seats,
       overflow_hybrid: overflowHybrid,
       tiers,
     };
@@ -160,7 +175,7 @@ export function calculateBudget(catalog, params) {
       (tier) => tier.purchasable && mode === "interactive_ide" && tier.monthly_fits && tier.estimated_week_fits && tier.peak_5h_fits !== false
     );
     if (matchedTier) {
-      const renewalSaving = round(rmb.total_cost - matchedTier.renewal_rmb);
+      const renewalSaving = round(rmb.total_cost - matchedTier.total_renewal_rmb);
       if (renewalSaving > 0) {
         sameFamilyCandidates.push({id: plan.id, renewalSaving, featured: plan.featured_partner ? 1 : 0});
       }
@@ -184,18 +199,24 @@ export function calculateBudget(catalog, params) {
   );
   const bestHybrid = overflowHybridCandidates.length > 0 ? overflowHybridCandidates[0] : null;
   const recommendedOverflowHybridPlanId = bestHybrid ? bestHybrid.id : null;
-  let summary = `按 30 天预计 ${monthly} 次，按量月费约 ¥${rmb.total_cost.toFixed(2)}。`;
+  const totalProCap = 90000 * seats;
+  const totalPro5hCap = 6000 * seats;
+  let summary = seats > 1
+    ? `按 ${seats} 人团队 30 天预计合计 ${monthly} 次（人均约 ${perSeatMonthly} 次），共享按量月费约 ¥${rmb.total_cost.toFixed(2)}。`
+    : `按 30 天预计 ${monthly} 次，按量月费约 ¥${rmb.total_cost.toFixed(2)}。`;
   if (mode === "automated_backend") summary += "自动化后端不适用 Coding Plan。";
-  else if (monthly > 90000) {
-    summary += `超出 Pro 月额度 ${monthly - 90000} 次；不能按 ¥200 封顶。`;
+  else if (monthly > totalProCap) {
+    summary += seats > 1
+      ? `超出 ${seats} 席 Pro 合计月额度 ${monthly - totalProCap} 次；不能按 ¥${200 * seats} 封顶。`
+      : `超出 Pro 月额度 ${monthly - 90000} 次；不能按 ¥200 封顶。`;
     if (bestHybrid) {
-      summary += `可采用「1 份 Pro 打底前 90000 次＋超额 ${bestHybrid.hybrid.overflow_calls} 次按量」组合（首月约 ¥${bestHybrid.hybrid.first_month_total_rmb.toFixed(2)}，续费约 ¥${bestHybrid.hybrid.renewal_total_rmb.toFixed(2)}，净省 ¥${bestHybrid.hybrid.renewal_saving_rmb.toFixed(2)}/月）。`;
+      summary += `可采用「${seats} 份 Pro 打底前 ${bestHybrid.hybrid.covered_calls} 次＋超额 ${bestHybrid.hybrid.overflow_calls} 次按量」组合（首月约 ¥${bestHybrid.hybrid.first_month_total_rmb.toFixed(2)}，续费约 ¥${bestHybrid.hybrid.renewal_total_rmb.toFixed(2)}，净省 ¥${bestHybrid.hybrid.renewal_saving_rmb.toFixed(2)}/月）。`;
     } else {
       summary += "当前模型单价较低，全程纯按量 API 比「Pro＋溢出按量」更划算。";
     }
   }
-  else if (peak !== null && peak > 6000) summary += "超出 Pro 的 5 小时 6000 次窗口。";
-  else summary += "Pro 月额度足够；" + (peak === null ? "5 小时峰值待确认。" : "仍需核对真实每周集中用量。") ;
+  else if (peak !== null && peak > totalPro5hCap) summary += `超出 ${seats > 1 ? seats + " 席合计 " : ""}Pro 的 5 小时 ${totalPro5hCap} 次窗口。`;
+  else summary += (seats > 1 ? `${seats} 席独立 Pro 月额度足够；` : "Pro 月额度足够；") + (peak === null ? "5 小时峰值待确认。" : "仍需核对真实每周集中用量。") ;
   summary += "套餐可用模型与按量模型未必相同；节省额仅为费用比较，非质量等价承诺。";
   const share = new URLSearchParams({
     calls: String(daily),
@@ -210,7 +231,8 @@ export function calculateBudget(catalog, params) {
     qv: catalog.quote_verified_date,
   });
   if (peak !== null) share.set("peak5h", String(peak));
-  return {status: "ok", summary_cn: summary, model_id: model.id, monthly_requests: monthly,
+  if (seats > 1) share.set("seats", String(seats));
+  return {status: "ok", summary_cn: summary, model_id: model.id, team_size: seats, per_seat_monthly_requests: perSeatMonthly, monthly_requests: monthly,
     monthly_rmb: rmb.total_cost, monthly_usd: usd.total_cost, input_cost_rmb: rmb.input_cost, output_cost_rmb: rmb.output_cost,
     cache_hit_rate: hit, effective_reasoning_multiplier: effectiveMultiplier,
     recommended_same_family_plan_id: recommendedSameFamilyPlanId,
