@@ -85,25 +85,55 @@ export function calculateBudget(catalog, params) {
   };
   const rmb = bill("rmb");
   const usd = bill("usd");
-  const plans = catalog.coding_plans.filter((plan) => ["aliyun-coding-plan", "tencent-coding-plan"].includes(plan.id)).map((plan) => ({
-    id: plan.id,
-    name: plan.name,
-    covers_selected_model: planCoversModel(plan, model),
-    official_source_url: plan.official_source_url,
-    models_covered: plan.models_covered,
-    interactive_only: plan.interactive_only,
-    endpoints: plan.endpoints,
-    tiers: plan.tiers.map((tier) => {
+  const plans = (catalog.coding_plans || []).filter((plan) => plan.offer_type === "subscription").map((plan) => {
+    const coversSelectedModel = planCoversModel(plan, model);
+    const tiers = (plan.tiers || []).map((tier) => {
       const monthlyFits = monthly <= tier.quota_monthly;
       const averageWeekFits = daily * 7 <= tier.quota_weekly;
       const peakFits = peak === null ? null : peak <= tier.quota_5h;
       const basicFits = tier.purchasable && mode === "interactive_ide" && monthlyFits && averageWeekFits;
       const eligible = basicFits ? peakFits : false;
-      return {...tier, monthly_fits: monthlyFits, estimated_week_fits: averageWeekFits, peak_5h_fits: peakFits,
-        eligible_by_provided_usage: eligible, excess_monthly_requests: Math.max(0, monthly - tier.quota_monthly),
-        renewal_saving_rmb: eligible ? round(rmb.total_cost - tier.renewal_rmb) : null};
-    }),
-  }));
+      const effectiveFirstRmb = tier.first_month_rmb ?? tier.renewal_rmb;
+      return {
+        ...tier,
+        monthly_fits: monthlyFits,
+        estimated_week_fits: averageWeekFits,
+        peak_5h_fits: peakFits,
+        eligible_by_provided_usage: eligible,
+        excess_monthly_requests: Math.max(0, monthly - tier.quota_monthly),
+        first_month_saving_rmb: eligible ? round(rmb.total_cost - effectiveFirstRmb) : null,
+        renewal_saving_rmb: eligible ? round(rmb.total_cost - tier.renewal_rmb) : null,
+        estimated_first_month_saving_rmb: basicFits ? round(rmb.total_cost - effectiveFirstRmb) : null,
+        estimated_renewal_saving_rmb: basicFits ? round(rmb.total_cost - tier.renewal_rmb) : null,
+      };
+    });
+    return {
+      id: plan.id,
+      name: plan.name,
+      featured_partner: Boolean(plan.featured_partner),
+      covers_selected_model: coversSelectedModel,
+      official_source_url: plan.official_source_url,
+      models_covered: plan.models_covered,
+      interactive_only: plan.interactive_only,
+      endpoints: plan.endpoints,
+      tiers,
+    };
+  });
+  const sameFamilyCandidates = [];
+  for (const plan of plans) {
+    if (!plan.covers_selected_model) continue;
+    const matchedTier = plan.tiers.find(
+      (tier) => tier.purchasable && mode === "interactive_ide" && tier.monthly_fits && tier.estimated_week_fits && tier.peak_5h_fits !== false
+    );
+    if (matchedTier) {
+      const renewalSaving = round(rmb.total_cost - matchedTier.renewal_rmb);
+      if (renewalSaving > 0) {
+        sameFamilyCandidates.push({id: plan.id, renewalSaving, featured: plan.featured_partner ? 1 : 0});
+      }
+    }
+  }
+  sameFamilyCandidates.sort((a, b) => (b.renewalSaving - a.renewalSaving) || (b.featured - a.featured));
+  const recommendedSameFamilyPlanId = sameFamilyCandidates.length > 0 ? sameFamilyCandidates[0].id : null;
   let summary = `按 30 天预计 ${monthly} 次，按量月费约 ¥${rmb.total_cost.toFixed(2)}。`;
   if (mode === "automated_backend") summary += "自动化后端不适用 Coding Plan。";
   else if (monthly > 90000) summary += `超出 Pro 月额度 ${monthly - 90000} 次；不能按 ¥200 封顶。`;
@@ -125,7 +155,8 @@ export function calculateBudget(catalog, params) {
   if (peak !== null) share.set("peak5h", String(peak));
   return {status: "ok", summary_cn: summary, model_id: model.id, monthly_requests: monthly,
     monthly_rmb: rmb.total_cost, monthly_usd: usd.total_cost, input_cost_rmb: rmb.input_cost, output_cost_rmb: rmb.output_cost,
-    cache_hit_rate: hit, effective_reasoning_multiplier: effectiveMultiplier, coding_plans: plans,
+    cache_hit_rate: hit, effective_reasoning_multiplier: effectiveMultiplier,
+    recommended_same_family_plan_id: recommendedSameFamilyPlanId, coding_plans: plans,
     quote_verified_date: catalog.quote_verified_date, last_live_verified_at: catalog.last_live_verified_at,
     web_calculator_url: `https://ai-cost-radar-nlu.pages.dev/coding-plan-2026/?${share}`};
 }

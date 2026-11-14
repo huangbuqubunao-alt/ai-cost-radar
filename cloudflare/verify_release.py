@@ -69,6 +69,14 @@ def main():
             assert '<table' in body and SITE in body, f"Invalid production page: {path}"
         live = json.loads(subprocess.check_output(["curl", "-fsS", "--retry", "3", base + "api/models_live.json"], text=True))
         assert live == catalog, "Production catalog differs from release artifact"
+        budget = json.loads(
+            subprocess.check_output(
+                ["curl", "-fsS", "--retry", "3", base + "api/budget?model_id=qwen3-coder-next&daily_requests=5000&cache_hit_rate=0.5"],
+                text=True,
+            )
+        )
+        assert budget.get("status") == "ok" and budget.get("model_id") == "aliyun-bailian/qwen3-coder-next", f"Invalid /api/budget: {budget}"
+        assert budget.get("monthly_requests") == 150000, f"Unexpected /api/budget monthly_requests: {budget}"
         code = subprocess.check_output(["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", base + "admin/stats"], text=True)
         assert code == "401", f"Admin must fail closed; got {code}"
     print(f"Verified {len(pages)} pages, inline JavaScript, catalog" + (" and production endpoints" if args.remote else ""))

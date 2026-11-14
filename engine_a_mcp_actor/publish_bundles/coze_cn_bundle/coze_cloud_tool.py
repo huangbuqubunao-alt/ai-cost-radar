@@ -37,8 +37,111 @@ PRO_MONTHLY_CAP = 90_000
 PRO_WEEKLY_CAP = 45_000
 PRO_5H_CAP = 6_000
 LITE_MONTHLY_CAP = 18_000
+LITE_WEEKLY_CAP = 9_000
 LITE_5H_CAP = 1_200
 DEFAULT_FX_USD_TO_RMB = 7.20
+
+SUBSCRIPTION_OFFERS_2026: list[dict[str, Any]] = [
+    {
+        "id": "aliyun-coding-plan",
+        "offer_type": "subscription",
+        "name": "阿里云百炼 Coding Plan 编程套餐",
+        "vendor": "阿里云百炼 (Aliyun Bailian)",
+        "official_source_url": "https://help.aliyun.com/zh/model-studio/coding-plan",
+        "verified_date": QUOTE_VERIFIED_DATE,
+        "interactive_only": True,
+        "featured_partner": True,
+        "models_covered": ["qwen3.5-plus", "qwen3-coder-next", "kimi-k2.5", "glm-5", "MiniMax-M2.5"],
+        "tiers": [
+            {
+                "tier_id": "lite",
+                "name": "Lite 基础版（已停新购）",
+                "purchasable": False,
+                "first_month_rmb": None,
+                "renewal_rmb": 40.0,
+                "quota_5h": LITE_5H_CAP,
+                "quota_weekly": LITE_WEEKLY_CAP,
+                "quota_monthly": LITE_MONTHLY_CAP,
+            },
+            {
+                "tier_id": "pro",
+                "name": "Pro 高级版",
+                "purchasable": True,
+                "first_month_rmb": 39.90,
+                "renewal_rmb": 200.0,
+                "quota_5h": PRO_5H_CAP,
+                "quota_weekly": PRO_WEEKLY_CAP,
+                "quota_monthly": PRO_MONTHLY_CAP,
+            },
+        ],
+    },
+    {
+        "id": "tencent-coding-plan",
+        "offer_type": "subscription",
+        "name": "腾讯云 LKEAP Coding Plan 编程套餐",
+        "vendor": "腾讯云 (Tencent Cloud)",
+        "official_source_url": "https://cloud.tencent.com/document/product/1823/130092",
+        "verified_date": QUOTE_VERIFIED_DATE,
+        "interactive_only": True,
+        "featured_partner": True,
+        "models_covered": ["tc-code-latest", "hunyuan-t1", "kimi-k2.5", "glm-5", "MiniMax-M2.5"],
+        "tiers": [
+            {
+                "tier_id": "lite",
+                "name": "Lite 轻量版",
+                "purchasable": True,
+                "first_month_rmb": None,
+                "renewal_rmb": 40.0,
+                "quota_5h": LITE_5H_CAP,
+                "quota_weekly": LITE_WEEKLY_CAP,
+                "quota_monthly": LITE_MONTHLY_CAP,
+            },
+            {
+                "tier_id": "pro",
+                "name": "Pro 专业版",
+                "purchasable": True,
+                "first_month_rmb": None,
+                "renewal_rmb": 200.0,
+                "quota_5h": PRO_5H_CAP,
+                "quota_weekly": PRO_WEEKLY_CAP,
+                "quota_monthly": PRO_MONTHLY_CAP,
+            },
+        ],
+    },
+    {
+        "id": "volcengine-coding-plan",
+        "offer_type": "subscription",
+        "name": "火山方舟 Coding Plan 编程套餐",
+        "vendor": "字节跳动 · 火山引擎",
+        "official_source_url": "https://www.volcengine.com/docs/82379",
+        "verified_date": QUOTE_VERIFIED_DATE,
+        "interactive_only": True,
+        "featured_partner": False,
+        "models_covered": ["doubao-seed-2.0-pro", "deepseek-v3", "kimi-k2.5", "glm-5"],
+        "tiers": [
+            {
+                "tier_id": "lite",
+                "name": "Lite 轻量版",
+                "purchasable": True,
+                "first_month_rmb": None,
+                "renewal_rmb": 40.0,
+                "quota_5h": LITE_5H_CAP,
+                "quota_weekly": LITE_WEEKLY_CAP,
+                "quota_monthly": LITE_MONTHLY_CAP,
+            },
+            {
+                "tier_id": "pro",
+                "name": "Pro 专业版",
+                "purchasable": True,
+                "first_month_rmb": None,
+                "renewal_rmb": 200.0,
+                "quota_5h": PRO_5H_CAP,
+                "quota_weekly": PRO_WEEKLY_CAP,
+                "quota_monthly": PRO_MONTHLY_CAP,
+            },
+        ],
+    },
+]
 
 FALLBACK_CATALOG: dict[str, Any] = {
     "updated_at": "2026-11-13T00:00:00Z",
@@ -254,8 +357,43 @@ def _fmt_wan(calls: int) -> str:
     return f"{calls // 10_000} 万次" if calls % 10_000 == 0 else f"{calls / 10_000:.1f} 万次"
 
 
-def _evaluate_coding_plan_verdict(daily_calls: int, payg_rmb: float, usage_mode: str, peak: int | None = None) -> dict[str, Any]:
-    monthly_calls = daily_calls * 30
+def _plan_covers_model(plan: dict[str, Any], model: dict[str, Any] | str | None) -> bool:
+    if not plan or plan.get("offer_type") != "subscription" or model is None:
+        return False
+    if isinstance(model, dict):
+        model_text = f"{model.get('id', '')} {model.get('api_model_id', '')} {model.get('name', '')}".lower()
+    else:
+        model_text = str(model).strip().lower()
+    if not model_text:
+        return False
+    cov = " ".join(str(x).lower() for x in (plan.get("models_covered") or []))
+    if "qwen" in model_text and "qwen" in cov:
+        return True
+    if ("hunyuan" in model_text or "tc-code" in model_text) and ("hunyuan" in cov or "tc-code" in cov):
+        return True
+    if "doubao" in model_text and "doubao" in cov:
+        return True
+    if "kimi" in model_text and "kimi" in cov:
+        return True
+    if "glm" in model_text and "glm" in cov:
+        return True
+    if "minimax" in model_text and "minimax" in cov:
+        return True
+    if ("deepseek-v3" in model_text or "deepseek-chat" in model_text) and "deepseek-v3" in cov:
+        return True
+    return False
+
+
+def _evaluate_coding_plan_verdict(
+    daily_calls: int,
+    payg_rmb: float,
+    usage_mode: str,
+    peak: int | None = None,
+    model: dict[str, Any] | str | None = None,
+    offers: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    d_calls = max(0, int(daily_calls))
+    monthly_calls = d_calls * 30
     is_backend = str(usage_mode or "").strip().lower() in (
         "automated_backend",
         "backend",
@@ -263,10 +401,102 @@ def _evaluate_coding_plan_verdict(daily_calls: int, payg_rmb: float, usage_mode:
         "batch",
         "non_interactive",
     )
+    norm_mode = "automated_backend" if is_backend else "interactive_ide"
+    source_offers = [
+        o for o in (offers or SUBSCRIPTION_OFFERS_2026) if isinstance(o, dict) and o.get("offer_type") == "subscription"
+    ] or SUBSCRIPTION_OFFERS_2026
+
+    eligible: list[dict[str, Any]] = []
+    excluded: list[dict[str, Any]] = []
+    for offer in source_offers:
+        if norm_mode == "automated_backend" and offer.get("interactive_only", True):
+            excluded.append(
+                {
+                    "plan_id": offer["id"],
+                    "name": offer["name"],
+                    "reason_zh": "官方条款仅限交互式 AI 编程工具（Claude Code / Cursor / Cline 等），禁止用于非交互式后端、批处理或 API 服务。",
+                    "official_source_url": offer.get("official_source_url", ""),
+                }
+            )
+            continue
+
+        purchasable_tiers = [t for t in offer.get("tiers", []) if t.get("purchasable")]
+        chosen_tier: dict[str, Any] | None = None
+        for tier in purchasable_tiers:
+            if monthly_calls <= int(tier["quota_monthly"]) and (d_calls * 7) <= int(tier["quota_weekly"]):
+                if peak is None or peak <= int(tier["quota_5h"]):
+                    chosen_tier = tier
+                    break
+
+        pro_tier = next(
+            (t for t in purchasable_tiers if t["tier_id"] == "pro"),
+            purchasable_tiers[-1] if purchasable_tiers else None,
+        )
+        ref_tier = chosen_tier or pro_tier
+        if ref_tier is None:
+            continue
+
+        covers_model = _plan_covers_model(offer, model) if model is not None else True
+        first_rmb = ref_tier.get("first_month_rmb")
+        renewal_rmb = float(ref_tier["renewal_rmb"])
+        effective_first_rmb = float(first_rmb) if first_rmb is not None else renewal_rmb
+
+        if chosen_tier is None and monthly_calls <= int(ref_tier["quota_monthly"]):
+            status = "exceeds_5h_cap"
+            first_month_saving = None
+            renewal_saving = None
+        elif chosen_tier is None:
+            status = "exceeds_monthly_cap"
+            first_month_saving = None
+            renewal_saving = None
+        else:
+            first_month_saving = round(payg_rmb - effective_first_rmb, 2)
+            renewal_saving = round(payg_rmb - renewal_rmb, 2)
+            if renewal_saving > 0:
+                status = "recommended_even_on_renewal"
+            elif first_rmb is not None and first_month_saving > 0:
+                status = "first_month_only"
+            else:
+                status = "payg_cheaper"
+
+        eligible.append(
+            {
+                "plan_id": offer["id"],
+                "name": offer["name"],
+                "vendor": offer.get("vendor", ""),
+                "featured_partner": bool(offer.get("featured_partner")),
+                "covers_selected_model": covers_model,
+                "official_source_url": offer.get("official_source_url", ""),
+                "verified_date": offer.get("verified_date", QUOTE_VERIFIED_DATE),
+                "status": status,
+                "matched_tier": chosen_tier["tier_id"] if chosen_tier else "exceeds_pro",
+                "first_month_rmb": effective_first_rmb,
+                "has_first_month_promo": first_rmb is not None,
+                "renewal_rmb": renewal_rmb,
+                "quota_5h": ref_tier["quota_5h"],
+                "quota_weekly": ref_tier["quota_weekly"],
+                "quota_monthly": ref_tier["quota_monthly"],
+                "first_month_savings_rmb": first_month_saving,
+                "renewal_savings_rmb": renewal_saving,
+            }
+        )
+
+    same_family = [
+        item for item in eligible if item["covers_selected_model"] and item["status"] == "recommended_even_on_renewal"
+    ]
+    same_family.sort(
+        key=lambda x: (float(x["renewal_savings_rmb"] or 0.0), 1 if x.get("featured_partner") else 0),
+        reverse=True,
+    )
+    rec_same_family = same_family[0]["plan_id"] if same_family else None
+
     if is_backend:
         return {
             "usage_mode": "automated_backend",
             "monthly_calls_30d": monthly_calls,
+            "recommended_same_family_plan_id": None,
+            "eligible_subscriptions": [],
+            "excluded_subscriptions": excluded,
             "headline_zh": (
                 "当前为非交互式后端/API服务场景：已排除阿里云百炼、腾讯云与火山方舟个人 Coding Plan"
                 "（官方规则仅限 Claude Code / Cursor / Cline 等交互式编程工具），请直接使用按量 API。"
@@ -308,6 +538,9 @@ def _evaluate_coding_plan_verdict(daily_calls: int, payg_rmb: float, usage_mode:
     return {
         "usage_mode": "interactive_ide",
         "monthly_calls_30d": monthly_calls,
+        "recommended_same_family_plan_id": rec_same_family,
+        "eligible_subscriptions": eligible,
+        "excluded_subscriptions": excluded,
         "headline_zh": headline,
         "window_note_zh": window_note,
     }
@@ -450,19 +683,27 @@ def _run_budget(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, Any],
 
     best_match = models[0]
     best_rank = -1.0
-    q_tokens = [tok for tok in q.replace("/", " ").replace("-", " ").split() if tok]
+    norm_q = q
+    if norm_q.startswith("aliyun/"):
+        norm_q = "aliyun-bailian/" + norm_q.removeprefix("aliyun/")
+    elif norm_q.startswith("tencent/"):
+        norm_q = "tencent-cloud/" + norm_q.removeprefix("tencent/")
+    q_tokens = [tok for tok in norm_q.replace("/", " ").replace("-", " ").split() if tok]
     for m in models:
         mid = m["id"].lower()
+        api_id = str(m.get("api_model_id") or "").lower()
         mname = m["name"].lower()
-        hay = f"{mid} {mname} {m['provider'].lower()}"
+        hay = f"{mid} {api_id} {mname} {m['provider'].lower()}"
         score = 0.0
-        if mid == q:
+        if mid == norm_q or mid == q:
             score = 1000.0
-        elif mid.endswith("/" + q):
-            score = 900.0
-        elif q in mid:
+        elif api_id and (api_id == norm_q or api_id == q):
+            score = 950.0 + (20.0 if m.get("region") == "cn_direct" else 0.0)
+        elif mid.endswith("/" + norm_q) or mid.endswith("/" + q):
+            score = 900.0 + (20.0 if m.get("region") == "cn_direct" else 0.0)
+        elif norm_q in mid or q in mid:
             score = 700.0
-        elif q in mname:
+        elif norm_q in mname or q in mname:
             score = 600.0
         elif q_tokens and all(tok in hay for tok in q_tokens):
             score = 500.0
@@ -513,7 +754,14 @@ def _run_budget(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, Any],
 
     raw_peak = _get_param(inp, "peak_5h_calls", None)
     peak = max(0, int(raw_peak)) if raw_peak is not None else None
-    coding_eval = _evaluate_coding_plan_verdict(int(round(reqs)), monthly_rmb, usage_mode, peak)
+    coding_eval = _evaluate_coding_plan_verdict(
+        int(round(reqs)),
+        monthly_rmb,
+        usage_mode,
+        peak,
+        model=best_match,
+        offers=catalog.get("coding_plans") if isinstance(catalog.get("coding_plans"), list) else None,
+    )
 
     alts = []
     for cand in models:

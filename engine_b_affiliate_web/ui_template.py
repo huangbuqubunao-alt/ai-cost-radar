@@ -163,7 +163,7 @@ def render_html_template(
       caret-color: var(--accent);
     }}
 
-    .kpi-val, .monthly-cost, .num-input, .control-meta, .pill-count, .plan-price-main, .num-cell, .ssr-table td {{
+    .kpi-val, .monthly-cost, .num-input, .prompt-mini-input, .control-meta, .pill-count, .plan-price-main, .num-cell, .ssr-table td {{
       font-variant-numeric: tabular-nums;
     }}
 
@@ -1307,6 +1307,70 @@ def render_html_template(
       background: var(--accent-soft);
     }}
 
+    .cta-copy-cfg.is-active-baseline {{
+      border-color: rgba(16, 185, 129, 0.42);
+      background: var(--emerald-soft);
+      color: var(--emerald-text);
+      cursor: default;
+    }}
+
+    .card-secondary-actions {{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }}
+
+    @media (max-width: 420px) {{
+      .card-secondary-actions {{
+        grid-template-columns: 1fr;
+      }}
+    }}
+
+    .prompt-custom-row {{
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }}
+
+    .prompt-mini-input {{
+      width: 68px;
+      padding: 4px 7px;
+      border-radius: 6px;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-input);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      font-weight: 650;
+    }}
+
+    .verdict-share-row {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }}
+
+    .verdict-share-hint {{
+      font-size: 0.76rem;
+      color: var(--text-secondary);
+    }}
+
+    .verdict-share-btns {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }}
+
     .show-more-wrap {{
       text-align: center;
       margin: 14px 0 24px;
@@ -1539,16 +1603,16 @@ def render_html_template(
     {f'<nav class="seo-topic-bar" aria-label="专题场景导航">{seo_nav_html}</nav>' if seo_nav_html else ''}
 
     <div class="audit-meta-bar" id="auditMetaBar">
-      <div>
+      <div id="auditMetaText">
         <strong>页面构建日</strong>：{updated_date} &nbsp;|&nbsp;
         <strong>报价核验日</strong>：{quote_verified_date} &nbsp;|&nbsp;
         <strong>统计口径</strong>：仅用短期按日轮换标识记录<strong>估算日 UV</strong>与卡片视口曝光，零第三方统计 SDK
       </div>
       <div class="audit-meta-links">
-        <a href="https://help.aliyun.com/zh/model-studio/coding-plan" target="_blank" rel="noopener">百炼官方规则</a>
-        <a href="https://cloud.tencent.com/document/product/1823/130092" target="_blank" rel="noopener">腾讯云官方规则</a>
-        <a href="{feed_href}">Atom 价格订阅</a>
-        <a href="{api_json_href}">公开 JSON</a>
+        <a href="https://help.aliyun.com/zh/model-studio/coding-plan" target="_blank" rel="noopener" data-i18n="metaLinkAliyun">百炼官方规则</a>
+        <a href="https://cloud.tencent.com/document/product/1823/130092" target="_blank" rel="noopener" data-i18n="metaLinkTencent">腾讯云官方规则</a>
+        <a href="{feed_href}" data-i18n="metaLinkAtom">Atom 价格订阅</a>
+        <a href="{api_json_href}" data-i18n="metaLinkJson">公开 JSON</a>
       </div>
     </div>
 
@@ -1608,6 +1672,13 @@ def render_html_template(
               <button type="button" class="preset-btn" data-prompt-calls="2000" data-i18n="promptChipMid">主力 100问×20次 = 2,000/天</button>
               <button type="button" class="preset-btn" data-prompt-calls="5000" data-i18n="promptChipHeavy">重度 200问×25次 = 5,000/天 [超Pro上限]</button>
             </div>
+            <div class="prompt-custom-row" id="promptCustomRow">
+              <label for="promptCountInput" data-i18n="promptCustomPrefix">自定义提问折算：</label>
+              <input type="number" class="prompt-mini-input" id="promptCountInput" min="1" max="50000" step="5" value="100" aria-label="Daily User Prompts" />
+              <span data-i18n="promptCustomMid">问/天 × 单次触发</span>
+              <input type="number" class="prompt-mini-input" id="turnsPerPromptInput" min="1" max="200" step="1" value="25" aria-label="API Calls per Prompt" />
+              <span data-i18n="promptCustomSuffix">次调用</span>
+            </div>
           </div>
 
           <div class="control-group">
@@ -1665,7 +1736,7 @@ def render_html_template(
             <div class="opt-inline-row">
               <label class="cache-toggle">
                 <input type="checkbox" id="outputIncludesReasoningToggle" />
-                <span>上方填写的输出 Token 已包含思考部分（勾选后不再重复乘倍率）</span>
+                <span data-i18n="outputIncReasonLabel">上方填写的输出 Token 已包含思考部分（勾选后不再重复乘倍率）</span>
               </label>
               <label class="cache-toggle">
                 <input type="checkbox" id="batchToggle" />
@@ -1711,6 +1782,12 @@ def render_html_template(
           </div>
 
           <div class="primary-rec-box" id="primaryWorkloadRec"></div>
+          <div class="verdict-share-row">
+            <span class="verdict-share-hint" data-i18n="verdictShareHint">可将当前输入参数、同模型按量与套餐核验结论发给团队复算：</span>
+            <div class="verdict-share-btns">
+              <button type="button" class="icon-btn" id="copySummaryBtn" data-i18n="copySummaryBtn">复制对账结论单</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1731,8 +1808,8 @@ def render_html_template(
 
     <section class="section-block" id="modelsSection">
       <div class="section-head">
-        <h2>全量海内外模型按量实时比价（基于上方同一组输入条件）</h2>
-        <p>点击任一模型的「配置专属端点」可按客户端（Claude Code 或 OpenAI 兼容）与计费方式生成对应配置。</p>
+        <h2 data-i18n="modelsSectionTitle">全量海内外模型按量实时比价（基于上方同一组输入条件）</h2>
+        <p data-i18n="modelsSectionDesc">点击任一模型的「设为对账基准」可切换比对基线，点击「配置专属端点」可生成 Claude Code 或 OpenAI 兼容环境变量。</p>
       </div>
 
       <div class="toolbar">
@@ -1811,40 +1888,40 @@ def render_html_template(
     <div class="cfg-modal-box">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;">
         <h3 id="cfgModalTitle" style="font-size:1.05rem;font-weight:800;">按客户端与计费模式生成专属接入配置</h3>
-        <button type="button" class="icon-btn" id="cfgModalCloseBtn" aria-label="Close modal">关闭 ✕</button>
+        <button type="button" class="icon-btn" id="cfgModalCloseBtn" aria-label="Close modal" data-i18n="cfgModalCloseBtn">关闭 ✕</button>
       </div>
       <p id="cfgModalSubtitle" style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;"></p>
 
       <div class="cfg-selector-grid">
         <div>
-          <label for="cfgClientSelect" style="display:block;font-size:0.76rem;font-weight:700;margin-bottom:4px;color:var(--text-secondary);">1. 选择编程客户端协议</label>
+          <label for="cfgClientSelect" style="display:block;font-size:0.76rem;font-weight:700;margin-bottom:4px;color:var(--text-secondary);" data-i18n="cfgClientLabel">1. 选择编程客户端协议</label>
           <select id="cfgClientSelect" class="select-sm" style="max-width:100%;width:100%;">
-            <option value="claude_code">Claude Code (Anthropic 原生协议)</option>
-            <option value="openai_compat">Cursor / Cline / Cherry Studio (OpenAI 兼容)</option>
+            <option value="claude_code" id="optCfgClaude">Claude Code (Anthropic 原生协议)</option>
+            <option value="openai_compat" id="optCfgOpenai">Cursor / Cline / Cherry Studio (OpenAI 兼容)</option>
           </select>
         </div>
         <div>
-          <label for="cfgBillingModeSelect" style="display:block;font-size:0.76rem;font-weight:700;margin-bottom:4px;color:var(--text-secondary);">2. 选择已开通的计费方式</label>
+          <label for="cfgBillingModeSelect" style="display:block;font-size:0.76rem;font-weight:700;margin-bottom:4px;color:var(--text-secondary);" data-i18n="cfgBillingLabel">2. 选择已开通的计费方式</label>
           <select id="cfgBillingModeSelect" class="select-sm" style="max-width:100%;width:100%;">
-            <option value="coding_plan">已购 Coding Plan 包月（专属端点 sk-sp-）</option>
-            <option value="payg">按量付费 API（通用端点 sk-）</option>
+            <option value="coding_plan" id="optCfgPlan">已购 Coding Plan 包月（专属端点 sk-sp-）</option>
+            <option value="payg" id="optCfgPayg">按量付费 API（通用端点 sk-）</option>
           </select>
         </div>
       </div>
 
       <div id="cfgModalWarning" class="verdict-banner warn" style="padding:10px 12px;margin-bottom:12px;font-size:0.78rem;"></div>
 
-      <div style="font-size:0.8rem;font-weight:700;color:var(--text-primary);">客户端面板参数核对</div>
+      <div style="font-size:0.8rem;font-weight:700;color:var(--text-primary);" data-i18n="cfgGuiHeading">客户端面板参数核对</div>
       <pre class="cfg-code-block" id="cfgGuiSnippet"></pre>
-      <button type="button" class="cta-copy-cfg" id="copyGuiBtn" style="margin-bottom:12px;">复制协议地址与模型参数</button>
+      <button type="button" class="cta-copy-cfg" id="copyGuiBtn" style="margin-bottom:12px;" data-i18n="copyGuiBtn">复制协议地址与模型参数</button>
 
-      <div style="font-size:0.8rem;font-weight:700;color:var(--text-primary);">终端环境变量一键导出命令</div>
+      <div style="font-size:0.8rem;font-weight:700;color:var(--text-primary);" data-i18n="cfgEnvHeading">终端环境变量一键导出命令</div>
       <pre class="cfg-code-block" id="cfgEnvSnippet"></pre>
-      <button type="button" class="cta-copy-cfg" id="copyEnvBtn" style="margin-bottom:14px;">复制环境变量命令</button>
+      <button type="button" class="cta-copy-cfg" id="copyEnvBtn" style="margin-bottom:14px;" data-i18n="copyEnvBtn">复制环境变量命令</button>
 
       <div style="padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-        <a id="cfgModalDocLink" href="https://help.aliyun.com/zh/model-studio/coding-plan" target="_blank" rel="noopener" style="font-size:0.79rem;color:var(--emerald-text);text-decoration:underline;">查阅该厂商官方接入文档</a>
-        <a class="cta-primary cn-cta" id="cfgModalOfficialCta" href="https://bailian.console.aliyun.com/" target="_blank" rel="noopener sponsored" style="width:auto;padding:8px 16px;">前往官方控制台获取密钥</a>
+        <a id="cfgModalDocLink" href="https://help.aliyun.com/zh/model-studio/coding-plan" target="_blank" rel="noopener" style="font-size:0.79rem;color:var(--emerald-text);text-decoration:underline;" data-i18n="cfgModalDocLink">查阅该厂商官方接入文档</a>
+        <a class="cta-primary cn-cta" id="cfgModalOfficialCta" href="https://bailian.console.aliyun.com/" target="_blank" rel="noopener sponsored" style="width:auto;padding:8px 16px;" data-i18n="cfgModalOfficialCta">前往官方控制台获取密钥</a>
       </div>
     </div>
   </div>
@@ -2068,6 +2145,55 @@ def render_html_template(
       return {{ usd, rmb, inM, outM, monthlyCalls, inFactor, outFactor }};
     }}
 
+    let lastModalTrigger = null;
+
+    const PLAN_EN_TITLES = {{
+      "aliyun-coding-plan": ["Aliyun Bailian Coding Plan", "Aliyun Bailian"],
+      "tencent-coding-plan": ["Tencent LKEAP Coding Plan", "Tencent Cloud"],
+      "volcengine-coding-plan": ["Volcengine Ark Coding Plan", "ByteDance · Volcengine"],
+      "aliyun-ecs-agent-host": ["Aliyun ECS / Lightweight Server (LiteLLM / Dify Host)", "Aliyun Cloud Deals"],
+      "siliconflow-coding-pack": ["SiliconFlow Multi-Model PayG Pool", "SiliconFlow"],
+      "openrouter-global-coding": ["OpenRouter Global Multi-LLM Gateway", "OpenRouter (Global)"]
+    }};
+
+    function shortModelName(m, isEn) {{
+      if (!m) return "";
+      let s = String(m.name || "").replace(/^[^:]+:\\s*/, "");
+      if (isEn) {{
+        s = s
+          .replace(/\\((?:永久)?免费API\\)/gi, "(Free API)")
+          .replace(/（[^）]*）/g, "")
+          .replace(/\\([^)]*[\\u4e00-\\u9fff]+[^)]*\\)/g, "")
+          .replace(/\\s+[\\u4e00-\\u9fff][\\u4e00-\\u9fff/\\s·]*$/g, "")
+          .replace(/[\\u4e00-\\u9fff·]+/g, " ")
+          .replace(/\\s+/g, " ")
+          .trim();
+      }}
+      return s;
+    }}
+
+    function formatModelTitle(m, isEn) {{
+      if (!m) return "";
+      if (!isEn) return String(m.name || "");
+      const raw = String(m.name || "");
+      const colonIdx = raw.indexOf(":");
+      const shortPart = shortModelName(m, true);
+      if (colonIdx < 0) return shortPart;
+      const prefixRaw = raw.slice(0, colonIdx).trim();
+      let enPrefix = prefixRaw;
+      if (/阿里云百炼/.test(prefixRaw)) enPrefix = "Aliyun Bailian";
+      else if (/腾讯云/.test(prefixRaw)) enPrefix = "Tencent Cloud";
+      else if (/硅基流动/.test(prefixRaw)) enPrefix = "SiliconFlow";
+      else if (/火山/.test(prefixRaw)) enPrefix = "Volcengine Ark";
+      return `${{enPrefix}}: ${{shortPart}}`;
+    }}
+
+    function formatProviderTitle(m, isEn) {{
+      if (!m) return "";
+      if (!isEn) return String(m.provider || "");
+      return String(m.provider || "").replace(/^[\\u4e00-\\u9fff\\sA-Za-z]+\\(([^)]+)\\)$/, "$1").replace(/[\\u4e00-\\u9fff]+/g, "").trim();
+    }}
+
     function initBaselines() {{
       const select = document.getElementById("baselineSelect");
       const baselines = MODELS;
@@ -2075,7 +2201,7 @@ def render_html_template(
       const globalPaid = baselines.filter(m => m.region !== "cn_direct").sort((a, b) => b.blended_usd_per_1m - a.blended_usd_per_1m);
 
       const renderOpt = m => {{
-        const shortName = m.name.replace(/^[^:]+:\\s*/, "");
+        const shortName = shortModelName(m, state.lang === "en");
         const unitHint = m.region === "cn_direct"
           ? `¥${{m.input_rmb_per_1m}}/¥${{m.output_rmb_per_1m}}`
           : `$${{m.input_usd_per_1m}}/$${{m.output_usd_per_1m}}`;
@@ -2083,8 +2209,8 @@ def render_html_template(
       }};
 
       select.innerHTML = [
-        `<optgroup label="国内直连按量基准 (同模型对账推荐)">${{cnPaid.map(renderOpt).join("")}}</optgroup>`,
-        `<optgroup label="海外主流模型基准 (USD)">${{globalPaid.map(renderOpt).join("")}}</optgroup>`
+        `<optgroup id="optGroupCnBase" label="国内直连按量基准 (同模型对账推荐)">${{cnPaid.map(renderOpt).join("")}}</optgroup>`,
+        `<optgroup id="optGroupGlobalBase" label="海外主流模型基准 (USD)">${{globalPaid.map(renderOpt).join("")}}</optgroup>`
       ].join("");
 
       const presetBase = PAGE_PRESET && PAGE_PRESET.baselineId && MODELS.some(m => m.id === PAGE_PRESET.baselineId)
@@ -2139,16 +2265,19 @@ def render_html_template(
     }}
 
     function evaluateSingleSubscription(plan, monthlyCalls, paygRmb, baselineModel) {{
+      const isEn = state.lang === "en";
       const coversModel = baselineModel ? planCoversModel(plan, baselineModel) : true;
-      const baseShort = baselineModel ? baselineModel.name.replace(/^[^:]+:\\s*/, "") : "";
+      const baseShort = shortModelName(baselineModel, isEn);
       if (state.usageMode === "automated_backend" && plan.interactive_only) {{
         return {{
           excluded: true,
           coversModel,
-          badgeHtml: `<span class="badge badge-warn">场景排除 · 禁用于后端</span>`,
-          priceMain: "不可用于后端",
-          tierSummary: "官方条款仅限交互式编程工具",
-          detailText: "阿里云百炼、腾讯云与火山方舟个人 Coding Plan 均严禁用于非交互式后端、定时批处理或 API 转发服务。"
+          badgeHtml: `<span class="badge badge-warn">${{isEn ? "Excluded for Automated Backend" : "场景排除 · 禁用于后端"}}</span>`,
+          priceMain: isEn ? "Interactive IDE Only" : "不可用于后端",
+          tierSummary: isEn ? "Official terms prohibit backend / batch APIs" : "官方条款仅限交互式编程工具",
+          detailText: isEn
+            ? "Aliyun Bailian, Tencent Cloud & Volcengine personal Coding Plans strictly forbid automated backends, cron jobs, or API proxy use."
+            : "阿里云百炼、腾讯云与火山方舟个人 Coding Plan 均严禁用于非交互式后端、定时批处理或 API 转发服务。"
         }};
       }}
       const purchasable = (plan.tiers || []).filter(t => t.purchasable);
@@ -2164,12 +2293,16 @@ def render_html_template(
       if (!matched && proTier && monthlyCalls <= proTier.quota_monthly) {{
         return {{
           coversModel,
-          badgeHtml: '<span class="badge badge-warn">5 小时或单周峰值超限</span>',
-          priceMain: "高峰期额度不足",
-          tierSummary: proTier.name,
+          badgeHtml: `<span class="badge badge-warn">${{isEn ? "5h or Weekly Window Exceeded" : "5 小时或单周峰值超限"}}</span>`,
+          priceMain: isEn ? "Peak Window Insufficient" : "高峰期额度不足",
+          tierSummary: isEn ? `${{proTier.tier_id.toUpperCase()}} Tier` : proTier.name,
           detailText: state.peak5h !== null && state.peak5h > proTier.quota_5h
-            ? `5 小时峰值 ${{fmtNum(state.peak5h)}} 次，超过窗口上限 ${{fmtNum(proTier.quota_5h)}} 次。`
-            : `按日均推算 7 天调用 ${{fmtNum(state.dailyCalls * 7)}} 次，超过单周滚动上限 ${{fmtNum(proTier.quota_weekly)}} 次。`
+            ? (isEn
+                ? `5-hour peak (${{fmtNum(state.peak5h)}} calls) exceeds the ${{fmtNum(proTier.quota_5h)}}-call rolling window.`
+                : `5 小时峰值 ${{fmtNum(state.peak5h)}} 次，超过窗口上限 ${{fmtNum(proTier.quota_5h)}} 次。`)
+            : (isEn
+                ? `7-day volume (${{fmtNum(state.dailyCalls * 7)}} calls) exceeds the ${{fmtNum(proTier.quota_weekly)}}-call weekly cap.`
+                : `按日均推算 7 天调用 ${{fmtNum(state.dailyCalls * 7)}} 次，超过单周滚动上限 ${{fmtNum(proTier.quota_weekly)}} 次。`)
         }};
       }}
       if (!matched) {{
@@ -2178,12 +2311,16 @@ def render_html_template(
           excluded: false,
           exceedsCap: true,
           coversModel,
-          badgeHtml: `<span class="badge badge-warn">超出 Pro 月上限 ${{fmtWanCalls(over)}}</span>`,
-          priceMain: proTier ? `Pro 续费 ¥${{Number(proTier.renewal_rmb).toFixed(0)}}/月` : "超出月上限",
+          badgeHtml: `<span class="badge badge-warn">${{isEn ? `Over Pro Cap by ${{fmtNum(over)}}` : `超出 Pro 月上限 ${{fmtWanCalls(over)}}`}}</span>`,
+          priceMain: proTier
+            ? (isEn ? `Pro Renewal ¥${{Number(proTier.renewal_rmb).toFixed(0)}}/mo` : `Pro 续费 ¥${{Number(proTier.renewal_rmb).toFixed(0)}}/月`)
+            : (isEn ? "Exceeds Monthly Cap" : "超出月上限"),
           tierSummary: proTier && proTier.first_month_rmb
-            ? `新客首月 ¥${{Number(proTier.first_month_rmb).toFixed(2)}} · 月限 90,000 次`
-            : `月上限 90,000 次 · 5h 限 6,000 次`,
-          detailText: `按 30 天预计 ${{fmtWanCalls(monthlyCalls)}}（${{fmtNum(monthlyCalls)}} 次），超出 Pro 月额度 ${{fmtWanCalls(over)}}；单买 1 个个人套餐不够用，超出部分需走按量 API。`
+            ? (isEn ? `¥${{Number(proTier.first_month_rmb).toFixed(2)}} 1st mo · 90,000 calls/mo cap` : `新客首月 ¥${{Number(proTier.first_month_rmb).toFixed(2)}} · 月限 90,000 次`)
+            : (isEn ? "90,000 calls/mo · 6,000/5h cap" : `月上限 90,000 次 · 5h 限 6,000 次`),
+          detailText: isEn
+            ? `30-day estimate is ${{fmtNum(monthlyCalls)}} calls, exceeding the 90,000/mo Pro cap by ${{fmtNum(over)}} calls; excess usage must run on Pay-As-You-Go API.`
+            : `按 30 天预计 ${{fmtWanCalls(monthlyCalls)}}（${{fmtNum(monthlyCalls)}} 次），超出 Pro 月额度 ${{fmtWanCalls(over)}}；单买 1 个个人套餐不够用，超出部分需走按量 API。`
         }};
       }}
 
@@ -2192,34 +2329,49 @@ def render_html_template(
         : Number(matched.renewal_rmb);
       const hasPromo = matched.first_month_rmb !== null && matched.first_month_rmb !== undefined;
       const renewalRmb = Number(matched.renewal_rmb);
-      const peakNote = state.peak5h === null ? "月额度足够，5 小时窗口待确认。" : "月额度与所填 5 小时峰值均在该档上限内。";
+      const peakNote = state.peak5h === null
+        ? (isEn ? "Monthly cap fits; 5h peak window unconfirmed." : "月额度足够，5 小时窗口待确认。")
+        : (isEn ? "Fits both monthly cap and provided 5h peak." : "月额度与所填 5 小时峰值均在该档上限内。");
       const saveFirst = paygRmb - firstRmb;
       const saveRenew = paygRmb - renewalRmb;
+      const tierEnLabel = matched.tier_id === "lite" ? "Lite" : "Pro";
 
       let badgeHtml = "";
       let detailText = "";
       if (saveRenew > 0 && coversModel) {{
-        badgeHtml = `<span class="badge badge-save">套餐含同系模型 · 续费省 ¥${{saveRenew.toFixed(0)}}</span>`;
-        detailText = `套餐含同系模型，匹配 ${{matched.name}}（月限 ${{fmtNum(matched.quota_monthly)}} 次）：同基准按量约 ¥${{paygRmb.toFixed(2)}}/月，`
-          + (hasPromo ? `首月 ¥${{firstRmb.toFixed(2)}} 省 ¥${{saveFirst.toFixed(2)}}，` : "")
-          + `续费 ¥${{renewalRmb.toFixed(0)}}/月 仍省 ¥${{saveRenew.toFixed(2)}}。${{peakNote}}`;
+        badgeHtml = `<span class="badge badge-save">${{isEn ? `Same-Family · Save ¥${{saveRenew.toFixed(0)}}/mo` : `套餐含同系模型 · 续费省 ¥${{saveRenew.toFixed(0)}}`}}</span>`;
+        detailText = isEn
+          ? `Covers same model family on ${{tierEnLabel}} (${{fmtNum(matched.quota_monthly)}}/mo cap): baseline PayG ≈ ¥${{paygRmb.toFixed(2)}}/mo; `
+            + (hasPromo ? `1st mo ¥${{firstRmb.toFixed(2)}} saves ¥${{saveFirst.toFixed(2)}}, ` : "")
+            + `renewal ¥${{renewalRmb.toFixed(0)}}/mo saves ¥${{saveRenew.toFixed(2)}}. ${{peakNote}}`
+          : `套餐含同系模型，匹配 ${{matched.name}}（月限 ${{fmtNum(matched.quota_monthly)}} 次）：同基准按量约 ¥${{paygRmb.toFixed(2)}}/月，`
+            + (hasPromo ? `首月 ¥${{firstRmb.toFixed(2)}} 省 ¥${{saveFirst.toFixed(2)}}，` : "")
+            + `续费 ¥${{renewalRmb.toFixed(0)}}/月 仍省 ¥${{saveRenew.toFixed(2)}}。${{peakNote}}`;
       }} else if (saveRenew > 0 && !coversModel) {{
         const sampleModels = (plan.models_covered || []).slice(0, 3).join(" / ");
-        badgeHtml = `<span class="badge badge-neutral">跨模型国产平替 · 差额 ¥${{saveRenew.toFixed(0)}}</span>`;
-        detailText = `套餐不含所选「${{baseShort}}」原模型（可用 ${{sampleModels}} 等平替）：若接受切换模型，匹配 ${{matched.name}} 后续费 ¥${{renewalRmb.toFixed(0)}}/月 比原按量少支 ¥${{saveRenew.toFixed(2)}}。${{peakNote}}`;
+        badgeHtml = `<span class="badge badge-neutral">${{isEn ? `Cross-Model Switch · Δ¥${{saveRenew.toFixed(0)}}` : `跨模型国产平替 · 差额 ¥${{saveRenew.toFixed(0)}}`}}</span>`;
+        detailText = isEn
+          ? `Does NOT include "${{baseShort}}" natively (offers ${{sampleModels}} instead): switching models on ${{tierEnLabel}} (¥${{renewalRmb.toFixed(0)}}/mo) costs ¥${{saveRenew.toFixed(2)}} less than baseline PayG. ${{peakNote}}`
+          : `套餐不含所选「${{baseShort}}」原模型（可用 ${{sampleModels}} 等平替）：若接受切换模型，匹配 ${{matched.name}} 后续费 ¥${{renewalRmb.toFixed(0)}}/月 比原按量少支 ¥${{saveRenew.toFixed(2)}}。${{peakNote}}`;
       }} else if (hasPromo && saveFirst > 0) {{
-        badgeHtml = `<span class="badge badge-warn">仅首月省 · 续费反贵</span>`;
-        detailText = `对比所选按量基准（¥${{paygRmb.toFixed(2)}}/月）：首月特惠 ¥${{firstRmb.toFixed(2)}} 可省 ¥${{saveFirst.toFixed(2)}}，但次月恢复 ¥${{renewalRmb.toFixed(0)}}/月续费后将比按量贵 ¥${{Math.abs(saveRenew).toFixed(2)}}。${{peakNote}}`;
+        badgeHtml = `<span class="badge badge-warn">${{isEn ? "1st Mo Promo Only · Renewal Pricier" : "仅首月省 · 续费反贵"}}</span>`;
+        detailText = isEn
+          ? `Baseline PayG is ¥${{paygRmb.toFixed(2)}}/mo: 1st-month promo (¥${{firstRmb.toFixed(2)}}) saves ¥${{saveFirst.toFixed(2)}}, but ¥${{renewalRmb.toFixed(0)}}/mo renewal costs ¥${{Math.abs(saveRenew).toFixed(2)}} MORE than PayG. ${{peakNote}}`
+          : `对比所选按量基准（¥${{paygRmb.toFixed(2)}}/月）：首月特惠 ¥${{firstRmb.toFixed(2)}} 可省 ¥${{saveFirst.toFixed(2)}}，但次月恢复 ¥${{renewalRmb.toFixed(0)}}/月续费后将比按量贵 ¥${{Math.abs(saveRenew).toFixed(2)}}。${{peakNote}}`;
       }} else {{
-        badgeHtml = `<span class="badge badge-neutral">按量付费更便宜</span>`;
-        detailText = `所选基准按量仅需 ¥${{paygRmb.toFixed(2)}}/月，低于 ${{matched.name}}（¥${{firstRmb.toFixed(2)}}～¥${{renewalRmb.toFixed(0)}}/月），无需包月。`;
+        badgeHtml = `<span class="badge badge-neutral">${{isEn ? "Pay-As-You-Go Cheaper" : "按量付费更便宜"}}</span>`;
+        detailText = isEn
+          ? `Baseline PayG is only ¥${{paygRmb.toFixed(2)}}/mo, below ${{tierEnLabel}} (¥${{firstRmb.toFixed(2)}}–¥${{renewalRmb.toFixed(0)}}/mo); stay on PayG.`
+          : `所选基准按量仅需 ¥${{paygRmb.toFixed(2)}}/月，低于 ${{matched.name}}（¥${{firstRmb.toFixed(2)}}～¥${{renewalRmb.toFixed(0)}}/月），无需包月。`;
       }}
 
       const liteStopped = (plan.tiers || []).some(t => t.tier_id === "lite" && !t.purchasable);
       const priceMain = hasPromo
-        ? `首月 ¥${{firstRmb.toFixed(2)}} / 续费 ¥${{renewalRmb.toFixed(0)}}`
-        : `目录价 ¥${{renewalRmb.toFixed(0)}}/月`;
-      const tierSummary = `${{matched.name}} · 月限 ${{fmtNum(matched.quota_monthly)}} 次` + (liteStopped ? " (Lite已停新购)" : "");
+        ? (isEn ? `1st Mo ¥${{firstRmb.toFixed(2)}} / Renew ¥${{renewalRmb.toFixed(0)}}` : `首月 ¥${{firstRmb.toFixed(2)}} / 续费 ¥${{renewalRmb.toFixed(0)}}`)
+        : (isEn ? `Catalog ¥${{renewalRmb.toFixed(0)}}/mo` : `目录价 ¥${{renewalRmb.toFixed(0)}}/月`);
+      const tierSummary = isEn
+        ? `${{tierEnLabel}} · ${{fmtNum(matched.quota_monthly)}} calls/mo` + (liteStopped ? " (Lite closed)" : "")
+        : `${{matched.name}} · 月限 ${{fmtNum(matched.quota_monthly)}} 次` + (liteStopped ? " (Lite已停新购)" : "");
 
       return {{
         excluded: false,
@@ -2241,27 +2393,37 @@ def render_html_template(
       const grid = document.getElementById("codingPlanGrid");
       if (!grid || CODING_PLANS.length === 0) return;
 
+      const isEn = state.lang === "en";
       const monthlyCalls = state.dailyCalls * 30;
       const paygRmb = baseCost.rmb;
-      const baseShort = baselineModel.name.replace(/^[^:]+:\\s*/, "");
+      const baseShort = shortModelName(baselineModel, isEn);
 
       if (state.usageMode === "automated_backend") {{
         verdictEl.className = "verdict-banner warn";
-        verdictEl.innerHTML = `
+        verdictEl.innerHTML = isEn ? `
+          <div class="verdict-headline">Scenario: Automated Backend / Batch API — Personal Coding Plans Excluded</div>
+          <div class="verdict-sub">Official Aliyun, Tencent & Volcengine terms restrict personal Coding Plans to interactive IDEs (Claude Code / Cursor / Cline). Compare Pay-As-You-Go pools or a self-hosted LiteLLM/Dify cache gateway below.</div>
+        ` : `
           <div class="verdict-headline">当前场景为「非交互式自动化后端 / API 服务」：已自动排除百炼、腾讯云与火山方舟个人 Coding Plan</div>
           <div class="verdict-sub">三大厂官方规则均限定个人编程套餐仅可用于 Claude Code / Cursor / Cline 等交互式 IDE，严禁用于后端接口或批处理。请直接对比下方按量付费池或云服务器自建 LiteLLM/Dify 语义缓存方案。</div>
         `;
       }} else if (monthlyCalls > PRO_MONTHLY_CAP) {{
         const over = monthlyCalls - PRO_MONTHLY_CAP;
         verdictEl.className = "verdict-banner danger";
-        verdictEl.innerHTML = `
+        verdictEl.innerHTML = isEn ? `
+          <div class="verdict-headline">30-Day Estimate: ${{fmtNum(monthlyCalls)}} Model API Calls — Exceeds Pro Monthly Cap (90,000) by ${{fmtNum(over)}} Calls</div>
+          <div class="verdict-sub">Aliyun Bailian Pro & Tencent Pro share hard caps of 6,000/5h · 45,000/wk · 90,000/mo (Tencent Lite: 1,200 / 9,000 / 18,000; Aliyun Lite closed to new buyers). A single ¥200/mo plan is NOT unlimited at this volume.</div>
+        ` : `
           <div class="verdict-headline">按 30 天预计 ${{fmtWanCalls(monthlyCalls)}}（${{fmtNum(monthlyCalls)}} 次模型调用），超出 Pro 月额度 ${{fmtWanCalls(over)}}（上限 90,000 次/月）</div>
           <div class="verdict-sub">阿里云百炼 Pro 与腾讯云 Pro 官方上限均为 6,000次/5h · 45,000次/周 · 90,000次/月（腾讯 Lite 为 1,200 / 9,000 / 18,000 次，百炼 Lite 已停新购）。当前调用量下切勿误以为单个 ¥200 套餐可无限封顶！超出部分需走按量 API 或评估缓存网关。</div>
         `;
       }} else {{
         const overLite = monthlyCalls > LITE_MONTHLY_CAP;
         verdictEl.className = "verdict-banner";
-        verdictEl.innerHTML = `
+        verdictEl.innerHTML = isEn ? `
+          <div class="verdict-headline">30-Day Estimate: ${{fmtNum(monthlyCalls)}} Model Calls — ${{overLite ? `Exceeds Tencent/Volcengine Lite (18,000/mo); compare Pro (90,000/mo, ¥200 renewal) vs "${{esc(baseShort)}}" (¥${{paygRmb.toFixed(2)}}/mo)` : `Within Tencent/Volcengine Lite (18,000/mo, ¥40) & Pro (90,000/mo) monthly caps`}}</div>
+          <div class="verdict-sub">Monthly quota fits; 5-hour rolling window unconfirmed (Pro: 6,000/5h · Lite: 1,200/5h; 1 user prompt in agent IDEs often triggers 5–30 model calls).</div>
+        ` : `
           <div class="verdict-headline">按 30 天预计 ${{fmtNum(monthlyCalls)}} 次模型调用：${{overLite ? `已超出腾讯/火山 Lite 月上限（18,000 次），需按 Pro 档（90,000 次/月，续费 ¥200/月）与所选基准「${{esc(baseShort)}}（¥${{paygRmb.toFixed(2)}}/月）」对账` : `在腾讯/火山 Lite（18,000 次/月，¥40/月）与各家 Pro（90,000 次/月）月总额度内`}}</div>
           <div class="verdict-sub">月额度足够，5 小时窗口待确认（Pro 每 5 小时上限 6,000 次 / Lite 每 5 小时上限 1,200 次；注意单位是模型调用次数，一次提问常触发多次调用）。</div>
         `;
@@ -2269,8 +2431,11 @@ def render_html_template(
 
       if (state.usageMode === "interactive_ide" && monthlyCalls <= PRO_MONTHLY_CAP && state.peak5h !== null) {{
         const overPeak = state.peak5h > 6000;
-        const text = overPeak ? "5 小时峰值超过 Pro 窗口上限 6,000 次" :
-          state.peak5h > 1200 ? "5 小时峰值超过 Lite 上限，处于 Pro 窗口额度内" : "5 小时峰值处于 Lite 和 Pro 窗口额度内";
+        const text = isEn
+          ? (overPeak ? "5-hour peak exceeds the 6,000-call Pro window cap." :
+             state.peak5h > 1200 ? "5-hour peak exceeds Lite (1,200), fits within Pro (6,000)." : "5-hour peak fits within both Lite and Pro rolling windows.")
+          : (overPeak ? "5 小时峰值超过 Pro 窗口上限 6,000 次" :
+             state.peak5h > 1200 ? "5 小时峰值超过 Lite 上限，处于 Pro 窗口额度内" : "5 小时峰值处于 Lite 和 Pro 窗口额度内");
         verdictEl.querySelector(".verdict-sub").textContent = text;
         if (overPeak) verdictEl.className = "verdict-banner danger";
       }}
@@ -2287,7 +2452,6 @@ def render_html_template(
 
       // Single focused Primary CTA under simulator result (transparent first/renewal, model coverage & affiliate disclosure)
       if (primaryRecEl) {{
-        const isEn = state.lang === "en";
         const gwTotal = 68 + paygRmb * 0.65 + 15;
         if (state.usageMode === "automated_backend" && gwTotal + 20 < paygRmb) {{
           primaryRecEl.innerHTML = `
@@ -2365,7 +2529,12 @@ def render_html_template(
         }}
       }}
 
-      const offerTypeNames = {{
+      const offerTypeNames = isEn ? {{
+        subscription: "Personal IDE Subscription",
+        cloud_host: "Cloud Host Gateway (Non-Token Plan)",
+        payg_pool: "Pay-As-You-Go Pool (¥0/mo)",
+        gateway_example: "Global Unified PayG ($0/mo)"
+      }} : {{
         subscription: "个人编程包月订阅",
         cloud_host: "云主机自建网关 (非Token套餐)",
         payg_pool: "按量付费API池 (¥0月租)",
@@ -2376,6 +2545,9 @@ def render_html_template(
         const otype = plan.offer_type || "subscription";
         const typeLabel = offerTypeNames[otype] || otype;
         const srcUrl = plan.official_source_url || plan.url;
+        const enPair = PLAN_EN_TITLES[plan.id] || [plan.name, plan.vendor];
+        const displayPlanName = isEn ? enPair[0] : plan.name;
+        const displayVendor = isEn ? enPair[1] : plan.vendor;
 
         let badgeHtml = "";
         let priceMain = "";
@@ -2396,22 +2568,39 @@ def render_html_template(
           const totalHost = 68 + uncached + 15;
           const saves = totalHost + 20 < paygRmb;
           badgeHtml = saves
-            ? `<span class="badge badge-save">缓存后总账省 ¥${{(paygRmb - totalHost).toFixed(0)}}</span>`
-            : `<span class="badge badge-neutral">总成本高于当前按量</span>`;
-          priceMain = `主机 ¥68/月起 + 未命中API`;
-          tierSummary = `当前总账约 ¥${{totalHost.toFixed(0)}}/月 (含流量¥15)`;
+            ? `<span class="badge badge-save">${{isEn ? `Save ¥${{(paygRmb - totalHost).toFixed(0)}}/mo w/ Cache` : `缓存后总账省 ¥${{(paygRmb - totalHost).toFixed(0)}}`}}</span>`
+            : `<span class="badge badge-neutral">${{isEn ? "Total Cost Exceeds PayG" : "总成本高于当前按量"}}</span>`;
+          priceMain = isEn ? "¥68/mo Host + Uncached API" : `主机 ¥68/月起 + 未命中API`;
+          tierSummary = isEn ? `Est. Total ≈ ¥${{totalHost.toFixed(0)}}/mo (incl. ¥15 egress)` : `当前总账约 ¥${{totalHost.toFixed(0)}}/月 (含流量¥15)`;
           detailText = saves
-            ? `适合自动化后端/Dify 高重复问答：主机 ¥68 + 65%未命中API ¥${{uncached.toFixed(0)}} + 存储流量 ¥15 ≈ ¥${{totalHost.toFixed(0)}}/月。`
-            : `当前按量仅 ¥${{paygRmb.toFixed(2)}}/月，加上主机 ¥68 与存储流量 ¥15 后总成本更高，建议继续按量。`;
+            ? (isEn
+                ? `Fits repetitive backend/Dify workloads: ¥68 host + 65% uncached API (¥${{uncached.toFixed(0)}}) + ¥15 egress ≈ ¥${{totalHost.toFixed(0)}}/mo.`
+                : `适合自动化后端/Dify 高重复问答：主机 ¥68 + 65%未命中API ¥${{uncached.toFixed(0)}} + 存储流量 ¥15 ≈ ¥${{totalHost.toFixed(0)}}/月。`)
+            : (isEn
+                ? `Current PayG is only ¥${{paygRmb.toFixed(2)}}/mo; adding ¥68 host + ¥15 egress costs more than staying on PayG.`
+                : `当前按量仅 ¥${{paygRmb.toFixed(2)}}/月，加上主机 ¥68 与存储流量 ¥15 后总成本更高，建议继续按量。`);
           if (saves) cardCls += " featured";
         }} else {{
-          badgeHtml = `<span class="badge badge-neutral">无5h窗口限制 · 支持后端</span>`;
-          priceMain = otype === "gateway_example" ? "$0 月租 · 按量计费" : "¥0 月租 · 按量计费";
-          tierSummary = "按实际输入/输出 Token 结算";
-          detailText = plan.best_for || "";
+          badgeHtml = `<span class="badge badge-neutral">${{isEn ? "No 5h Cap · Backend Allowed" : "无5h窗口限制 · 支持后端"}}</span>`;
+          priceMain = otype === "gateway_example"
+            ? (isEn ? "$0/mo Base · Pay-As-You-Go" : "$0 月租 · 按量计费")
+            : (isEn ? "¥0/mo Base · Pay-As-You-Go" : "¥0 月租 · 按量计费");
+          tierSummary = isEn ? "Billed per actual input/output token" : "按实际输入/输出 Token 结算";
+          detailText = isEn
+            ? (otype === "gateway_example"
+                ? "Ideal for global products mixing Claude, GPT & Gemini with automatic provider fallback."
+                : "Ideal for variable workloads or automated backends without 5-hour rolling window restrictions.")
+            : (plan.best_for || "");
         }}
 
-        const modelsList = (plan.models_covered || []).slice(0, 4);
+        const modelsList = (plan.models_covered || []).slice(0, 4).map(t => {{
+          if (!isEn) return t;
+          return String(t)
+            .replace("LiteLLM 语义缓存网关", "LiteLLM Cache Gateway")
+            .replace("Dify 工作流后端", "Dify Backend")
+            .replace("24h 自动化 API 服务", "24/7 Automated API")
+            .replace("(免费)", "(Free)");
+        }});
         const canConfigEndpoint = otype !== "cloud_host";
 
         return `
@@ -2421,10 +2610,10 @@ def render_html_template(
                 <span class="badge badge-neutral">${{esc(typeLabel)}}</span>
                 ${{badgeHtml}}
               </div>
-              <h3 class="model-name" style="margin-top:4px;">${{esc(plan.name)}}</h3>
+              <h3 class="model-name" style="margin-top:4px;">${{esc(displayPlanName)}}</h3>
               <div class="model-provider">
-                <span>${{esc(plan.vendor)}}</span>
-                <a href="${{esc(srcUrl)}}" target="_blank" rel="noopener" style="color:var(--emerald-text);text-decoration:underline;">核验规则 (${{esc(plan.verified_date || QUOTE_VERIFIED_DATE)}})</a>
+                <span>${{esc(displayVendor)}}</span>
+                <a href="${{esc(srcUrl)}}" target="_blank" rel="noopener" style="color:var(--emerald-text);text-decoration:underline;">${{isEn ? "Official Rules" : "核验规则"}} (${{esc(plan.verified_date || QUOTE_VERIFIED_DATE)}})</a>
               </div>
               <div class="plan-price-row">
                 <div class="plan-price-main">${{esc(priceMain)}}</div>
@@ -2439,11 +2628,11 @@ def render_html_template(
             </div>
             <div class="card-ctas">
               <a class="cta-primary ${{plan.featured_partner ? "cn-cta" : ""}}" href="${{esc(plan.url)}}" target="_blank" rel="noopener sponsored" data-offer-id="${{esc(plan.id)}}" data-card-slot="plan_cta_${{idx + 1}}" data-affiliate-key="${{esc(plan.provider_config_key || "")}}">
-                ${{esc(plan.cta_zh || "前往官网查看")}}
+                ${{esc(isEn ? (plan.cta_en || "View Official Console") : (plan.cta_zh || "前往官网查看"))}}
               </a>
               ${{canConfigEndpoint ? `
                 <button type="button" class="cta-copy-cfg" data-copy-plan="${{esc(plan.id)}}">
-                  配置 Claude Code / OpenAI 专属端点
+                  ${{isEn ? "Configure Claude Code / OpenAI Endpoint" : "配置 Claude Code / OpenAI 专属端点"}}
                 </button>
               ` : ""}}
             </div>
@@ -2454,6 +2643,7 @@ def render_html_template(
 
     function renderSelfHostBanner(baseCost) {{
       const el = document.getElementById("selfHostBanner");
+      const isEn = state.lang === "en";
       const paygRmb = baseCost.rmb;
       const hostRmb = 68;
       const egressRmb = 15;
@@ -2466,7 +2656,12 @@ def render_html_template(
 
       if (!gatewaySaves && !gpuSaves) {{
         el.className = "selfhost-banner";
-        el.innerHTML = `
+        el.innerHTML = isEn ? `
+          <div class="selfhost-title">Self-Host Gateway / GPU vs Pay-As-You-Go: Stay on Pay-As-You-Go API</div>
+          <div class="selfhost-desc">
+            Current baseline PayG bill is <strong>¥${{paygRmb.toFixed(2)}}/mo</strong>. Deploying a LiteLLM/Dify cache gateway on a cloud host (assuming 35% cache hit) totals <strong>¥${{gatewayTotalRmb.toFixed(2)}}/mo</strong> (¥${{hostRmb}} host + ¥${{uncachedApiRmb.toFixed(2)}} uncached API + ¥${{egressRmb}} egress); renting a 24GB elastic GPU (240h/mo @ ¥11.5/h, ~35 tok/s) totals <strong>¥${{gpuTotalRmb.toFixed(0)}}/mo</strong>. Self-hosting costs more than PayG at this volume.
+          </div>
+        ` : `
           <div class="selfhost-title">自建网关 / GPU 与按量总成本核对：建议继续按量付费 API</div>
           <div class="selfhost-desc">
             当前基准按量账单为 <strong>¥${{paygRmb.toFixed(2)}}/月</strong>。若购买云主机部署 LiteLLM/Dify 缓存网关（按 35% 缓存拦截假设），月总成本约 <strong>¥${{gatewayTotalRmb.toFixed(2)}}/月</strong>（主机月租 ¥${{hostRmb}} ＋ 未命中缓存 API 费 ¥${{uncachedApiRmb.toFixed(2)}} ＋ 存储流量 ¥${{egressRmb}}）；若租用单卡 24GB 弹性 GPU（按日均 8h 共 240h/月、吞吐 ~35 tok/s 假设）月总成本约 <strong>¥${{gpuTotalRmb.toFixed(0)}}/月</strong>。自建总成本高于当前按量账单，无需购买服务器。
@@ -2476,7 +2671,47 @@ def render_html_template(
       }}
 
       el.className = "selfhost-banner saves";
-      el.innerHTML = `
+      el.innerHTML = isEn ? `
+        <div class="selfhost-title">
+          High-Volume Break-Even: Baseline PayG ≈ ¥${{paygRmb.toFixed(0)}}/mo — ${{gpuSaves ? "Both Semantic Cache Gateway & Elastic GPU Save Money" : "Semantic Cache Cloud Host Saves Money (Dedicated GPU Not Needed Yet)"}}
+        </div>
+        <div class="selfhost-desc">
+          1. <strong>Dify / LiteLLM Cache Gateway Total</strong>: ¥${{hostRmb}} host + ¥${{uncachedApiRmb.toFixed(0)}} uncached API (35% hit assumption) + ¥${{egressRmb}} egress = <strong>¥${{gatewayTotalRmb.toFixed(0)}}/mo</strong> (net save ¥${{Math.max(0, paygRmb - gatewayTotalRmb).toFixed(0)}}/mo).<br>
+          2. <strong>Open-Weights Elastic GPU Total</strong>: 1×24GB GPU (RTX 4090 / A10 class, ¥11.5/h × 240h/mo, ~35 tok/s) + ¥${{egressRmb}} egress = <strong>¥${{gpuTotalRmb.toFixed(0)}}/mo</strong> ${{gpuSaves ? `(net save ¥${{(paygRmb - gpuTotalRmb).toFixed(0)}}/mo)` : "(above current PayG bill)"}}.
+        </div>
+        <div class="selfhost-cta-grid">
+          <a class="gpu-cta-card" href="${{esc(AFF.aliyun_ambassador_url)}}" target="_blank" rel="noopener sponsored" data-offer-id="aliyun-ecs-agent-host" data-card-slot="selfhost_banner">
+            <div>
+              <div class="gpu-cta-head">
+                <span>Aliyun ECS / Lightweight Host</span>
+                <span class="badge badge-neutral">Cache Gateway</span>
+              </div>
+              <div class="gpu-cta-sub">Deploy LiteLLM semantic cache or Dify enterprise backend; includes Aliyun Ambassador code (vlxk7knp).</div>
+            </div>
+            <span class="gpu-cta-link">View Aliyun Server Specs & Deals</span>
+          </a>
+          <a class="gpu-cta-card" href="${{esc(AFF.tencent_cps_url)}}" target="_blank" rel="noopener sponsored" data-offer-id="tencent-cloud-host" data-card-slot="selfhost_banner">
+            <div>
+              <div class="gpu-cta-head">
+                <span>Tencent Lighthouse / HAI</span>
+                <span class="badge badge-neutral">1-Click App</span>
+              </div>
+              <div class="gpu-cta-sub">Fast Dify / API gateway templates and on-demand GPU instances; includes Tencent CPS link (EGH3k1cs).</div>
+            </div>
+            <span class="gpu-cta-link">View Tencent Lighthouse / HAI</span>
+          </a>
+          <a class="gpu-cta-card" href="${{esc(AFF.runpod_affiliate_url)}}" target="_blank" rel="noopener" data-offer-id="runpod-gpu" data-card-slot="selfhost_banner">
+            <div>
+              <div class="gpu-cta-head">
+                <span>RunPod Serverless / Per-Sec GPU</span>
+                <span class="badge badge-neutral">vLLM / SGLang</span>
+              </div>
+              <div class="gpu-cta-sub">Global per-second RTX 4090 / A100 inference nodes; direct official link without referral markup.</div>
+            </div>
+            <span class="gpu-cta-link">Estimate RunPod GPU Cost</span>
+          </a>
+        </div>
+      ` : `
         <div class="selfhost-title">
           高消耗成本拆解：当前基准按量约 ¥${{paygRmb.toFixed(0)}}/月，${{gpuSaves ? "已达弹性 GPU 自建与语义缓存网关回本线" : "适合用轻量云主机挂 LiteLLM/Dify 语义缓存降本（尚无需租独立 GPU）"}}
         </div>
@@ -2521,7 +2756,63 @@ def render_html_template(
 
     function renderPartnerMatrix() {{
       const grid = document.getElementById("partnerMatrixGrid");
-      const partners = [
+      const isEn = state.lang === "en";
+      const partners = isEn ? [
+        {{
+          id: "aliyun-ecs-agent-host",
+          name: "Aliyun Cloud Deals (ECS / Lightweight Host)",
+          badge: "Cloud Host · Ambassador Code",
+          desc: "Host a LiteLLM semantic cache gateway or Dify backend (Total = Host + Uncached API + Egress). Eligible cloud host orders carry Ambassador referral tracking.",
+          cta: "View Aliyun ECS Official Deals",
+          url: AFF.aliyun_ambassador_url,
+          sponsored: true
+        }},
+        {{
+          id: "aliyun-coding-plan",
+          name: "Aliyun Bailian & Coding Plan",
+          badge: "PayG + IDE Plan · Rules Verified",
+          desc: "Pro 1st mo ¥39.90 / renewal ¥200 (90,000 calls/mo cap; Lite closed to new buyers). Includes Qwen3.5-Plus & Qwen3-Coder-Next.",
+          cta: "Open Aliyun Bailian Console",
+          url: AFF.aliyun_bailian_url,
+          sponsored: true
+        }},
+        {{
+          id: "tencent-coding-plan",
+          name: "Tencent Cloud LKEAP & Lighthouse",
+          badge: "PayG + IDE Plan · CPS Link",
+          desc: "Coding Plan Lite ¥40/mo (18,000 calls) & Pro ¥200/mo (90,000 calls); PayG access to Hunyuan-T1 & DeepSeek.",
+          cta: "Open Tencent Cloud Official Console",
+          url: AFF.tencent_cps_url,
+          sponsored: true
+        }},
+        {{
+          id: "siliconflow-coding-pack",
+          name: "SiliconFlow Multi-Model PayG Pool",
+          badge: "PayG Pool · Signup Credits",
+          desc: "¥0/mo base with no 5-hour rolling window; automated backends allowed on Kimi-K2.5 / GLM-5 / DeepSeek (referral grants platform compute credits).",
+          cta: "Open SiliconFlow Console",
+          url: AFF.siliconflow_invite_url,
+          sponsored: true
+        }},
+        {{
+          id: "volcengine-coding-plan",
+          name: "ByteDance · Volcengine Ark",
+          badge: "No Referral · Objective Direct Link",
+          desc: "Provides Doubao-Seed-2.0-Pro PayG API and personal Coding Plan (Lite ¥40 / Pro ¥200); direct uncompensated link.",
+          cta: "Open Volcengine Ark Console",
+          url: AFF.volcengine_ark_url,
+          sponsored: false
+        }},
+        {{
+          id: "openrouter-global-coding",
+          name: "OpenRouter Global Multi-LLM Gateway",
+          badge: "Global USD · Direct Official Link",
+          desc: "Unified Pay-As-You-Go gateway for Claude, GPT, Gemini & free tiers with automatic production fallback; no affiliate code.",
+          cta: "Visit OpenRouter",
+          url: AFF.openrouter_url,
+          sponsored: false
+        }}
+      ] : [
         {{
           id: "aliyun-ecs-agent-host",
           name: "阿里云云小站（ECS / 轻量云主机）",
@@ -2593,6 +2884,7 @@ def render_html_template(
     }}
 
     function resolveEndpointConfig(vendorHint, clientType, billingMode, modelId, fallbackBaseUrl) {{
+      const isEn = state.lang === "en";
       const vp = String(vendorHint || "").toLowerCase();
       let planKey = "";
       if (vp.includes("aliyun") || vp.includes("bailian") || vp.includes("qwen")) planKey = "aliyun-coding-plan";
@@ -2609,8 +2901,11 @@ def render_html_template(
         if (!plan || plan.offer_type !== "subscription") {{
           return {{
             docUrl: (plan && plan.official_source_url) || "https://openrouter.ai/docs",
-            warning: "该渠道无已核验的订阅端点。请查阅官方文档，或明确选择按量付费。",
-            gui: "请核对订阅与客户端的兼容性。", env: "# 当前组合无已核验的配置"
+            warning: isEn
+              ? "No subscription endpoint is verified for this provider. Check official docs or switch Billing Mode to Pay-As-You-Go."
+              : "该渠道无已核验的订阅端点。请查阅官方文档，或明确选择按量付费。",
+            gui: isEn ? "Verify subscription compatibility in official docs." : "请核对订阅与客户端的兼容性。",
+            env: isEn ? "# No verified subscription snippet for this provider" : "# 当前组合无已核验的配置"
           }};
         }}
         const endpoints = plan.endpoints || {{}};
@@ -2618,16 +2913,26 @@ def render_html_template(
         if (!ep) {{
           return {{
             docUrl: plan.official_source_url,
-            warning: `${{plan.name}} 在当前所选客户端协议下暂无已核验的专属兼容端点。切勿盲填普通按量地址，请直接查阅下方官方文档：`,
-            gui: `请查阅官方文档获取最新专属接入方式：\\n${{plan.official_source_url}}`,
-            env: `# 未核验组合：请勿混用普通按量端点，详见官方教程：\\n# ${{plan.official_source_url}}`
+            warning: isEn
+              ? `No verified dedicated endpoint for this client protocol yet. Do NOT paste generic PayG URLs; check official docs:`
+              : `${{plan.name}} 在当前所选客户端协议下暂无已核验的专属兼容端点。切勿盲填普通按量地址，请直接查阅下方官方文档：`,
+            gui: isEn
+              ? `Check official documentation for dedicated subscription endpoints:\\n${{plan.official_source_url}}`
+              : `请查阅官方文档获取最新专属接入方式：\\n${{plan.official_source_url}}`,
+            env: isEn
+              ? `# Unverified combination — see official docs:\\n# ${{plan.official_source_url}}`
+              : `# 未核验组合：请勿混用普通按量端点，详见官方教程：\\n# ${{plan.official_source_url}}`
           }};
         }}
         const keyPlaceholder = `${{ep.key_prefix || "sk-sp-"}}your-coding-plan-key`;
         return {{
           docUrl: plan.official_source_url,
-          warning: `已切换为「${{plan.name}}」专属端点与专属密钥（${{ep.key_prefix || "sk-sp-"}} 开头）。切勿填入普通按量端点或普通 API Key，否则会直接按量扣费！`,
-          gui: `Protocol: ${{ep.protocol === "anthropic" ? "Anthropic Messages API (Coding Plan 专属)" : "OpenAI Compatible (Coding Plan 专属)"}}\\nBase URL: ${{ep.base_url}}\\nAPI Key 格式: ${{keyPlaceholder}}\\nModel ID: ${{modelId}}`,
+          warning: isEn
+            ? `Switched to dedicated Coding Plan endpoint & key prefix (${{ep.key_prefix || "sk-sp-"}}). Never mix with standard PayG Base URLs or keys, or requests will bill Pay-As-You-Go!`
+            : `已切换为「${{plan.name}}」专属端点与专属密钥（${{ep.key_prefix || "sk-sp-"}} 开头）。切勿填入普通按量端点或普通 API Key，否则会直接按量扣费！`,
+          gui: isEn
+            ? `Protocol: ${{ep.protocol === "anthropic" ? "Anthropic Messages API (Coding Plan Dedicated)" : "OpenAI Compatible (Coding Plan Dedicated)"}}\\nBase URL: ${{ep.base_url}}\\nAPI Key Format: ${{keyPlaceholder}}\\nModel ID: ${{modelId}}`
+            : `Protocol: ${{ep.protocol === "anthropic" ? "Anthropic Messages API (Coding Plan 专属)" : "OpenAI Compatible (Coding Plan 专属)"}}\\nBase URL: ${{ep.base_url}}\\nAPI Key 格式: ${{keyPlaceholder}}\\nModel ID: ${{modelId}}`,
           env: `export ${{ep.env_url_name}}="${{ep.base_url}}"\\nexport ${{ep.env_key_name}}="${{keyPlaceholder}}"\\nexport ${{ep.env_model_name}}="${{modelId}}"`
         }};
       }}
@@ -2641,13 +2946,21 @@ def render_html_template(
       }};
       const pair = paygMap[planKey] || [fallbackBaseUrl || "https://openrouter.ai/api/v1", "https://openrouter.ai/docs"];
       if (isAnthropic) return {{
-        docUrl: pair[1], warning: "此处尚未核验该渠道按量计费的 Anthropic 协议配置。",
-        gui: "请查阅厂商针对 Claude Code 的教程。", env: "# 请按官方文档核对按量端点。"
+        docUrl: pair[1],
+        warning: isEn
+          ? "Pay-As-You-Go Anthropic native endpoint is not pre-verified here; check provider Claude Code docs or select OpenAI-compatible."
+          : "此处尚未核验该渠道按量计费的 Anthropic 协议配置。",
+        gui: isEn ? "See official provider docs for Claude Code PayG setup." : "请查阅厂商针对 Claude Code 的教程。",
+        env: isEn ? "# Check official provider docs for PayG Anthropic endpoint." : "# 请按官方文档核对按量端点。"
       }};
       return {{
         docUrl: pair[1],
-        warning: "当前生成的是「按量付费 API」标准端点；如果您已购买 Coding Plan 包月套餐，请务必切换上方计费方式为「已购 Coding Plan 包月」，否则不会走包月额度！",
-        gui: `Protocol: OpenAI Compatible (按量付费标准端点)\\nBase URL: ${{pair[0]}}\\nModel ID: ${{modelId}}`,
+        warning: isEn
+          ? "Showing standard Pay-As-You-Go endpoint. If you purchased a monthly Coding Plan, switch Billing Mode above to Coding Plan (sk-sp-) so usage counts against your subscription!"
+          : "当前生成的是「按量付费 API」标准端点；如果您已购买 Coding Plan 包月套餐，请务必切换上方计费方式为「已购 Coding Plan 包月」，否则不会走包月额度！",
+        gui: isEn
+          ? `Protocol: OpenAI Compatible (Standard Pay-As-You-Go)\\nBase URL: ${{pair[0]}}\\nModel ID: ${{modelId}}`
+          : `Protocol: OpenAI Compatible (按量付费标准端点)\\nBase URL: ${{pair[0]}}\\nModel ID: ${{modelId}}`,
         env: `export OPENAI_BASE_URL="${{pair[0]}}"\\nexport OPENAI_API_KEY="sk-your-payg-api-key"\\nexport OPENAI_MODEL="${{modelId}}"`
       }};
     }}
@@ -2662,6 +2975,9 @@ def render_html_template(
         state.modalTargetModelId,
         state.modalFallbackBaseUrl
       );
+      document.getElementById("cfgModalSubtitle").textContent = state.lang === "en"
+        ? (state.modalTargetNameEn || state.modalTargetName)
+        : state.modalTargetName;
       document.getElementById("cfgModalWarning").textContent = cfg.warning;
       document.getElementById("cfgGuiSnippet").textContent = cfg.gui;
       document.getElementById("cfgEnvSnippet").textContent = cfg.env;
@@ -2672,48 +2988,58 @@ def render_html_template(
       ctaEl.dataset.cardSlot = "config_modal";
     }}
 
-    function openConfigModalForModel(modelId) {{
+    function openConfigModalForModel(modelId, triggerEl) {{
       const m = MODELS.find(x => x.id === modelId);
       const modal = document.getElementById("configModal");
       if (!m || !modal) return;
+      lastModalTrigger = triggerEl || document.activeElement;
       const cta = getModelCtaInfo(m);
       state.modalTargetVendor = m.provider_config_key || m.id;
       state.modalTargetModelId = m.api_model_id || m.id;
       state.modalTargetName = `${{m.name}} · ${{m.provider}}`;
+      state.modalTargetNameEn = `${{formatModelTitle(m, true)}} · ${{formatProviderTitle(m, true)}}`;
       state.modalFallbackBaseUrl = m.api_base_url || "https://openrouter.ai/api/v1";
       state.modalOfficialCtaUrl = cta.url;
       state.modalOfferId = cta.offerId;
 
-      document.getElementById("cfgModalSubtitle").textContent = state.modalTargetName;
       document.getElementById("cfgBillingModeSelect").value = "payg";
       document.getElementById("cfgClientSelect").value = "openai_compat";
       refreshConfigModalSnippets();
       modal.classList.add("open");
+      document.getElementById("cfgClientSelect").focus();
       observeOfferCards();
     }}
 
-    function openConfigModalForPlan(planId) {{
+    function openConfigModalForPlan(planId, triggerEl) {{
       const plan = CODING_PLANS.find(p => p.id === planId);
       const modal = document.getElementById("configModal");
       if (!plan || !modal) return;
+      lastModalTrigger = triggerEl || document.activeElement;
+      const enPair = PLAN_EN_TITLES[plan.id] || [plan.name, plan.vendor];
       state.modalTargetVendor = plan.id;
       state.modalOfferId = plan.id;
       state.modalTargetModelId = (plan.models_covered && plan.models_covered[0]) || "qwen3.5-plus";
       state.modalTargetName = `${{plan.name}} · ${{plan.vendor}}`;
+      state.modalTargetNameEn = `${{enPair[0]}} · ${{enPair[1]}}`;
       state.modalFallbackBaseUrl = "https://openrouter.ai/api/v1";
       state.modalOfficialCtaUrl = plan.url || AFF.aliyun_bailian_url;
 
-      document.getElementById("cfgModalSubtitle").textContent = state.modalTargetName;
       document.getElementById("cfgClientSelect").value = "claude_code";
       document.getElementById("cfgBillingModeSelect").value = plan.offer_type === "subscription" ? "coding_plan" : "payg";
       refreshConfigModalSnippets();
       modal.classList.add("open");
+      document.getElementById("cfgClientSelect").focus();
       observeOfferCards();
     }}
 
     function closeConfigModal() {{
       const modal = document.getElementById("configModal");
-      if (modal) modal.classList.remove("open");
+      if (!modal || !modal.classList.contains("open")) return;
+      modal.classList.remove("open");
+      if (lastModalTrigger && typeof lastModalTrigger.focus === "function") {{
+        lastModalTrigger.focus();
+      }}
+      lastModalTrigger = null;
     }}
 
     function matchesRegion(m) {{
@@ -2746,6 +3072,35 @@ def render_html_template(
       params.set("qv", QUOTE_VERIFIED_DATE);
       const base = window.location.origin + window.location.pathname;
       return `${{base}}?${{params.toString()}}`;
+    }}
+
+    function buildVerdictSummaryText() {{
+      const isEn = state.lang === "en";
+      const cur = state.currency;
+      const monthlyCalls = state.dailyCalls * 30;
+      const baselineModel = getBaselineModel();
+      const baseCost = calcModelMonthly(baselineModel);
+      const baseBill = fmtMoney(baseCost.usd, baseCost.rmb, cur);
+      const cacheNote = state.cacheEnabled ? `${{Math.round(state.cacheHitRate * 100)}}%` : "0%";
+      const verdictEl = document.getElementById("codingPlanLiveVerdict");
+      const verdictClean = verdictEl ? verdictEl.textContent.replace(/\\s+/g, " ").trim() : "";
+      const shareUrl = buildShareUrl();
+      if (isEn) {{
+        return [
+          `[AI Cost Radar · Billing Audit (${{QUOTE_VERIFIED_DATE}})]`,
+          `- Workload: ${{fmtNum(state.dailyCalls)}} calls/day (${{fmtNum(monthlyCalls)}}/30d) · In ${{fmtNum(state.inputTokens)}} / Out ${{fmtNum(state.outputTokens)}} tok · Cache ${{cacheNote}} · Mode: ${{state.usageMode}}`,
+          `- Same-Model PayG Baseline (${{formatModelTitle(baselineModel, true)}}): ${{baseBill}}/mo`,
+          `- Verdict: ${{verdictClean}}`,
+          `- Reproducible Link: ${{shareUrl}}`
+        ].join("\\n");
+      }}
+      return [
+        `【AI Cost Radar · 算力与套餐对账单（核验日 ${{QUOTE_VERIFIED_DATE}}）】`,
+        `- 调用规模：${{fmtNum(state.dailyCalls)}} 次/天（30天 ${{fmtNum(monthlyCalls)}} 次）· 单次输入 ${{fmtNum(state.inputTokens)}} / 输出 ${{fmtNum(state.outputTokens)}} tok · 缓存命中 ${{cacheNote}}`,
+        `- 同模型按量基准（${{baselineModel.name}}）：${{baseBill}}/月`,
+        `- 核验结论：${{verdictClean}}`,
+        `- 一键复算链接：${{shareUrl}}`
+      ].join("\\n");
     }}
 
     function restoreFromPresetAndQuery() {{
@@ -2862,7 +3217,9 @@ def render_html_template(
       const staleBanner = document.getElementById("staleQuoteBanner");
       if (qv && qv !== QUOTE_VERIFIED_DATE && staleBanner) {{
         staleBanner.style.display = "block";
-        staleBanner.textContent = `报价更新提示：您打开的分享链接生成于旧版报价快照（${{qv}}），当前页面已按最新核验报价（${{QUOTE_VERIFIED_DATE}}）重新测算，请核对最新结果。`;
+        staleBanner.textContent = state.lang === "en"
+          ? `Quote Update Notice: Your shared link used snapshot (${{qv}}); recalculated against latest verified catalog (${{QUOTE_VERIFIED_DATE}}).`
+          : `报价更新提示：您打开的分享链接生成于旧版报价快照（${{qv}}），当前页面已按最新核验报价（${{QUOTE_VERIFIED_DATE}}）重新测算，请核对最新结果。`;
       }}
 
       // Sync UI controls from restored state
@@ -2875,10 +3232,14 @@ def render_html_template(
       document.getElementById("peak5h").value = state.peak5h ?? "";
       document.getElementById("usageModeSelect").value = state.usageMode;
       document.getElementById("cacheToggle").checked = state.cacheEnabled;
-      for (const [id, value, label] of [["cacheHitRateSelect", state.cacheHitRate, "命中率"], ["reasoningMultSelect", state.reasoningMultiplier, "思考倍率"]]) {{
+      const isEnRestore = state.lang === "en";
+      for (const [id, value, label] of [
+        ["cacheHitRateSelect", state.cacheHitRate, isEnRestore ? "Hit Rate" : "命中率"],
+        ["reasoningMultSelect", state.reasoningMultiplier, isEnRestore ? "Reasoning" : "思考倍率"]
+      ]) {{
         const select = document.getElementById(id);
         if (!Array.from(select.options).some(opt => Number(opt.value) === value)) {{
-          select.add(new Option(label + " " + (id === "cacheHitRateSelect" ? (value * 100) + "%" : value + "×"), String(value)));
+          select.add(new Option(label + " " + (id === "cacheHitRateSelect" ? Math.round(value * 100) + "%" : value + "x"), String(value)));
         }}
       }}
       document.getElementById("cacheHitRateSelect").value = String(state.cacheHitRate);
@@ -2936,11 +3297,11 @@ def render_html_template(
       const bestEntry = workhorseCandidates[0] || regionPool.map(m => ({{ m, c: calcModelMonthly(m) }})).sort((a, b) => a.c.usd - b.c.usd)[0];
 
       document.getElementById("kpiFlagshipVal").textContent = fmtMoney(baseCost.usd, baseCost.rmb, cur);
-      document.getElementById("kpiFlagshipSub").textContent = baselineModel.name.replace(/^[^:]+:\\s*/, "");
+      document.getElementById("kpiFlagshipSub").textContent = shortModelName(baselineModel, isEn);
 
       if (bestEntry) {{
         document.getElementById("kpiBestVal").textContent = fmtMoney(bestEntry.c.usd, bestEntry.c.rmb, cur);
-        document.getElementById("kpiBestSub").textContent = bestEntry.m.name.replace(/^[^:]+:\\s*/, "");
+        document.getElementById("kpiBestSub").textContent = shortModelName(bestEntry.m, isEn);
 
         const saveUsd = Math.max(0, baseCost.usd - bestEntry.c.usd);
         const saveRmb = Math.max(0, baseCost.rmb - bestEntry.c.rmb);
@@ -2954,8 +3315,8 @@ def render_html_template(
         const hybridUsd = 0.8 * bestEntry.c.usd + 0.2 * baseCost.usd;
         const hybridRmb = 0.8 * bestEntry.c.rmb + 0.2 * baseCost.rmb;
         const hybridPct = baseCost.usd > 0 ? Math.max(0, ((baseCost.usd - hybridUsd) / baseCost.usd) * 100) : 0;
-        const bestShort = bestEntry.m.name.replace(/^[^:]+:\\s*/, "");
-        const baseShort = baselineModel.name.replace(/^[^:]+:\\s*/, "");
+        const bestShort = shortModelName(bestEntry.m, isEn);
+        const baseShort = shortModelName(baselineModel, isEn);
 
         document.getElementById("hybridTitleText").textContent = isEn
           ? "80/20 Tiered Model Routing Estimate"
@@ -2995,7 +3356,9 @@ def render_html_template(
       const showMoreBtn = document.getElementById("showMoreBtn");
 
       if (filtered.length === 0) {{
-        grid.innerHTML = `<div class="empty-state">未找到匹配模型，请切换「全部对比 (All)」或清空搜索词。</div>`;
+        grid.innerHTML = isEn
+          ? `<div class="empty-state">No matching models found. Switch to "All Regions" or clear your search filter.</div>`
+          : `<div class="empty-state">未找到匹配模型，请切换「全部对比 (All)」或清空搜索词。</div>`;
         showMoreWrap.style.display = "none";
         observeOfferCards();
         return;
@@ -3008,8 +3371,8 @@ def render_html_template(
       if (filtered.length > DEFAULT_LIMIT && !q && state.activeFilter === "all") {{
         showMoreWrap.style.display = "block";
         showMoreBtn.textContent = state.showAllModels
-          ? `收起列表（仅显示前 ${{DEFAULT_LIMIT}} 款）`
-          : `展开查看全部 ${{filtered.length}} 款实时模型`;
+          ? (isEn ? `Collapse List (Top ${{DEFAULT_LIMIT}})` : `收起列表（仅显示前 ${{DEFAULT_LIMIT}} 款）`)
+          : (isEn ? `Show All ${{filtered.length}} Live Models` : `展开查看全部 ${{filtered.length}} 款实时模型`);
       }} else {{
         showMoreWrap.style.display = "none";
       }}
@@ -3026,47 +3389,54 @@ def render_html_template(
 
         let saveBadgeHtml = "";
         if (m.id === baselineModel.id) {{
-          saveBadgeHtml = `<span class="badge badge-neutral">当前对账基准</span>`;
+          saveBadgeHtml = `<span class="badge badge-neutral">${{isEn ? "Current Baseline" : "当前对账基准"}}</span>`;
         }} else if (c.usd === 0) {{
-          saveBadgeHtml = `<span class="badge badge-save">¥0 免费层</span>`;
+          saveBadgeHtml = `<span class="badge badge-save">${{isEn ? "Free Tier ($0)" : "¥0 免费层"}}</span>`;
         }} else if (savePct > 0.4) {{
-          saveBadgeHtml = `<span class="badge badge-save">比基准低 ${{savePct >= 99 ? savePct.toFixed(1) : Math.round(savePct)}}%</span>`;
+          const pctStr = savePct >= 99 ? savePct.toFixed(1) : Math.round(savePct);
+          saveBadgeHtml = `<span class="badge badge-save">${{isEn ? `${{pctStr}}% Below Baseline` : `比基准低 ${{pctStr}}%`}}</span>`;
         }} else if (savePct < -1) {{
-          saveBadgeHtml = `<span class="badge badge-neutral">${{(c.usd / Math.max(baseCost.usd, 0.01)).toFixed(1)}}x 基准</span>`;
+          const multStr = (c.usd / Math.max(baseCost.usd, 0.01)).toFixed(1);
+          saveBadgeHtml = `<span class="badge badge-neutral">${{isEn ? `${{multStr}}x Baseline` : `${{multStr}}x 基准`}}</span>`;
         }} else {{
-          saveBadgeHtml = `<span class="badge badge-neutral">同档价位</span>`;
+          saveBadgeHtml = `<span class="badge badge-neutral">${{isEn ? "Same Price Tier" : "同档价位"}}</span>`;
         }}
 
         const cachePct = Math.round((Number(m.cache_hit_factor ?? 0.5)) * 100);
         const unitRateStr = cur === "USD"
           ? `In $${{m.input_usd_per_1m}} / Out $${{m.output_usd_per_1m}} · Cache ${{cachePct}}%`
-          : `输入 ¥${{Number(m.input_rmb_per_1m.toFixed(3))}} / 输出 ¥${{Number(m.output_rmb_per_1m.toFixed(3))}} · 缓存命中按 ${{cachePct}}%`;
+          : (isEn
+            ? `In ¥${{Number(m.input_rmb_per_1m.toFixed(3))}} / Out ¥${{Number(m.output_rmb_per_1m.toFixed(3))}} · Cache ${{cachePct}}%`
+            : `输入 ¥${{Number(m.input_rmb_per_1m.toFixed(3))}} / 输出 ¥${{Number(m.output_rmb_per_1m.toFixed(3))}} · 缓存命中按 ${{cachePct}}%`);
 
         const tagLabels = [];
-        if (m.perf_note) tagLabels.push(m.perf_note);
-        if ((m.tags || []).includes("coding")) tagLabels.push("编程/Agent");
-        if ((m.tags || []).includes("reasoning")) tagLabels.push("深度推理");
-        if (m.open_weights) tagLabels.push("开源权重");
+        if (m.perf_note && !isEn) tagLabels.push(m.perf_note);
+        if ((m.tags || []).includes("coding")) tagLabels.push(isEn ? "Coding / Agent" : "编程/Agent");
+        if ((m.tags || []).includes("reasoning")) tagLabels.push(isEn ? "Reasoning" : "深度推理");
+        if (m.open_weights) tagLabels.push(isEn ? "Open Weights" : "开源权重");
+
+        const displayName = formatModelTitle(m, isEn);
+        const displayProvider = formatProviderTitle(m, isEn);
 
         return `
           <article class="model-card ${{idx < 3 && state.sortBy === "cost_asc" ? "top-pick" : ""}}" data-offer-id="${{esc(cta.offerId)}}" data-card-slot="model_${{idx + 1}}">
             <div>
               <div class="card-badges">
                 <span class="badge ${{isCn ? "badge-cn" : "badge-global"}}">
-                  ${{isCn ? "国内合规直连" : "Global API"}}
+                  ${{isCn ? (isEn ? "CN Direct" : "国内合规直连") : "Global API"}}
                 </span>
                 ${{saveBadgeHtml}}
               </div>
 
-              <h3 class="model-name"><a href="#${{esc(m.anchor_id || "")}}">${{esc(m.name)}}</a></h3>
+              <h3 class="model-name"><a href="#${{esc(m.anchor_id || "")}}">${{esc(displayName)}}</a></h3>
               <div class="model-provider">
-                <span>${{esc(m.provider)}}</span>
+                <span>${{esc(displayProvider)}}</span>
                 <span style="font-family:var(--font-mono);font-size:0.78rem;">CTX ${{fmtCtx(m.context_length)}}</span>
               </div>
 
               <div class="price-block">
                 <div class="monthly-main-row">
-                  <div class="monthly-cost">${{primaryStr}} <span class="unit">/月</span></div>
+                  <div class="monthly-cost">${{primaryStr}} <span class="unit">${{isEn ? "/mo" : "/月"}}</span></div>
                   <div class="monthly-alt">${{altStr}}</div>
                 </div>
                 <div class="unit-rates">${{esc(unitRateStr)}}</div>
@@ -3084,9 +3454,14 @@ def render_html_template(
               <a class="cta-primary ${{cta.isCn ? "cn-cta" : ""}}" href="${{esc(cta.url)}}" target="_blank" rel="noopener sponsored" data-offer-id="${{esc(cta.offerId)}}" data-card-slot="model_cta_${{idx + 1}}" data-affiliate-key="${{esc(m.provider_config_key || "")}}">
                 ${{esc(cta.label)}}
               </a>
-              <button type="button" class="cta-copy-cfg" data-copy-model="${{esc(m.id)}}">
-                配置专属端点 (Claude Code / OpenAI)
-              </button>
+              <div class="card-secondary-actions">
+                ${{m.id === baselineModel.id
+                  ? `<button type="button" class="cta-copy-cfg is-active-baseline" disabled>${{isEn ? "Active Baseline ✓" : "当前基准 ✓"}}</button>`
+                  : `<button type="button" class="cta-copy-cfg" data-set-baseline="${{esc(m.id)}}">${{isEn ? "Set as Baseline" : "设为对账基准"}}</button>`}}
+                <button type="button" class="cta-copy-cfg" data-copy-model="${{esc(m.id)}}">
+                  ${{isEn ? "Endpoint Config" : "配置专属端点"}}
+                </button>
+              </div>
             </div>
           </article>
         `;
@@ -3100,10 +3475,21 @@ def render_html_template(
       const k = el.getAttribute("data-i18n");
       if (k && !(k in ORIG_ZH_I18N)) ORIG_ZH_I18N[k] = el.textContent;
     }});
+    const auditMetaEl = document.getElementById("auditMetaText");
+    const ORIG_AUDIT_META_HTML = auditMetaEl ? auditMetaEl.innerHTML : "";
 
     const I18N_EN = {{
       brandTitle: "AI Cost Radar · LLM & Coding Plan Verifier",
       brandSub: "Official Quota Windows · Same-Model Pay-As-You-Go Baseline · Dedicated Endpoint Guard",
+      navTopicRoot: "All-Model Calculator",
+      navTopicCodingPlan: "Coding Plan Quota Audit",
+      navTopicDeepseekQwen: "DeepSeek vs Qwen",
+      navTopicClaudeCode: "Claude Code Endpoints",
+      navTopicDifyHost: "Backend Cache & GPU",
+      metaLinkAliyun: "Aliyun Rules",
+      metaLinkTencent: "Tencent Rules",
+      metaLinkAtom: "Atom Price Feed",
+      metaLinkJson: "Public JSON",
       heroTitleMain: "Verify Real LLM API & Coding Plan Bills, ",
       heroTitleAccent: "Avoid Quota Overruns & Wrong Endpoints",
       heroSubtitle: "Verified against official Aliyun Bailian, Tencent Cloud, Volcengine & OpenRouter rules: split prompt-cache hit rates, reasoning multipliers, and Claude Code sk-sp- endpoints.",
@@ -3125,19 +3511,27 @@ def render_html_template(
       promptChipLight: "Light 40×12 = 480/day",
       promptChipMid: "Heavy 100×20 = 2,000/day",
       promptChipHeavy: "Power 200×25 = 5,000/day [Over Pro]",
+      promptCustomPrefix: "Custom Prompts:",
+      promptCustomMid: "prompts/day ×",
+      promptCustomSuffix: "calls/prompt",
       labelPeak5h: "Peak Calls in Busiest Rolling 5 Hours (Optional)",
       labelInputTokens: "Avg Input Tokens per Call",
       labelOutputTokens: "Avg Output Tokens per Call",
       cacheLabel: "Split Prompt Cache Hit Rate (Uncached Regular + Cached Discount)",
       reasoningLabel: "Apply Hidden Reasoning Token Multiplier",
+      outputIncReasonLabel: "Avg Output Tokens above already include reasoning (skip multiplier)",
       batchLabel: "Include Async Batch Half-Price Models",
       routingTitle: "Same-Model Pay-As-You-Go Baseline & Recommendation",
       baselineLabel: "Current Baseline Model:",
       kpiFlagship: "Baseline Pay-As-You-Go / mo",
       kpiBestRoute: "Lowest Filtered Pay-As-You-Go",
       kpiSavings: "Same-Workload Delta",
+      verdictShareHint: "Share current inputs, same-model PayG & plan verdict with your team:",
+      copySummaryBtn: "Copy Verdict Brief",
       codingPlanTitle: "2026 CN Coding Plan Subscriptions vs Same-Model Pay-As-You-Go",
       codingPlanDesc: "Aliyun Bailian Pro & Tencent Pro share 6,000/5h · 45,000/wk · 90,000/mo call caps; Tencent Lite is 1,200 / 9,000 / 18,000; Aliyun Lite is closed to new buyers.",
+      modelsSectionTitle: "Live Pay-As-You-Go Model Directory (Under Identical Workload)",
+      modelsSectionDesc: "Click Set as Baseline on any card to compare against it, or Endpoint Config for Claude Code / OpenAI snippets.",
       pillAll: "All",
       pillCoding: "Coding / Agent",
       pillReasoning: "Reasoning",
@@ -3147,7 +3541,16 @@ def render_html_template(
       matrixDesc: "Clearly separates monthly subscriptions, pay-as-you-go pools, and cloud hosts with direct official links.",
       faqTitle: "LLM Billing Verification, Dedicated Endpoints & Self-Host Break-Even FAQ",
       faqDesc: "Covers common quota, prompt-cache, and endpoint pitfalls across domestic CN and global LLM APIs.",
-      footerDisclosure: "Disclosure: Selected official links carry Aliyun Ambassador (vlxk7knp), Tencent CPS (EGH3k1cs), or SiliconFlow referral codes at identical official catalog prices. First-party daily rotating tokens estimate daily UV and card CTR with zero third-party SDKs."
+      footerDisclosure: "Disclosure: Selected official links carry Aliyun Ambassador (vlxk7knp), Tencent CPS (EGH3k1cs), or SiliconFlow referral codes at identical official catalog prices. First-party daily rotating tokens estimate daily UV and card CTR with zero third-party SDKs.",
+      cfgModalCloseBtn: "Close ✕",
+      cfgClientLabel: "1. Select Coding Client Protocol",
+      cfgBillingLabel: "2. Select Active Billing Mode",
+      cfgGuiHeading: "Client Settings Parameters",
+      cfgEnvHeading: "Terminal Export Snippet",
+      copyGuiBtn: "Copy Base URL & Model Parameters",
+      copyEnvBtn: "Copy Export Commands",
+      cfgModalDocLink: "Read Official Provider Docs",
+      cfgModalOfficialCta: "Open Official Console for API Key"
     }};
 
     function applyTheme(theme) {{
@@ -3173,6 +3576,71 @@ def render_html_template(
         else if (!isEn && k in ORIG_ZH_I18N) el.textContent = ORIG_ZH_I18N[k];
       }});
 
+      const livePill = document.getElementById("liveStatusPill");
+      if (livePill) {{
+        livePill.textContent = isEn
+          ? `Quotes Verified ${{QUOTE_VERIFIED_DATE}} · ${{MODELS.length}} Models`
+          : `报价核验 ${{QUOTE_VERIFIED_DATE}} · ${{MODELS.length}} 款模型`;
+      }}
+      if (auditMetaEl) {{
+        auditMetaEl.innerHTML = isEn
+          ? `<strong>Built</strong>: ${{esc(APP_DATA.build_date || APP_DATA.updated_at || QUOTE_VERIFIED_DATE)}} &nbsp;|&nbsp; <strong>Quotes Verified</strong>: ${{esc(QUOTE_VERIFIED_DATE)}} &nbsp;|&nbsp; <strong>Telemetry</strong>: First-party daily rotating token for <strong>Estimated Daily UV</strong> &amp; viewport CTR (zero 3rd-party SDKs)`
+          : ORIG_AUDIT_META_HTML;
+      }}
+      const clickBadge = document.getElementById("clickTelemetryBadge");
+      if (clickBadge) {{
+        clickBadge.textContent = isEn
+          ? "First-party telemetry: Estimated Daily UV"
+          : "同源匿名统计口径：估算日 UV";
+      }}
+
+      const ogCn = document.getElementById("optGroupCnBase");
+      if (ogCn) ogCn.label = isEn ? "CN Direct PayG Baselines (Same-Model Recommended)" : "国内直连按量基准 (同模型对账推荐)";
+      const ogGl = document.getElementById("optGroupGlobalBase");
+      if (ogGl) ogGl.label = isEn ? "Global Flagship Baselines (USD)" : "海外主流模型基准 (USD)";
+      const baseSel = document.getElementById("baselineSelect");
+      if (baseSel) {{
+        Array.from(baseSel.options).forEach(opt => {{
+          const m = MODELS.find(x => x.id === opt.value);
+          if (m) {{
+            const unitHint = m.region === "cn_direct"
+              ? `¥${{m.input_rmb_per_1m}}/¥${{m.output_rmb_per_1m}}`
+              : `$${{m.input_usd_per_1m}}/$${{m.output_usd_per_1m}}`;
+            opt.textContent = `${{shortModelName(m, isEn)}} (${{unitHint}})`;
+          }}
+        }});
+      }}
+
+      const cacheSel = document.getElementById("cacheHitRateSelect");
+      if (cacheSel) {{
+        Array.from(cacheSel.options).forEach(opt => {{
+          const pct = Math.round(Number(opt.value) * 100);
+          const isDef = Math.abs(Number(opt.value) - 0.5) < 0.001;
+          opt.textContent = isEn
+            ? (isDef ? `Hit Rate ${{pct}}% (Default)` : `Hit Rate ${{pct}}%`)
+            : (isDef ? `命中率 ${{pct}}% (推荐基准)` : `命中率 ${{pct}}%`);
+        }});
+      }}
+      const reasonSel = document.getElementById("reasoningMultSelect");
+      if (reasonSel) {{
+        Array.from(reasonSel.options).forEach(opt => {{
+          const mult = Number(opt.value);
+          const isDef = Math.abs(mult - 2.5) < 0.001;
+          opt.textContent = isEn
+            ? (isDef ? `${{mult}}x Reasoning (Default)` : `${{mult}}x Reasoning`)
+            : (isDef ? `思考倍率 ${{mult}}x (默认假设)` : `思考倍率 ${{mult}}x`);
+        }});
+      }}
+
+      const optCfgClaude = document.getElementById("optCfgClaude");
+      if (optCfgClaude) optCfgClaude.textContent = isEn ? "Claude Code (Anthropic Native Protocol)" : "Claude Code (Anthropic 原生协议)";
+      const optCfgOpenai = document.getElementById("optCfgOpenai");
+      if (optCfgOpenai) optCfgOpenai.textContent = isEn ? "Cursor / Cline / Cherry Studio (OpenAI Compatible)" : "Cursor / Cline / Cherry Studio (OpenAI 兼容)";
+      const optCfgPlan = document.getElementById("optCfgPlan");
+      if (optCfgPlan) optCfgPlan.textContent = isEn ? "Active Coding Plan Subscription (sk-sp- Endpoint)" : "已购 Coding Plan 包月（专属端点 sk-sp-）";
+      const optCfgPayg = document.getElementById("optCfgPayg");
+      if (optCfgPayg) optCfgPayg.textContent = isEn ? "Pay-As-You-Go API (Standard sk- Endpoint)" : "按量付费 API（通用端点 sk-）";
+
       document.getElementById("regionBtnAll").textContent = isEn ? "All Regions" : "全部对比 (All)";
       document.getElementById("regionBtnCn").textContent = isEn ? "CN Direct · RMB (¥)" : "国内直连 · 人民币 (¥)";
       document.getElementById("regionBtnGlobal").textContent = isEn ? "Global · USD ($)" : "Global · USD ($)";
@@ -3188,8 +3656,13 @@ def render_html_template(
       document.getElementById("cfgModalTitle").textContent = isEn
         ? "Dedicated Endpoint Generator (Client × Billing Mode)"
         : "按客户端与计费模式生成专属接入配置";
+
+      renderPartnerMatrix();
       applyTheme(state.theme);
       updateAll(false);
+      if (document.getElementById("configModal").classList.contains("open")) {{
+        refreshConfigModalSnippets();
+      }}
     }}
 
     function applyWorkload(calls, inTok, outTok, mode) {{
@@ -3212,18 +3685,19 @@ def render_html_template(
     }}
 
     function copyTextWithFeedback(text, btnEl, customDoneMsg) {{
+      const isEn = state.lang === "en";
       const orig = btnEl.textContent;
-      const doneMsg = customDoneMsg || "已复制到剪贴板";
+      const doneMsg = customDoneMsg || (isEn ? "Copied to Clipboard" : "已复制到剪贴板");
       if (navigator.clipboard && navigator.clipboard.writeText) {{
         navigator.clipboard.writeText(text).then(() => {{
           btnEl.textContent = doneMsg;
           setTimeout(() => {{ btnEl.textContent = orig; }}, 1800);
         }}).catch(() => {{
-          btnEl.textContent = "复制失败，请手动复制";
+          btnEl.textContent = isEn ? "Copy failed — copy manually" : "复制失败，请手动复制";
           setTimeout(() => {{ btnEl.textContent = orig; }}, 1800);
         }});
       }} else {{
-        btnEl.textContent = "请手动复制";
+        btnEl.textContent = isEn ? "Copy manually" : "请手动复制";
       }}
     }}
 
@@ -3257,6 +3731,20 @@ def render_html_template(
           updateAll(true);
         }});
       }});
+
+      const promptInput = document.getElementById("promptCountInput");
+      const turnsInput = document.getElementById("turnsPerPromptInput");
+      const syncCustomPromptCalls = () => {{
+        const prompts = Math.max(1, Number(promptInput.value) || 1);
+        const turns = Math.max(1, Number(turnsInput.value) || 1);
+        state.dailyCalls = Math.min(2000000, Math.round(prompts * turns));
+        document.getElementById("dailyCallsNum").value = String(state.dailyCalls);
+        document.getElementById("dailyCallsRange").value = String(callsToSlider(state.dailyCalls));
+        document.querySelectorAll("#presetBar .preset-btn, [data-prompt-calls]").forEach(b => b.classList.remove("active"));
+        updateAll(true);
+      }};
+      promptInput.addEventListener("input", syncCustomPromptCalls);
+      turnsInput.addEventListener("input", syncCustomPromptCalls);
 
       document.getElementById("peak5h").addEventListener("input", e => {{
         const n = e.target.valueAsNumber;
@@ -3375,6 +3863,16 @@ def render_html_template(
         copyTextWithFeedback(shareUrl, e.currentTarget, state.lang === "en" ? "Shareable Link Copied" : "已复制可复算链接");
       }});
 
+      document.getElementById("copySummaryBtn").addEventListener("click", e => {{
+        const shareUrl = buildShareUrl();
+        try {{
+          window.history.replaceState(null, "", shareUrl);
+        }} catch (_) {{}}
+        const summaryText = buildVerdictSummaryText();
+        trackEvent("share_summary", {{ slot_id: "verdict_brief" }});
+        copyTextWithFeedback(summaryText, e.currentTarget, state.lang === "en" ? "Verdict Brief Copied" : "已复制对账结论单");
+      }});
+
       document.getElementById("themeToggleBtn").addEventListener("click", () => {{
         applyTheme(state.theme === "dark" ? "light" : "dark");
       }});
@@ -3386,14 +3884,24 @@ def render_html_template(
       document.getElementById("cfgBillingModeSelect").addEventListener("change", refreshConfigModalSnippets);
 
       document.addEventListener("click", e => {{
+        const setBaseBtn = e.target.closest("[data-set-baseline]");
+        if (setBaseBtn) {{
+          const targetId = setBaseBtn.getAttribute("data-set-baseline");
+          if (targetId && MODELS.some(m => m.id === targetId)) {{
+            state.baselineId = targetId;
+            document.getElementById("baselineSelect").value = targetId;
+            updateAll(true);
+          }}
+          return;
+        }}
         const copyModelBtn = e.target.closest("[data-copy-model]");
         if (copyModelBtn) {{
-          openConfigModalForModel(copyModelBtn.getAttribute("data-copy-model"));
+          openConfigModalForModel(copyModelBtn.getAttribute("data-copy-model"), copyModelBtn);
           return;
         }}
         const copyPlanBtn = e.target.closest("[data-copy-plan]");
         if (copyPlanBtn) {{
-          openConfigModalForPlan(copyPlanBtn.getAttribute("data-copy-plan"));
+          openConfigModalForPlan(copyPlanBtn.getAttribute("data-copy-plan"), copyPlanBtn);
           return;
         }}
         const offerLink = e.target.closest("a[data-offer-id], a[rel~='sponsored']");
@@ -3412,7 +3920,9 @@ def render_html_template(
         if (e.target.id === "configModal") closeConfigModal();
       }});
       document.addEventListener("keydown", e => {{
-        if (e.key === "Escape") closeConfigModal();
+        if (e.key === "Escape" && document.getElementById("configModal").classList.contains("open")) {{
+          closeConfigModal();
+        }}
       }});
 
       document.getElementById("copyGuiBtn").addEventListener("click", e => {{
@@ -3425,7 +3935,6 @@ def render_html_template(
 
     initBaselines();
     bindEvents();
-    renderPartnerMatrix();
     restoreFromPresetAndQuery();
     applyLang(state.lang);
     observeOfferCards();

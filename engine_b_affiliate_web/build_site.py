@@ -209,8 +209,8 @@ FALLBACK_MODELS: list[dict[str, Any]] = [
         "provider": "阿里云百炼 (Aliyun Bailian)",
         "provider_config_key": "aliyun_bailian_url",
         "region": "cn_direct",
-        "input_rmb_per_1m": 1.0,
-        "output_rmb_per_1m": 4.0,
+        "input_rmb_per_1m": 1.2,
+        "output_rmb_per_1m": 4.8,
         "cache_hit_factor": 0.2,
         "context_length": 262144,
         "supports_tools": True,
@@ -738,11 +738,20 @@ def build_ssr_coding_plan_tables_html(
     coding_plans: list[dict[str, Any]],
     affiliates: dict[str, str],
     quote_verified_date: str,
+    models: list[dict[str, Any]] | None = None,
 ) -> str:
     """
     Compile static, JS-free HTML <table>s for Coding Plan official rules & worked examples
     using pricing_core so SSR output and JS/Coze/MCP math are guaranteed identical.
     """
+    qwen_coder = next(
+        (m for m in (models or []) if m.get("id") == "aliyun-bailian/qwen3-coder-next"),
+        {"input_rmb_per_1m": 1.2, "output_rmb_per_1m": 4.8, "cache_hit_factor": 0.2},
+    )
+    qc_in = float(qwen_coder.get("input_rmb_per_1m") or 1.2)
+    qc_out = float(qwen_coder.get("output_rmb_per_1m") or 4.8)
+    qc_hit_factor = float(qwen_coder.get("cache_hit_factor") if qwen_coder.get("cache_hit_factor") is not None else 0.2)
+
     eval_5k = pricing_core.evaluate_coding_plans(
         daily_calls=5000,
         payg_monthly_rmb=768.0,
@@ -751,10 +760,10 @@ def build_ssr_coding_plan_tables_html(
     bill_800 = pricing_core.calculate_token_bill(
         monthly_input_m=(800 * 30 * 4000) / 1_000_000,
         monthly_output_m=(800 * 30 * 1000) / 1_000_000,
-        input_price_per_1m=1.0,
-        output_price_per_1m=4.0,
+        input_price_per_1m=qc_in,
+        output_price_per_1m=qc_out,
         cache_hit_rate=0.5,
-        cache_hit_factor=0.2,
+        cache_hit_factor=qc_hit_factor,
         reasoning_multiplier=1.0,
     )
     eval_800 = pricing_core.evaluate_coding_plans(
@@ -881,7 +890,7 @@ def build_ssr_coding_plan_tables_html(
                 <td><strong>{h5k}</strong></td>
               </tr>
               <tr>
-                <td><strong>案例 B：常规独立开发（每天 800 次模型调用）</strong><br><span class="table-sub">对比 Qwen3-Coder-Next 同模型按量（输入 ¥1/M，输出 ¥4/M，50% 缓存命中）</span></td>
+                <td><strong>案例 B：常规独立开发（每天 800 次模型调用）</strong><br><span class="table-sub">对比 Qwen3-Coder-Next 同模型按量（输入 ¥{qc_in:g}/M，输出 ¥{qc_out:g}/M，50% 缓存命中）</span></td>
                 <td class="num-cell">24,000 次/月 · 同模型按量约 ¥{bill_800['total_cost']:.2f}/月</td>
                 <td>超出腾讯/火山 Lite 月上限（18,000 次），匹配 Pro 档（90,000 次/月）：百炼 Pro 首月 ¥39.90 可省 ¥{max(0.0, bill_800['total_cost'] - 39.90):.2f}，但次月恢复 ¥200/月续费后比按量贵 ¥{abs(bill_800['total_cost'] - 200.0):.2f}；{w800}</td>
               </tr>
@@ -1147,11 +1156,20 @@ Sitemap: {sitemap_url}
 
 
 def build_seo_nav_html(base_prefix: str, active_slug: str) -> str:
+    slug_i18n_map = {
+        "": "navTopicRoot",
+        "coding-plan-2026/": "navTopicCodingPlan",
+        "deepseek-vs-qwen/": "navTopicDeepseekQwen",
+        "claude-code-domestic/": "navTopicClaudeCode",
+        "dify-openclaw-cloud-server/": "navTopicDifyHost",
+    }
     links: list[str] = []
     for r in SEO_ROUTES:
         href = f"{base_prefix}{r['slug']}" if r["slug"] else (base_prefix or "./")
         cls = "seo-topic-link active" if r["slug"] == active_slug else "seo-topic-link"
-        links.append(f'<a class="{cls}" href="{html.escape(href)}">{html.escape(r["nav_label"])}</a>')
+        i18n_key = slug_i18n_map.get(r["slug"], "")
+        i18n_attr = f' data-i18n="{i18n_key}"' if i18n_key else ""
+        links.append(f'<a class="{cls}" href="{html.escape(href)}"{i18n_attr}>{html.escape(r["nav_label"])}</a>')
     return "\n          ".join(links)
 
 
@@ -1182,6 +1200,7 @@ def build_site(
         coding_plans=coding_plans,
         affiliates=affiliates,
         quote_verified_date=quote_verified_date,
+        models=models,
     )
 
     target_dist = Path(dist_dir) if dist_dir is not None else DIST_DIR
