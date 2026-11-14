@@ -265,6 +265,52 @@ FALLBACK_CATALOG: dict[str, Any] = {
             "signup_url": "https://cloud.siliconflow.cn/i/VjtrbFsv",
         },
         {
+            "id": "volcengine/doubao-seed-2.0-pro",
+            "name": "火山引擎方舟: 豆包 Doubao-Seed-2.0-Pro (旗舰高并发)",
+            "provider": "火山引擎 (Volcengine Ark)",
+            "provider_config_key": "volcengine_ark_url",
+            "api_base_url": "https://ark.cn-beijing.volces.com/api/v3",
+            "api_model_id": "doubao-seed-2-0-pro-250415",
+            "cache_hit_factor": 0.2,
+            "region": "cn_direct",
+            "input_usd_per_1m": 0.1111,
+            "output_usd_per_1m": 0.2778,
+            "input_rmb_per_1m": 0.8,
+            "output_rmb_per_1m": 2.0,
+            "blended_usd_per_1m": 0.1528,
+            "blended_rmb_per_1m": 1.1,
+            "context_length": 256000,
+            "supports_tools": True,
+            "modality": "text+image->text",
+            "is_free": False,
+            "value_score": 98.1,
+            "tags": ["coding", "cheap", "cn_direct"],
+            "signup_url": "https://console.volcengine.com/ark",
+        },
+        {
+            "id": "aliyun-bailian/qwen-turbo",
+            "name": "阿里云百炼: Qwen-Turbo (极速低成本百万窗口)",
+            "provider": "阿里云百炼 (Aliyun Bailian)",
+            "provider_config_key": "aliyun_bailian_url",
+            "api_base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "api_model_id": "qwen-turbo",
+            "cache_hit_factor": 0.2,
+            "region": "cn_direct",
+            "input_usd_per_1m": 0.0417,
+            "output_usd_per_1m": 0.0833,
+            "input_rmb_per_1m": 0.3,
+            "output_rmb_per_1m": 0.6,
+            "blended_usd_per_1m": 0.0521,
+            "blended_rmb_per_1m": 0.375,
+            "context_length": 1000000,
+            "supports_tools": True,
+            "modality": "text->text",
+            "is_free": False,
+            "value_score": 97.4,
+            "tags": ["cheap", "coding", "cn_direct"],
+            "signup_url": "https://bailian.console.aliyun.com/?userCode=vlxk7knp",
+        },
+        {
             "id": "anthropic/claude-sonnet-4",
             "name": "Anthropic: Claude Sonnet 4",
             "provider": "OpenRouter (Global)",
@@ -441,6 +487,35 @@ def _evaluate_coding_plan_verdict(
         renewal_rmb = float(ref_tier["renewal_rmb"])
         effective_first_rmb = float(first_rmb) if first_rmb is not None else renewal_rmb
 
+        overflow_hybrid: dict[str, Any] | None = None
+        if (
+            norm_mode == "interactive_ide"
+            and pro_tier is not None
+            and monthly_calls > int(pro_tier["quota_monthly"])
+            and (peak is None or peak <= int(pro_tier["quota_5h"]))
+        ):
+            covered_calls = int(pro_tier["quota_monthly"])
+            overflow_calls = monthly_calls - covered_calls
+            overflow_payg_rmb = round(payg_rmb * (overflow_calls / float(monthly_calls)), 2)
+            first_plan = round(effective_first_rmb, 2)
+            renew_plan = round(renewal_rmb, 2)
+            first_tot = round(first_plan + overflow_payg_rmb, 2)
+            renew_tot = round(renew_plan + overflow_payg_rmb, 2)
+            first_sav = round(payg_rmb - first_tot, 2)
+            renew_sav = round(payg_rmb - renew_tot, 2)
+            overflow_hybrid = {
+                "covered_calls": covered_calls,
+                "overflow_calls": overflow_calls,
+                "overflow_payg_rmb": overflow_payg_rmb,
+                "first_month_plan_rmb": first_plan,
+                "renewal_plan_rmb": renew_plan,
+                "first_month_total_rmb": first_tot,
+                "renewal_total_rmb": renew_tot,
+                "first_month_saving_rmb": first_sav,
+                "renewal_saving_rmb": renew_sav,
+                "saves_on_renewal": bool(renew_sav > 0),
+            }
+
         if chosen_tier is None and monthly_calls <= int(ref_tier["quota_monthly"]):
             status = "exceeds_5h_cap"
             first_month_saving = None
@@ -478,6 +553,7 @@ def _evaluate_coding_plan_verdict(
                 "quota_monthly": ref_tier["quota_monthly"],
                 "first_month_savings_rmb": first_month_saving,
                 "renewal_savings_rmb": renewal_saving,
+                "overflow_hybrid": overflow_hybrid,
             }
         )
 
@@ -490,11 +566,30 @@ def _evaluate_coding_plan_verdict(
     )
     rec_same_family = same_family[0]["plan_id"] if same_family else None
 
+    hybrid_candidates = [
+        item
+        for item in eligible
+        if item["covers_selected_model"]
+        and isinstance(item.get("overflow_hybrid"), dict)
+        and item["overflow_hybrid"]["saves_on_renewal"]
+    ]
+    hybrid_candidates.sort(
+        key=lambda x: (
+            float(x["overflow_hybrid"]["renewal_saving_rmb"]),
+            float(x["overflow_hybrid"]["first_month_saving_rmb"]),
+            1 if x.get("featured_partner") else 0,
+        ),
+        reverse=True,
+    )
+    best_hybrid = hybrid_candidates[0] if hybrid_candidates else None
+    rec_overflow_hybrid = best_hybrid["plan_id"] if best_hybrid else None
+
     if is_backend:
         return {
             "usage_mode": "automated_backend",
             "monthly_calls_30d": monthly_calls,
             "recommended_same_family_plan_id": None,
+            "recommended_overflow_hybrid_plan_id": None,
             "eligible_subscriptions": [],
             "excluded_subscriptions": excluded,
             "headline_zh": (
@@ -506,11 +601,21 @@ def _evaluate_coding_plan_verdict(
 
     if monthly_calls > PRO_MONTHLY_CAP:
         over = monthly_calls - PRO_MONTHLY_CAP
-        headline = (
+        base_headline = (
             f"按 30 天预计 {_fmt_wan(monthly_calls)}（{monthly_calls:,} 次模型调用），"
             f"超出 Pro 月额度 {_fmt_wan(over)}（百炼/腾讯/火山 Pro 月上限均为 {PRO_MONTHLY_CAP:,} 次）——"
             "¥200 包月套餐不够用，超出部分需走按量 API 或多账号/企业方案！"
         )
+        if best_hybrid is not None:
+            bh = best_hybrid["overflow_hybrid"]
+            headline = (
+                base_headline
+                + f"可采用「1 份 {best_hybrid['name']} Pro 打底前 9 万次 + 超额 {_fmt_wan(bh['overflow_calls'])}走按量 API」："
+                f"首月约 ¥{bh['first_month_total_rmb']:.2f} / 续费月约 ¥{bh['renewal_total_rmb']:.2f}，"
+                f"净省 ¥{bh['renewal_saving_rmb']:.2f}/月。"
+            )
+        else:
+            headline = base_headline + f"当前模型全程纯按量仅约 ¥{payg_rmb:.2f}/月，无需叠加 ¥200 包月。"
         window_note = f"Pro 另有每 5 小时 {PRO_5H_CAP:,} 次、每周 {PRO_WEEKLY_CAP:,} 次硬上限。"
     else:
         window_note = (
@@ -539,6 +644,7 @@ def _evaluate_coding_plan_verdict(
         "usage_mode": "interactive_ide",
         "monthly_calls_30d": monthly_calls,
         "recommended_same_family_plan_id": rec_same_family,
+        "recommended_overflow_hybrid_plan_id": rec_overflow_hybrid,
         "eligible_subscriptions": eligible,
         "excluded_subscriptions": excluded,
         "headline_zh": headline,
@@ -854,12 +960,14 @@ def _run_free_and_cheap(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[st
 
 
 def run_router(params: dict[str, Any] | Any, logger: Any = None) -> dict[str, Any]:
-    action = str(_get_param(params, "action", "recommend_cheapest_model")).strip()
+    raw_action = str(_get_param(params, "action", "recommend_cheapest_model")).strip().lower()
     catalog = _fetch_live_catalog(logger=logger)
 
-    if action == "calculate_api_budget":
+    if raw_action in ("calculate_api_budget", "budget", "estimate_budget"):
+        action = "calculate_api_budget"
         summary_cn, data, deep_url = _run_budget(catalog, params)
-    elif action == "list_free_and_ultra_cheap_models":
+    elif raw_action in ("list_free_and_ultra_cheap_models", "free", "cheap"):
+        action = "list_free_and_ultra_cheap_models"
         summary_cn, data, deep_url = _run_free_and_cheap(catalog, params)
     else:
         action = "recommend_cheapest_model"

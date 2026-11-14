@@ -107,6 +107,38 @@ export function calculateBudget(catalog, params) {
         estimated_renewal_saving_rmb: basicFits ? round(rmb.total_cost - tier.renewal_rmb) : null,
       };
     });
+    const proTier = (plan.tiers || []).find((t) => t.tier_id === "pro" && t.purchasable)
+      || (plan.tiers || []).filter((t) => t.purchasable).slice(-1)[0]
+      || null;
+    let overflowHybrid = null;
+    if (
+      proTier &&
+      mode === "interactive_ide" &&
+      monthly > proTier.quota_monthly &&
+      (peak === null || peak <= proTier.quota_5h)
+    ) {
+      const coveredCalls = proTier.quota_monthly;
+      const overflowCalls = monthly - coveredCalls;
+      const overflowPaygRmb = Math.round((rmb.total_cost * (overflowCalls / monthly) + Number.EPSILON) * 100) / 100;
+      const firstPlanRmb = proTier.first_month_rmb ?? proTier.renewal_rmb;
+      const renewalPlanRmb = proTier.renewal_rmb;
+      const firstTotalRmb = Math.round((firstPlanRmb + overflowPaygRmb + Number.EPSILON) * 100) / 100;
+      const renewalTotalRmb = Math.round((renewalPlanRmb + overflowPaygRmb + Number.EPSILON) * 100) / 100;
+      const firstSavingRmb = Math.round((rmb.total_cost - firstTotalRmb + Number.EPSILON) * 100) / 100;
+      const renewalSavingRmb = Math.round((rmb.total_cost - renewalTotalRmb + Number.EPSILON) * 100) / 100;
+      overflowHybrid = {
+        covered_calls: coveredCalls,
+        overflow_calls: overflowCalls,
+        overflow_payg_rmb: overflowPaygRmb,
+        first_month_plan_rmb: firstPlanRmb,
+        renewal_plan_rmb: renewalPlanRmb,
+        first_month_total_rmb: firstTotalRmb,
+        renewal_total_rmb: renewalTotalRmb,
+        first_month_saving_rmb: firstSavingRmb,
+        renewal_saving_rmb: renewalSavingRmb,
+        saves_on_renewal: renewalSavingRmb > 0,
+      };
+    }
     return {
       id: plan.id,
       name: plan.name,
@@ -116,10 +148,12 @@ export function calculateBudget(catalog, params) {
       models_covered: plan.models_covered,
       interactive_only: plan.interactive_only,
       endpoints: plan.endpoints,
+      overflow_hybrid: overflowHybrid,
       tiers,
     };
   });
   const sameFamilyCandidates = [];
+  const overflowHybridCandidates = [];
   for (const plan of plans) {
     if (!plan.covers_selected_model) continue;
     const matchedTier = plan.tiers.find(
@@ -131,12 +165,35 @@ export function calculateBudget(catalog, params) {
         sameFamilyCandidates.push({id: plan.id, renewalSaving, featured: plan.featured_partner ? 1 : 0});
       }
     }
+    if (plan.overflow_hybrid && plan.overflow_hybrid.saves_on_renewal) {
+      overflowHybridCandidates.push({
+        id: plan.id,
+        name: plan.name,
+        hybrid: plan.overflow_hybrid,
+        featured: plan.featured_partner ? 1 : 0,
+      });
+    }
   }
   sameFamilyCandidates.sort((a, b) => (b.renewalSaving - a.renewalSaving) || (b.featured - a.featured));
   const recommendedSameFamilyPlanId = sameFamilyCandidates.length > 0 ? sameFamilyCandidates[0].id : null;
+  overflowHybridCandidates.sort(
+    (a, b) =>
+      (b.hybrid.renewal_saving_rmb - a.hybrid.renewal_saving_rmb) ||
+      (b.hybrid.first_month_saving_rmb - a.hybrid.first_month_saving_rmb) ||
+      (b.featured - a.featured)
+  );
+  const bestHybrid = overflowHybridCandidates.length > 0 ? overflowHybridCandidates[0] : null;
+  const recommendedOverflowHybridPlanId = bestHybrid ? bestHybrid.id : null;
   let summary = `按 30 天预计 ${monthly} 次，按量月费约 ¥${rmb.total_cost.toFixed(2)}。`;
   if (mode === "automated_backend") summary += "自动化后端不适用 Coding Plan。";
-  else if (monthly > 90000) summary += `超出 Pro 月额度 ${monthly - 90000} 次；不能按 ¥200 封顶。`;
+  else if (monthly > 90000) {
+    summary += `超出 Pro 月额度 ${monthly - 90000} 次；不能按 ¥200 封顶。`;
+    if (bestHybrid) {
+      summary += `可采用「1 份 Pro 打底前 90000 次＋超额 ${bestHybrid.hybrid.overflow_calls} 次按量」组合（首月约 ¥${bestHybrid.hybrid.first_month_total_rmb.toFixed(2)}，续费约 ¥${bestHybrid.hybrid.renewal_total_rmb.toFixed(2)}，净省 ¥${bestHybrid.hybrid.renewal_saving_rmb.toFixed(2)}/月）。`;
+    } else {
+      summary += "当前模型单价较低，全程纯按量 API 比「Pro＋溢出按量」更划算。";
+    }
+  }
   else if (peak !== null && peak > 6000) summary += "超出 Pro 的 5 小时 6000 次窗口。";
   else summary += "Pro 月额度足够；" + (peak === null ? "5 小时峰值待确认。" : "仍需核对真实每周集中用量。") ;
   summary += "套餐可用模型与按量模型未必相同；节省额仅为费用比较，非质量等价承诺。";
@@ -156,7 +213,9 @@ export function calculateBudget(catalog, params) {
   return {status: "ok", summary_cn: summary, model_id: model.id, monthly_requests: monthly,
     monthly_rmb: rmb.total_cost, monthly_usd: usd.total_cost, input_cost_rmb: rmb.input_cost, output_cost_rmb: rmb.output_cost,
     cache_hit_rate: hit, effective_reasoning_multiplier: effectiveMultiplier,
-    recommended_same_family_plan_id: recommendedSameFamilyPlanId, coding_plans: plans,
+    recommended_same_family_plan_id: recommendedSameFamilyPlanId,
+    recommended_overflow_hybrid_plan_id: recommendedOverflowHybridPlanId,
+    coding_plans: plans,
     quote_verified_date: catalog.quote_verified_date, last_live_verified_at: catalog.last_live_verified_at,
     web_calculator_url: `https://ai-cost-radar-nlu.pages.dev/coding-plan-2026/?${share}`};
 }

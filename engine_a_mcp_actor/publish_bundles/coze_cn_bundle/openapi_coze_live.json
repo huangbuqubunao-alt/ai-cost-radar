@@ -50,6 +50,59 @@
                     "total_models": {
                       "type": "integer"
                     },
+                    "price_changes": {
+                      "type": "array",
+                      "description": "近期模型单价调整与 Coding Plan 官方规则巡检异动流水",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "detected_at": {
+                            "type": "string"
+                          },
+                          "entity_type": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "change_type": {
+                            "type": "string"
+                          },
+                          "summary_zh": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "official_rule_audit": {
+                      "type": "object",
+                      "description": "官方 Coding Plan 规则页（月上限/续费原价/活动价）指纹自动巡检结果",
+                      "properties": {
+                        "checked_at": {
+                          "type": "string"
+                        },
+                        "vendors": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "plan_id": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
                     "coding_plans": {
                       "type": "array",
                       "items": {
@@ -389,10 +442,35 @@
                     "output_cost_rmb": {
                       "type": "number"
                     },
+                    "cache_hit_rate": {
+                      "type": "number"
+                    },
+                    "effective_reasoning_multiplier": {
+                      "type": "number"
+                    },
+                    "recommended_same_family_plan_id": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "月调用量在 90,000 次内且同系模型续费仍省钱的首选套餐 ID"
+                    },
+                    "recommended_overflow_hybrid_plan_id": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "月调用量超 90,000 次时，采用「1份Pro打底前9万次＋溢出按量」仍比纯按量省钱的首选套餐 ID"
+                    },
+                    "coding_plans": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
                     "web_calculator_url": {
                       "type": "string"
                     },
                     "quote_verified_date": {
+                      "type": "string"
+                    },
+                    "last_live_verified_at": {
                       "type": "string"
                     }
                   }

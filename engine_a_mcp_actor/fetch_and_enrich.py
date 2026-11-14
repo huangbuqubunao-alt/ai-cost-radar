@@ -1029,6 +1029,154 @@ def compute_price_changes(
     return combined[:max_entries]
 
 
+OFFICIAL_DOC_AUDIT_SPECS: list[dict[str, Any]] = [
+    {
+        "plan_id": "aliyun-coding-plan",
+        "name": "阿里云百炼 Coding Plan 编程套餐",
+        "url": "https://help.aliyun.com/zh/model-studio/coding-plan",
+        "marker_groups": {
+            "pro_monthly_cap_90k": ("90,000", "90000", "9万"),
+            "pro_renewal_200": ("200",),
+            "pro_promo_39_9": ("39.9", "39.90"),
+        },
+    },
+    {
+        "plan_id": "tencent-coding-plan",
+        "name": "腾讯云 LKEAP Coding Plan 编程套餐",
+        "url": "https://cloud.tencent.com/document/product/1823/130092",
+        "marker_groups": {
+            "pro_monthly_cap_90k": ("90,000", "90000", "9万"),
+            "pro_renewal_200": ("200",),
+        },
+    },
+]
+
+
+def _fetch_doc_html_for_audit(url: str, timeout: int = 8) -> str:
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (compatible; AI-Cost-Radar-RuleAudit/1.0)",
+            "Accept": "text/html,application/xhtml+xml",
+        },
+    )
+    ctx = _build_ssl_context()
+    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+        return resp.read().decode("utf-8", errors="ignore")
+
+
+def _strip_html_visible_text(raw_html: str) -> str:
+    import re
+
+    without_scripts = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", raw_html or "", flags=re.IGNORECASE | re.DOTALL)
+    plain = re.sub(r"<[^>]+>", " ", without_scripts)
+    return re.sub(r"\s+", " ", plain).strip()
+
+
+def audit_official_coding_plan_docs(
+    *,
+    checked_at: str | None = None,
+    fetcher: Any | None = None,
+    timeout: int = 8,
+) -> dict[str, Any]:
+    """
+    Lightweight, non-blocking SSR rule fingerprint audit against official Coding Plan docs.
+    Distinguishes verified SSR markers vs CSR shells (no false alarms) vs true marker drift.
+    """
+    ts = checked_at or dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    fetch_fn = (
+        fetcher
+        if callable(fetcher)
+        else ((lambda u: _fetch_doc_html_for_audit(u)) if timeout == 8 else (lambda u: _fetch_doc_html_for_audit(u, timeout)))
+    )
+
+    vendor_reports: list[dict[str, Any]] = []
+    drift_warnings: list[dict[str, Any]] = []
+
+    for spec in OFFICIAL_DOC_AUDIT_SPECS:
+        plan_id = spec["plan_id"]
+        plan_name = spec["name"]
+        url = spec["url"]
+        marker_groups: dict[str, tuple[str, ...]] = spec["marker_groups"]
+        try:
+            raw_html = str(fetch_fn(url) or "")
+        except Exception as exc:  # noqa: BLE001
+            vendor_reports.append(
+                {
+                    "plan_id": plan_id,
+                    "url": url,
+                    "status": "unreachable",
+                    "matched_groups": [],
+                    "missing_groups": [],
+                    "note": str(exc)[:160],
+                }
+            )
+            continue
+
+        visible_text = _strip_html_visible_text(raw_html)
+        lower_text = visible_text.lower()
+        has_doc_body = len(visible_text) >= 400 and "coding plan" in lower_text and "pro" in lower_text
+        if not has_doc_body:
+            vendor_reports.append(
+                {
+                    "plan_id": plan_id,
+                    "url": url,
+                    "status": "csr_shell_manual_check",
+                    "matched_groups": [],
+                    "missing_groups": [],
+                }
+            )
+            continue
+
+        matched: list[str] = []
+        missing: list[str] = []
+        for group_key, variants in marker_groups.items():
+            if any(v in visible_text for v in variants):
+                matched.append(group_key)
+            else:
+                missing.append(group_key)
+
+        if missing:
+            vendor_reports.append(
+                {
+                    "plan_id": plan_id,
+                    "url": url,
+                    "status": "marker_drift_detected",
+                    "matched_groups": matched,
+                    "missing_groups": missing,
+                }
+            )
+            drift_warnings.append(
+                {
+                    "detected_at": ts,
+                    "entity_type": "coding_plan",
+                    "id": plan_id,
+                    "name": plan_name,
+                    "change_type": "plan_rule_drift_warning",
+                    "summary_zh": (
+                        f"官方规则页指纹异动（未命中指标：{', '.join(missing)}），"
+                        f"请核对最新月上限、首购特惠与续费原价：{url}"
+                    ),
+                }
+            )
+        else:
+            vendor_reports.append(
+                {
+                    "plan_id": plan_id,
+                    "url": url,
+                    "status": "verified_markers",
+                    "matched_groups": matched,
+                    "missing_groups": [],
+                }
+            )
+
+    return {
+        "checked_at": ts,
+        "vendors": vendor_reports,
+        "drift_warnings": drift_warnings,
+    }
+
+
 def refresh_models_live(output_path: Path = OUTPUT_PATH) -> dict[str, Any]:
     """Fetch, enrich, merge global + Mainland China models + Offers Catalog, and save models_live.json."""
     config = load_config()
@@ -1086,7 +1234,8 @@ def refresh_models_live(output_path: Path = OUTPUT_PATH) -> dict[str, Any]:
 
     merged = cn_models + global_models
     merged.sort(key=lambda m: (-m["value_score"], m["blended_usd_per_1m"]))
-    price_changes = compute_price_changes(
+    rule_audit = audit_official_coding_plan_docs(checked_at=now_iso)
+    base_changes = compute_price_changes(
         prev_models=prev_all_models,
         new_models=merged,
         prev_plans=prev_plans,
@@ -1094,6 +1243,12 @@ def refresh_models_live(output_path: Path = OUTPUT_PATH) -> dict[str, Any]:
         detected_at=now_iso,
         prior_changes=prior_changes,
     )
+    drift_warnings = rule_audit.get("drift_warnings") or []
+    seen_change_keys = {(c.get("id"), c.get("summary_zh")) for c in drift_warnings}
+    price_changes = list(drift_warnings) + [
+        c for c in base_changes if (c.get("id"), c.get("summary_zh")) not in seen_change_keys
+    ]
+    price_changes = price_changes[:25]
 
     payload = {
         "updated_at": now_iso,
@@ -1105,6 +1260,10 @@ def refresh_models_live(output_path: Path = OUTPUT_PATH) -> dict[str, Any]:
         "counts_by_region": {
             "cn_direct": len(cn_models),
             "global": len(global_models),
+        },
+        "official_rule_audit": {
+            "checked_at": rule_audit["checked_at"],
+            "vendors": rule_audit["vendors"],
         },
         "price_changes": price_changes,
         "coding_plans": coding_plans,

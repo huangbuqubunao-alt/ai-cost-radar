@@ -512,6 +512,52 @@ def _fmt_wan_calls(calls: int) -> str:
     return f"{calls / 10_000:.1f} 万次"
 
 
+def _compute_overflow_hybrid(
+    *,
+    monthly_calls: int,
+    payg_rmb: float,
+    pro_tier: dict[str, Any],
+    peak_5h_calls: int | None,
+) -> dict[str, Any] | None:
+    """
+    Compute exact "1 Pro Base (up to 90k calls) + PayG Overflow" hybrid monthly bill
+    when interactive usage exceeds the single-subscription monthly cap without exceeding the 5h window.
+    """
+    quota_monthly = int(pro_tier.get("quota_monthly") or 0)
+    quota_5h = int(pro_tier.get("quota_5h") or 0)
+    if quota_monthly <= 0 or monthly_calls <= quota_monthly:
+        return None
+    if peak_5h_calls is not None and peak_5h_calls > quota_5h:
+        return None
+
+    covered_calls = quota_monthly
+    overflow_calls = monthly_calls - covered_calls
+    overflow_share = overflow_calls / float(monthly_calls)
+    overflow_payg_rmb = round(payg_rmb * overflow_share, 2)
+
+    raw_first = pro_tier.get("first_month_rmb")
+    renewal_plan_rmb = round(float(pro_tier["renewal_rmb"]), 2)
+    first_plan_rmb = round(float(raw_first), 2) if raw_first is not None else renewal_plan_rmb
+
+    first_total = round(first_plan_rmb + overflow_payg_rmb, 2)
+    renewal_total = round(renewal_plan_rmb + overflow_payg_rmb, 2)
+    first_saving = round(payg_rmb - first_total, 2)
+    renewal_saving = round(payg_rmb - renewal_total, 2)
+
+    return {
+        "covered_calls": covered_calls,
+        "overflow_calls": overflow_calls,
+        "overflow_payg_rmb": overflow_payg_rmb,
+        "first_month_plan_rmb": first_plan_rmb,
+        "renewal_plan_rmb": renewal_plan_rmb,
+        "first_month_total_rmb": first_total,
+        "renewal_total_rmb": renewal_total,
+        "first_month_saving_rmb": first_saving,
+        "renewal_saving_rmb": renewal_saving,
+        "saves_on_renewal": bool(renewal_saving > 0),
+    }
+
+
 def evaluate_coding_plans(
     *,
     daily_calls: float,
@@ -570,6 +616,17 @@ def evaluate_coding_plans(
         renewal_rmb = float(ref_tier["renewal_rmb"])
         effective_first_rmb = float(first_rmb) if first_rmb is not None else renewal_rmb
 
+        overflow_hybrid = (
+            _compute_overflow_hybrid(
+                monthly_calls=monthly_calls,
+                payg_rmb=payg_rmb,
+                pro_tier=pro_tier,
+                peak_5h_calls=peak_5h_calls,
+            )
+            if (norm_mode == "interactive_ide" and pro_tier is not None)
+            else None
+        )
+
         if chosen_tier is None and monthly_calls <= ref_tier["quota_monthly"]:
             status = "exceeds_5h_cap"
             verdict_zh = f"5 小时峰值 {peak_5h_calls:,} 次，超过 {ref_tier['name']} 的 {ref_tier['quota_5h']:,} 次窗口上限。"
@@ -577,11 +634,20 @@ def evaluate_coding_plans(
             renewal_saving = None
         elif chosen_tier is None:
             status = "exceeds_monthly_cap"
-            verdict_zh = (
-                f"按 30 天预计 {_fmt_wan_calls(monthly_calls)}（{monthly_calls:,} 次），"
-                f"超出 Pro 月额度 {_fmt_wan_calls(exceeds_pro_by)}（上限 {PRO_MONTHLY_CAP:,} 次/月）；"
-                "单靠个人包月套餐不够用，超出部分需走按量 API 或拆分多账号/企业方案。"
-            )
+            if overflow_hybrid and overflow_hybrid["saves_on_renewal"] and covers_model:
+                verdict_zh = (
+                    f"按 30 天预计 {_fmt_wan_calls(monthly_calls)}（{monthly_calls:,} 次），"
+                    f"超出 Pro 月额度 {_fmt_wan_calls(exceeds_pro_by)}（上限 {PRO_MONTHLY_CAP:,} 次/月，不能按 ¥200 全包封顶）；"
+                    f"但可采用「1 份 Pro 打底前 9 万次 + 超额 {_fmt_wan_calls(overflow_hybrid['overflow_calls'])}走按量 API」："
+                    f"首月约 ¥{overflow_hybrid['first_month_total_rmb']:.2f}（省 ¥{overflow_hybrid['first_month_saving_rmb']:.2f}），"
+                    f"续费月约 ¥{overflow_hybrid['renewal_total_rmb']:.2f}（仍净省 ¥{overflow_hybrid['renewal_saving_rmb']:.2f}）。"
+                )
+            else:
+                verdict_zh = (
+                    f"按 30 天预计 {_fmt_wan_calls(monthly_calls)}（{monthly_calls:,} 次），"
+                    f"超出 Pro 月额度 {_fmt_wan_calls(exceeds_pro_by)}（上限 {PRO_MONTHLY_CAP:,} 次/月）；"
+                    "单靠个人包月套餐不够用，超出部分需走按量 API 或拆分多账号/企业方案。"
+                )
             first_month_saving = None
             renewal_saving = None
         else:
@@ -630,6 +696,7 @@ def evaluate_coding_plans(
                 "quota_monthly": ref_tier["quota_monthly"],
                 "first_month_savings_rmb": first_month_saving,
                 "renewal_savings_rmb": renewal_saving,
+                "overflow_hybrid": overflow_hybrid,
                 "verdict_zh": verdict_zh,
             }
         )
@@ -644,6 +711,24 @@ def evaluate_coding_plans(
     )
     recommended_same_family_plan_id = same_family_candidates[0]["plan_id"] if same_family_candidates else None
 
+    hybrid_candidates = [
+        item
+        for item in eligible
+        if item["covers_selected_model"]
+        and isinstance(item.get("overflow_hybrid"), dict)
+        and item["overflow_hybrid"]["saves_on_renewal"]
+    ]
+    hybrid_candidates.sort(
+        key=lambda x: (
+            float(x["overflow_hybrid"]["renewal_saving_rmb"]),
+            float(x["overflow_hybrid"]["first_month_saving_rmb"]),
+            1 if x.get("featured_partner") else 0,
+        ),
+        reverse=True,
+    )
+    best_hybrid_plan = hybrid_candidates[0] if hybrid_candidates else None
+    recommended_overflow_hybrid_plan_id = best_hybrid_plan["plan_id"] if best_hybrid_plan else None
+
     if norm_mode == "automated_backend":
         headline_zh = (
             "当前选择「非交互式后端 / 批处理 API」场景：已自动排除阿里云百炼、腾讯云与火山方舟个人 Coding Plan"
@@ -652,11 +737,21 @@ def evaluate_coding_plans(
         window_note_zh = "非交互式后端不适用个人套餐的 5 小时滚动窗口。"
     elif monthly_calls > PRO_MONTHLY_CAP:
         over = monthly_calls - PRO_MONTHLY_CAP
-        headline_zh = (
+        base_warn = (
             f"按 30 天预计 {_fmt_wan_calls(monthly_calls)}（{monthly_calls:,} 次模型调用），"
             f"超出 Pro 月额度 {_fmt_wan_calls(over)}（百炼/腾讯/火山 Pro 月上限均为 {PRO_MONTHLY_CAP:,} 次）——"
             "切勿误以为 ¥200 包月可无限封顶！"
         )
+        if best_hybrid_plan is not None:
+            bh = best_hybrid_plan["overflow_hybrid"]
+            headline_zh = (
+                base_warn
+                + f"但可采用「1 份 {best_hybrid_plan['name']} Pro 打底前 9 万次 + 超额 {_fmt_wan_calls(bh['overflow_calls'])}走按量 API」："
+                f"首月约 ¥{bh['first_month_total_rmb']:.2f} / 续费月约 ¥{bh['renewal_total_rmb']:.2f}，"
+                f"比全程纯按量（¥{payg_rmb:.2f}）仍净省 ¥{bh['renewal_saving_rmb']:.2f}/月。"
+            )
+        else:
+            headline_zh = base_warn + f"当前模型全程纯按量仅约 ¥{payg_rmb:.2f}/月，无需叠加 ¥200 包月。"
         window_note_zh = (
             f"除月上限 {PRO_MONTHLY_CAP:,} 次外，Pro 每 5 小时限 {PRO_5H_CAP:,} 次、每周限 {PRO_WEEKLY_CAP:,} 次。"
         )
@@ -693,6 +788,7 @@ def evaluate_coding_plans(
         "eligible_subscriptions": eligible,
         "excluded_subscriptions": excluded,
         "recommended_same_family_plan_id": recommended_same_family_plan_id,
+        "recommended_overflow_hybrid_plan_id": recommended_overflow_hybrid_plan_id,
         "quote_verified_date": QUOTE_VERIFIED_DATE,
     }
 

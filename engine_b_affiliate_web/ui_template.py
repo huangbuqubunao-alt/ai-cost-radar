@@ -1321,11 +1321,127 @@ def render_html_template(
       background: var(--accent-soft);
     }}
 
-    .cta-copy-cfg.is-active-baseline {{
+    .cta-copy-cfg.is-active-baseline,
+    .cta-copy-cfg.is-active-compare {{
       border-color: rgba(16, 185, 129, 0.42);
       background: var(--emerald-soft);
       color: var(--emerald-text);
+    }}
+
+    .cta-copy-cfg.is-active-baseline {{
       cursor: default;
+    }}
+
+    .cta-compare-toggle {{
+      grid-column: 1 / -1;
+    }}
+
+    .section-block {{
+      scroll-margin-top: 92px;
+    }}
+
+    .compare-tray {{
+      background: var(--bg-card);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      margin-bottom: 18px;
+      overflow: hidden;
+      scroll-margin-top: 96px;
+    }}
+
+    .compare-tray[hidden] {{
+      display: none !important;
+    }}
+
+    .compare-tray-head {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 12px 16px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+    }}
+
+    .compare-tray-title {{
+      font-size: 0.9rem;
+      font-weight: 780;
+      color: var(--text-primary);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }}
+
+    .compare-tray-actions {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }}
+
+    .compare-table th,
+    .compare-table td {{
+      font-variant-numeric: tabular-nums;
+      min-width: 175px;
+    }}
+
+    .compare-table th:first-child,
+    .compare-table td:first-child {{
+      min-width: 132px;
+      width: 155px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      background: var(--bg-elevated);
+    }}
+
+    .compare-col-head {{
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }}
+
+    .compare-rm-btn {{
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      border-radius: 6px;
+      padding: 2px 6px;
+      font-size: 0.74rem;
+      line-height: 1.2;
+      cursor: pointer;
+      flex-shrink: 0;
+    }}
+
+    .compare-rm-btn:hover {{
+      border-color: var(--border-strong);
+      color: var(--text-primary);
+    }}
+
+    .compare-actions-cell {{
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }}
+
+    .compare-mini-btn {{
+      border: 1px solid var(--border-strong);
+      background: var(--bg-input);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 650;
+      padding: 4px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+    }}
+
+    .compare-mini-btn:hover {{
+      border-color: var(--accent);
+      background: var(--accent-soft);
     }}
 
     .card-secondary-actions {{
@@ -1867,6 +1983,7 @@ def render_html_template(
         </div>
       </div>
 
+      <div class="compare-tray" id="compareTray" hidden></div>
       <div class="models-grid" id="modelsGrid"></div>
       <div class="show-more-wrap" id="showMoreWrap" style="display:none;">
         <button type="button" class="show-more-btn" id="showMoreBtn"></button>
@@ -2098,6 +2215,7 @@ def render_html_template(
       searchQuery: "",
       sortBy: "cost_asc",
       baselineId: "",
+      compareIds: [],
       hybridRoutineRatio: 0.8,
       hybridRoutineModelId: "auto",
       modalMode: "endpoint",
@@ -2169,9 +2287,13 @@ def render_html_template(
       const outFactor = (state.reasoningEnabled && !state.outputIncludesReasoning && isReasoning)
         ? Math.max(1, Number(state.reasoningMultiplier) || 2.5)
         : 1.0;
-      const usd = inM * inFactor * m.input_usd_per_1m + outM * outFactor * m.output_usd_per_1m;
-      const rmb = inM * inFactor * m.input_rmb_per_1m + outM * outFactor * m.output_rmb_per_1m;
-      return {{ usd, rmb, inM, outM, monthlyCalls, inFactor, outFactor }};
+      const inUsd = inM * inFactor * m.input_usd_per_1m;
+      const outUsd = outM * outFactor * m.output_usd_per_1m;
+      const inRmb = inM * inFactor * m.input_rmb_per_1m;
+      const outRmb = outM * outFactor * m.output_rmb_per_1m;
+      const usd = inUsd + outUsd;
+      const rmb = inRmb + outRmb;
+      return {{ usd, rmb, inUsd, outUsd, inRmb, outRmb, inM, outM, monthlyCalls, inFactor, outFactor }};
     }}
 
     let lastModalTrigger = null;
@@ -2355,6 +2477,22 @@ def render_html_template(
       return {{ yaml, env: envLines, warning, docUrl: "https://docs.litellm.ai/docs/routing" }};
     }}
 
+    function isSponsoredUrl(url, configKey, offer) {{
+      if (offer && offer.commission_status === "none") return false;
+      const u = String(url || "");
+      if (["userCode=", "curl.qcloud.com", "siliconflow.cn/i/", "ref=", "aff=", "invite="].some(tok => u.includes(tok))) {{
+        return true;
+      }}
+      if (["aliyun_bailian_url", "aliyun_ambassador_url", "tencent_cps_url", "siliconflow_invite_url"].includes(String(configKey || "")) && u.includes("?")) {{
+        return true;
+      }}
+      return false;
+    }}
+
+    function relAttr(url, configKey, offer) {{
+      return isSponsoredUrl(url, configKey, offer) ? "noopener sponsored" : "noopener";
+    }}
+
     function getModelCtaInfo(m) {{
       const isEn = state.lang === "en";
       const key = m.provider_config_key || (m.region === "cn_direct" ? "aliyun_bailian_url" : "openrouter_url");
@@ -2434,10 +2572,57 @@ def render_html_template(
       }}
       if (!matched) {{
         const over = Math.max(0, monthlyCalls - PRO_MONTHLY_CAP);
+        let overflowHybrid = null;
+        if (proTier && monthlyCalls > Number(proTier.quota_monthly || PRO_MONTHLY_CAP) && (state.peak5h === null || state.peak5h <= Number(proTier.quota_5h || PRO_5H_CAP))) {{
+          const coveredCalls = Number(proTier.quota_monthly || PRO_MONTHLY_CAP);
+          const overflowCalls = Math.max(0, monthlyCalls - coveredCalls);
+          const overflowShare = monthlyCalls > 0 ? (overflowCalls / monthlyCalls) : 0;
+          const overflowPaygRmb = Math.round(paygRmb * overflowShare * 100) / 100;
+          const firstPlanRmb = proTier.first_month_rmb !== null && proTier.first_month_rmb !== undefined
+            ? Number(proTier.first_month_rmb)
+            : Number(proTier.renewal_rmb);
+          const renewalPlanRmb = Number(proTier.renewal_rmb);
+          const firstTotalRmb = Math.round((firstPlanRmb + overflowPaygRmb) * 100) / 100;
+          const renewalTotalRmb = Math.round((renewalPlanRmb + overflowPaygRmb) * 100) / 100;
+          const firstSaveRmb = Math.round((paygRmb - firstTotalRmb) * 100) / 100;
+          const renewSaveRmb = Math.round((paygRmb - renewalTotalRmb) * 100) / 100;
+          overflowHybrid = {{
+            tierId: proTier.tier_id,
+            coveredCalls,
+            overflowCalls,
+            overflowPaygRmb,
+            firstPlanRmb,
+            renewalPlanRmb,
+            firstTotalRmb,
+            renewalTotalRmb,
+            firstSaveRmb,
+            renewSaveRmb,
+            savesOnRenewal: renewSaveRmb > 0
+          }};
+        }}
+        if (coversModel && overflowHybrid && overflowHybrid.savesOnRenewal) {{
+          return {{
+            excluded: false,
+            exceedsCap: true,
+            coversModel,
+            overflowHybrid,
+            badgeHtml: `<span class="badge badge-save">${{isEn ? `Pro Base + Overflow · Save ¥${{overflowHybrid.renewSaveRmb.toFixed(0)}}/mo` : `Pro 垫底+溢出按量 · 续费省 ¥${{overflowHybrid.renewSaveRmb.toFixed(0)}}`}}</span>`,
+            priceMain: isEn
+              ? `Hybrid ¥${{overflowHybrid.renewalTotalRmb.toFixed(2)}}/mo`
+              : `组合续费 ¥${{overflowHybrid.renewalTotalRmb.toFixed(2)}}/月`,
+            tierSummary: isEn
+              ? `1st mo ¥${{overflowHybrid.firstTotalRmb.toFixed(2)}} · 90k Pro + ${{fmtNum(over)}} PayG`
+              : `首月组合 ¥${{overflowHybrid.firstTotalRmb.toFixed(2)}} · 9万包月+溢出按量`,
+            detailText: isEn
+              ? `30-day est. ${{fmtNum(monthlyCalls)}} calls exceeds 90k Pro cap by ${{fmtNum(over)}}: 90,000 calls on Pro (¥${{overflowHybrid.renewalPlanRmb.toFixed(0)}} renewal) + ${{fmtNum(over)}} overflow calls on PayG (¥${{overflowHybrid.overflowPaygRmb.toFixed(2)}}) = ¥${{overflowHybrid.renewalTotalRmb.toFixed(2)}}/mo total (saves ¥${{overflowHybrid.renewSaveRmb.toFixed(2)}}/mo vs pure PayG).`
+              : `按 30 天预计 ${{fmtWanCalls(monthlyCalls)}}，超出 Pro 月额度 ${{fmtWanCalls(over)}}；前 9 万次走 Pro 包月（续费 ¥${{overflowHybrid.renewalPlanRmb.toFixed(0)}}）＋ 溢出 ${{fmtWanCalls(over)}} 走同模型按量（¥${{overflowHybrid.overflowPaygRmb.toFixed(2)}}）＝ 续费月总账 ¥${{overflowHybrid.renewalTotalRmb.toFixed(2)}}（比纯按量省 ¥${{overflowHybrid.renewSaveRmb.toFixed(2)}}/月）。`
+          }};
+        }}
         return {{
           excluded: false,
           exceedsCap: true,
           coversModel,
+          overflowHybrid,
           badgeHtml: `<span class="badge badge-warn">${{isEn ? `Over Pro Cap by ${{fmtNum(over)}}` : `超出 Pro 月上限 ${{fmtWanCalls(over)}}`}}</span>`,
           priceMain: proTier
             ? (isEn ? `Pro Renewal ¥${{Number(proTier.renewal_rmb).toFixed(0)}}/mo` : `Pro 续费 ¥${{Number(proTier.renewal_rmb).toFixed(0)}}/月`)
@@ -2573,6 +2758,9 @@ def render_html_template(
       const sameFamilyWins = subEvals
         .filter(x => !x.ev.excluded && !x.ev.exceedsCap && x.ev.matched && x.ev.coversModel && x.ev.saveRenew > 0)
         .sort((a, b) => (b.ev.saveRenew - a.ev.saveRenew) || ((b.plan.featured_partner ? 1 : 0) - (a.plan.featured_partner ? 1 : 0)));
+      const overflowHybridWins = subEvals
+        .filter(x => !x.ev.excluded && x.ev.exceedsCap && x.ev.coversModel && x.ev.overflowHybrid && x.ev.overflowHybrid.savesOnRenewal)
+        .sort((a, b) => (b.ev.overflowHybrid.renewSaveRmb - a.ev.overflowHybrid.renewSaveRmb) || (b.ev.overflowHybrid.firstSaveRmb - a.ev.overflowHybrid.firstSaveRmb) || ((b.plan.featured_partner ? 1 : 0) - (a.plan.featured_partner ? 1 : 0)));
       const crossFamilyWins = subEvals
         .filter(x => !x.ev.excluded && !x.ev.exceedsCap && x.ev.matched && !x.ev.coversModel && x.ev.saveRenew > 0)
         .sort((a, b) => ((b.plan.featured_partner ? 1 : 0) - (a.plan.featured_partner ? 1 : 0)) || (b.ev.saveRenew - a.ev.saveRenew));
@@ -2591,7 +2779,7 @@ def render_html_template(
                 ? `Best for automated backends with repetitive queries (35% cache hit assumption: ¥68 host + ¥${{(paygRmb * 0.65).toFixed(0)}} uncached API + ¥15 egress ≈ ¥${{gwTotal.toFixed(0)}}/mo). Includes Aliyun Ambassador code (vlxk7knp) at official catalog prices.`
                 : `适用人群：非交互式后端高重复请求（按 35% 语义缓存拦截率测算，主机 ¥68 + 未命中 API ¥${{(paygRmb * 0.65).toFixed(0)}} + 存储流量 ¥15 ≈ ¥${{gwTotal.toFixed(0)}}/月）。<br>推广说明：含阿里云云大使推广参数（vlxk7knp，云主机属常规返佣核对品类），价格与官网一致。`}}
             </div>
-            <a class="cta-primary cn-cta" href="${{esc(AFF.aliyun_ambassador_url)}}" target="_blank" rel="noopener sponsored" data-offer-id="aliyun-ecs-agent-host" data-card-slot="primary_result">
+            <a class="cta-primary cn-cta" href="${{esc(AFF.aliyun_ambassador_url)}}" target="_blank" rel="${{relAttr(AFF.aliyun_ambassador_url, "aliyun_ambassador_url")}}" data-offer-id="aliyun-ecs-agent-host" data-card-slot="primary_result">
               ${{isEn ? "View Aliyun ECS / Cloud Server Deals" : "查看阿里云 ECS / 轻量云官方活动机型"}}
             </a>
           `;
@@ -2612,7 +2800,26 @@ def render_html_template(
                 ? `Price & Caps: ${{firstStr}} (${{fmtNum(t.quota_5h)}}/5h · ${{fmtNum(t.quota_weekly)}}/wk · ${{fmtNum(t.quota_monthly)}}/mo; interactive IDE only). <a href="${{esc(p.official_source_url)}}" target="_blank" rel="noopener" style="color:var(--emerald-text);text-decoration:underline;">Official Rules</a>.`
                 : `价格与额度：${{firstStr}}（上限 ${{fmtNum(t.quota_5h)}}/5h · ${{fmtNum(t.quota_weekly)}}/周 · ${{fmtNum(t.quota_monthly)}}/月；仅限交互式 IDE）。<br>依据与推广说明：<a href="${{esc(p.official_source_url)}}" target="_blank" rel="noopener" style="color:var(--emerald-text);text-decoration:underline;">官方套餐规则</a> · ${{esc(p.commission_note_zh || "官方直达入口")}}。`}}
             </div>
-            <a class="cta-primary ${{p.featured_partner ? "cn-cta" : ""}}" href="${{esc(p.url)}}" target="_blank" rel="${{p.featured_partner ? "noopener sponsored" : "noopener"}}" data-offer-id="${{esc(p.id)}}" data-card-slot="primary_result">
+            <a class="cta-primary ${{p.featured_partner ? "cn-cta" : ""}}" href="${{esc(p.url)}}" target="_blank" rel="${{relAttr(p.url, p.provider_config_key, p)}}" data-offer-id="${{esc(p.id)}}" data-card-slot="primary_result">
+              ${{esc(isEn ? (p.cta_en || "View Official Coding Plan") : (p.cta_zh || "前往官网核对套餐与专属端点"))}}
+            </a>
+          `;
+        }} else if (overflowHybridWins.length > 0) {{
+          const bestHy = overflowHybridWins[0];
+          const p = bestHy.plan;
+          const oh = bestHy.ev.overflowHybrid;
+          const planEnName = (PLAN_EN_TITLES[p.id] || [p.name])[0];
+          primaryRecEl.innerHTML = `
+            <div class="primary-rec-head">
+              <span>${{isEn ? `Primary Recommendation: ${{esc(planEnName)}} Pro Base (90k) + PayG Overflow` : `当前工作负载主推荐：${{esc(p.name)}} Pro 垫底（9万次）＋ 溢出按量组合`}}</span>
+              <span class="badge badge-save">${{isEn ? `Save ¥${{oh.renewSaveRmb.toFixed(0)}}/mo vs Pure PayG` : `组合续费仍省 ¥${{oh.renewSaveRmb.toFixed(0)}}/月`}}</span>
+            </div>
+            <div class="primary-rec-desc">
+              ${{isEn
+                ? `Hybrid Split Math: First 90,000 calls on Pro (¥${{oh.firstPlanRmb.toFixed(2)}} 1st mo / ¥${{oh.renewalPlanRmb.toFixed(0)}} renewal) + ${{fmtNum(oh.overflowCalls)}} overflow calls on same-model PayG (¥${{oh.overflowPaygRmb.toFixed(2)}}) = <strong>¥${{oh.firstTotalRmb.toFixed(2)}} 1st mo / ¥${{oh.renewalTotalRmb.toFixed(2)}} renewal total</strong> (vs ¥${{paygRmb.toFixed(2)}}/mo pure PayG). Configure your sk-sp- plan endpoint separately from your standard PayG fallback key.`
+                : `超额拆单精算：前 90,000 次走 Pro 包月（首月 ¥${{oh.firstPlanRmb.toFixed(2)}} / 续费 ¥${{oh.renewalPlanRmb.toFixed(0)}}）＋ 超出 ${{fmtNum(oh.overflowCalls)}} 次走同模型按量（¥${{oh.overflowPaygRmb.toFixed(2)}}）＝ <strong>首月总账 ¥${{oh.firstTotalRmb.toFixed(2)}}、续费月总账 ¥${{oh.renewalTotalRmb.toFixed(2)}}</strong>（纯按量需 ¥${{paygRmb.toFixed(2)}}/月）。<br>实操提醒：请将包月 sk-sp- 专属端点与通用按量端点分开保存，月额度耗尽后切回按量密钥。`}}
+            </div>
+            <a class="cta-primary ${{p.featured_partner ? "cn-cta" : ""}}" href="${{esc(p.url)}}" target="_blank" rel="${{relAttr(p.url, p.provider_config_key, p)}}" data-offer-id="${{esc(p.id)}}" data-card-slot="primary_result">
               ${{esc(isEn ? (p.cta_en || "View Official Coding Plan") : (p.cta_zh || "前往官网核对套餐与专属端点"))}}
             </a>
           `;
@@ -2628,7 +2835,7 @@ def render_html_template(
                 ? `Domestic CN Coding Plans do NOT include "${{esc(baseShort)}}". Keep Pay-As-You-Go / 80-20 routing (≈ ¥${{paygRmb.toFixed(0)}}/mo) for identical model quality, or switch to Qwen3.5 / Kimi-K2.5 / GLM-5 / Hunyuan in Aliyun/Tencent plans (¥40–¥200/mo) below.`
                 : `核对结论：国内个人 Coding Plan 均不含「${{esc(baseShort)}}」原模型。若需保持同模型质量，请使用上方 80/20 混合路由或按量付费（约 ¥${{paygRmb.toFixed(0)}}/月）；若接受在 IDE 中改用国产 Qwen3.5 / Kimi-K2.5 / GLM-5 / 混元平替，可向下查看百炼或腾讯云套餐（¥40～¥200/月）。`}}
             </div>
-            <a class="cta-primary ${{mCta.isCn ? "cn-cta" : ""}}" href="${{esc(mCta.url)}}" target="_blank" rel="noopener sponsored" data-offer-id="${{esc(mCta.offerId)}}" data-card-slot="primary_result">
+            <a class="cta-primary ${{mCta.isCn ? "cn-cta" : ""}}" href="${{esc(mCta.url)}}" target="_blank" rel="${{relAttr(mCta.url, baselineModel.provider_config_key)}}" data-offer-id="${{esc(mCta.offerId)}}" data-card-slot="primary_result">
               ${{esc(mCta.label)}}${{isEn ? " (Same-Model PayG)" : "（同模型按量开通）"}}
             </a>
           `;
@@ -2637,7 +2844,7 @@ def render_html_template(
           const enReason = state.usageMode === "interactive_ide" && state.peak5h > 6000
             ? "5-hour peak exceeds the 6,000-call Pro window"
             : monthlyCalls > PRO_MONTHLY_CAP
-              ? `${{fmtNum(monthlyCalls)}} calls/mo exceeds the 90,000/mo personal Pro cap`
+              ? `${{fmtNum(monthlyCalls)}} calls/mo exceeds the 90,000/mo personal Pro cap and pure PayG is cheaper than Pro + overflow`
               : `Current Pay-As-You-Go bill (¥${{paygRmb.toFixed(2)}}/mo) is already cheaper than monthly plans or self-hosting`;
           primaryRecEl.innerHTML = `
             <div class="primary-rec-head">
@@ -2647,9 +2854,9 @@ def render_html_template(
             <div class="primary-rec-desc">
               ${{isEn
                 ? `Why: ${{enReason}}. Direct official console link (selected partner links carry referral codes with zero markup).`
-                : `原因：${{state.usageMode === "interactive_ide" && state.peak5h > 6000 ? "5 小时峰值超出 Pro 窗口" : monthlyCalls > PRO_MONTHLY_CAP ? `月调用 ${{fmtWanCalls(monthlyCalls)}} 已超出个人 Pro 套餐 9 万次月上限` : `当前基准按量仅约 ¥${{paygRmb.toFixed(2)}}/月，低于包月续费或云主机自建总成本`}}，按实际 Token 结算更划算。<br>推广说明：直达官方控制台（部分含合作伙伴推广码，无任何加价）。`}}
+                : `原因：${{state.usageMode === "interactive_ide" && state.peak5h > 6000 ? "5 小时峰值超出 Pro 窗口" : monthlyCalls > PRO_MONTHLY_CAP ? `月调用 ${{fmtWanCalls(monthlyCalls)}} 超出 Pro 9 万次上限，且当前低单价模型纯按量（¥${{paygRmb.toFixed(2)}}/月）比「Pro 垫底+溢出」更省` : `当前基准按量仅约 ¥${{paygRmb.toFixed(2)}}/月，低于包月续费或云主机自建总成本`}}，按实际 Token 结算更划算。<br>推广说明：直达官方控制台（部分含合作伙伴推广码，无任何加价）。`}}
             </div>
-            <a class="cta-primary ${{mCta.isCn ? "cn-cta" : ""}}" href="${{esc(mCta.url)}}" target="_blank" rel="noopener sponsored" data-offer-id="${{esc(mCta.offerId)}}" data-card-slot="primary_result">
+            <a class="cta-primary ${{mCta.isCn ? "cn-cta" : ""}}" href="${{esc(mCta.url)}}" target="_blank" rel="${{relAttr(mCta.url, baselineModel.provider_config_key)}}" data-offer-id="${{esc(mCta.offerId)}}" data-card-slot="primary_result">
               ${{esc(mCta.label)}}${{isEn ? " (Pay-As-You-Go)" : "（按量开通）"}}
             </a>
           `;
@@ -2689,7 +2896,7 @@ def render_html_template(
           tierSummary = ev.tierSummary;
           detailText = ev.detailText;
           if (ev.excluded) cardCls += " excluded";
-          else if (ev.saveRenew && ev.saveRenew > 0 && ev.coversModel) cardCls += " featured";
+          else if ((ev.saveRenew && ev.saveRenew > 0 && ev.coversModel) || (ev.overflowHybrid && ev.overflowHybrid.savesOnRenewal && ev.coversModel)) cardCls += " featured";
         }} else if (otype === "cloud_host") {{
           const uncached = paygRmb * 0.65;
           const totalHost = 68 + uncached + 15;
@@ -2754,7 +2961,7 @@ def render_html_template(
               </div>
             </div>
             <div class="card-ctas">
-              <a class="cta-primary ${{plan.featured_partner ? "cn-cta" : ""}}" href="${{esc(plan.url)}}" target="_blank" rel="noopener sponsored" data-offer-id="${{esc(plan.id)}}" data-card-slot="plan_cta_${{idx + 1}}" data-affiliate-key="${{esc(plan.provider_config_key || "")}}">
+              <a class="cta-primary ${{plan.featured_partner ? "cn-cta" : ""}}" href="${{esc(plan.url)}}" target="_blank" rel="${{relAttr(plan.url, plan.provider_config_key, plan)}}" data-offer-id="${{esc(plan.id)}}" data-card-slot="plan_cta_${{idx + 1}}" data-affiliate-key="${{esc(plan.provider_config_key || "")}}">
                 ${{esc(isEn ? (plan.cta_en || "View Official Console") : (plan.cta_zh || "前往官网查看"))}}
               </a>
               ${{canConfigEndpoint ? `
@@ -3131,6 +3338,7 @@ def render_html_template(
         docLink.textContent = isEn ? "Read LiteLLM Routing Docs" : "查阅 LiteLLM 官方路由文档";
         const ctaEl = document.getElementById("cfgModalOfficialCta");
         ctaEl.href = rCta.url;
+        ctaEl.rel = relAttr(rCta.url, hy.routineModel.provider_config_key);
         ctaEl.dataset.offerId = rCta.offerId;
         ctaEl.dataset.cardSlot = "hybrid_modal";
         ctaEl.textContent = isEn ? `Get ${{shortModelName(hy.routineModel, true)}} API Key` : `获取 ${{shortModelName(hy.routineModel, false)}} 按量密钥`;
@@ -3166,6 +3374,7 @@ def render_html_template(
       docLink.textContent = isEn ? I18N_EN.cfgModalDocLink : (ORIG_ZH_I18N.cfgModalDocLink || "查阅该厂商官方接入文档");
       const ctaEl = document.getElementById("cfgModalOfficialCta");
       ctaEl.href = state.modalOfficialCtaUrl;
+      ctaEl.rel = relAttr(state.modalOfficialCtaUrl, state.modalTargetVendor);
       ctaEl.dataset.offerId = state.modalOfferId;
       ctaEl.dataset.cardSlot = "config_modal";
       ctaEl.textContent = isEn ? I18N_EN.cfgModalOfficialCta : (ORIG_ZH_I18N.cfgModalOfficialCta || "前往官方控制台获取密钥");
@@ -3265,6 +3474,7 @@ def render_html_template(
       params.set("filter", state.activeFilter);
       if (state.lang === "en") params.set("lang", "en");
       if (state.baselineId) params.set("baseline", state.baselineId);
+      if (state.compareIds && state.compareIds.length > 0) params.set("cmp", state.compareIds.join(","));
       if (Math.abs(state.hybridRoutineRatio - 0.8) > 0.001) params.set("split", String(state.hybridRoutineRatio));
       if (state.hybridRoutineModelId && state.hybridRoutineModelId !== "auto") params.set("routine", state.hybridRoutineModelId);
       params.set("qv", QUOTE_VERIFIED_DATE);
@@ -3418,6 +3628,17 @@ def render_html_template(
           hasShareParams = true;
         }}
       }}
+      if (params.has("cmp")) {{
+        const cmpIds = String(params.get("cmp") || "")
+          .split(",")
+          .map(s => s.trim())
+          .filter(id => id && MODELS.some(m => m.id === id))
+          .slice(0, 3);
+        if (cmpIds.length > 0) {{
+          state.compareIds = Array.from(new Set(cmpIds));
+          hasShareParams = true;
+        }}
+      }}
       if (params.has("split")) {{
         const sp = Number(params.get("split"));
         if (Number.isFinite(sp) && sp >= 0.5 && sp <= 0.95) {{
@@ -3489,6 +3710,143 @@ def render_html_template(
       if (hasShareParams) {{
         trackEvent("share_open", {{ slot_id: "shared_query" }});
       }}
+    }}
+
+    function renderCompareTray(baseCost, baselineModel) {{
+      const tray = document.getElementById("compareTray");
+      if (!tray) return;
+      const pinned = (state.compareIds || [])
+        .map(id => MODELS.find(m => m.id === id))
+        .filter(Boolean)
+        .slice(0, 3);
+      if (pinned.length === 0) {{
+        tray.hidden = true;
+        tray.innerHTML = "";
+        return;
+      }}
+      tray.hidden = false;
+      const isEn = state.lang === "en";
+      const cur = state.currency;
+      const evaluated = pinned.map(m => {{
+        const c = calcModelMonthly(m);
+        const cta = getModelCtaInfo(m);
+        const cachePct = Math.round((Number(m.cache_hit_factor ?? 0.5)) * 100);
+        const coveringPlans = CODING_PLANS
+          .filter(p => (p.offer_type || "subscription") === "subscription" && planCoversModel(p, m))
+          .map(p => ({{
+            label: isEn ? ((PLAN_EN_TITLES[p.id] || [p.name])[0].replace(" Coding Plan", "")) : String(p.name || "").split(" ")[0],
+            sameVendor: Boolean(p.provider_config_key && p.provider_config_key === m.provider_config_key)
+          }}));
+        return {{ m, c, cta, cachePct, coveringPlans }};
+      }});
+      const minUsd = Math.min(...evaluated.map(x => x.c.usd));
+
+      const headCols = evaluated.map(x => `
+        <th scope="col">
+          <div class="compare-col-head">
+            <div>
+              <div style="color:var(--text-primary);font-weight:780;">${{esc(formatModelTitle(x.m, isEn))}}</div>
+              <div class="table-sub">${{esc(formatProviderTitle(x.m, isEn))}}</div>
+            </div>
+            <button type="button" class="compare-rm-btn" data-remove-compare="${{esc(x.m.id)}}" aria-label="${{isEn ? "Remove from comparison" : "移出对比"}}">✕</button>
+          </div>
+        </th>
+      `).join("");
+
+      const totalCells = evaluated.map(x => {{
+        const isMin = evaluated.length >= 2 && Math.abs(x.c.usd - minUsd) < 0.0001;
+        const badge = isMin
+          ? `<span class="badge badge-save" style="margin-left:6px;">${{isEn ? "Lowest" : "最低价"}}</span>`
+          : "";
+        const alt = cur === "USD" ? fmtMoney(x.c.usd, x.c.rmb, "RMB") : fmtMoney(x.c.usd, x.c.rmb, "USD");
+        return `<td><strong style="font-size:0.96rem;">${{fmtMoney(x.c.usd, x.c.rmb, cur)}}${{isEn ? "/mo" : "/月"}}</strong>${{badge}}<br><span class="table-sub">≈ ${{alt}}</span></td>`;
+      }}).join("");
+
+      const splitCells = evaluated.map(x => {{
+        const inStr = fmtMoney(x.c.inUsd, x.c.inRmb, cur);
+        const outStr = fmtMoney(x.c.outUsd, x.c.outRmb, cur);
+        return `<td>${{isEn ? `Input ${{inStr}} + Output ${{outStr}}` : `输入 ${{inStr}} ＋ 输出 ${{outStr}}`}}</td>`;
+      }}).join("");
+
+      const unitCells = evaluated.map(x => {{
+        const txt = cur === "USD"
+          ? `In $${{x.m.input_usd_per_1m}} / Out $${{x.m.output_usd_per_1m}} · Cache ${{x.cachePct}}%`
+          : (isEn
+              ? `In ¥${{Number(x.m.input_rmb_per_1m.toFixed(3))}} / Out ¥${{Number(x.m.output_rmb_per_1m.toFixed(3))}} · Cache ${{x.cachePct}}%`
+              : `输入 ¥${{Number(x.m.input_rmb_per_1m.toFixed(3))}} / 输出 ¥${{Number(x.m.output_rmb_per_1m.toFixed(3))}} · 缓存按 ${{x.cachePct}}%`);
+        return `<td class="mono-cell">${{esc(txt)}}</td>`;
+      }}).join("");
+
+      const ctxCells = evaluated.map(x => {{
+        let planTxt = isEn ? "Pay-As-You-Go Only" : "仅按量付费 API";
+        if (x.coveringPlans.length > 0) {{
+          const sameV = x.coveringPlans.filter(p => p.sameVendor).map(p => p.label);
+          const allLabels = x.coveringPlans.map(p => p.label).join(" / ");
+          if (sameV.length > 0) {{
+            planTxt = isEn ? `Same-vendor plan: ${{sameV.join(" / ")}}` : `本厂包月可选：${{sameV.join(" / ")}}`;
+          }} else {{
+            planTxt = isEn ? `Model in ${{allLabels}} Plan` : `同模型含于：${{allLabels}}包月`;
+          }}
+        }}
+        return `<td>CTX ${{fmtCtx(x.m.context_length)}}<br><span class="table-sub">${{esc(planTxt)}}</span></td>`;
+      }}).join("");
+
+      const actionCells = evaluated.map(x => `
+        <td>
+          <div class="compare-actions-cell">
+            ${{x.m.id === baselineModel.id
+              ? `<span class="badge badge-save">${{isEn ? "Baseline ✓" : "当前基准 ✓"}}</span>`
+              : `<button type="button" class="compare-mini-btn" data-set-baseline="${{esc(x.m.id)}}">${{isEn ? "Set Baseline" : "设为基准"}}</button>`}}
+            <button type="button" class="compare-mini-btn" data-copy-model="${{esc(x.m.id)}}">${{isEn ? "Endpoint" : "专属端点"}}</button>
+            <a href="${{esc(x.cta.url)}}" target="_blank" rel="${{relAttr(x.cta.url, x.m.provider_config_key)}}" data-offer-id="${{esc(x.cta.offerId)}}" data-card-slot="compare_tray">${{isEn ? "Console" : "官方入口"}}</a>
+          </div>
+        </td>
+      `).join("");
+
+      tray.innerHTML = `
+        <div class="compare-tray-head">
+          <div class="compare-tray-title">
+            <span>${{isEn ? "Side-by-Side Workload Comparison" : "横向同参数精算对比"}}</span>
+            <span class="badge badge-neutral">${{evaluated.length}}/3</span>
+          </div>
+          <div class="compare-tray-actions">
+            <button type="button" class="icon-btn" id="shareCompareBtn">${{isEn ? "Copy Compare Link" : "复制对比链接"}}</button>
+            <button type="button" class="icon-btn" id="clearCompareBtn">${{isEn ? "Clear All" : "清空对比"}}</button>
+          </div>
+        </div>
+        <div class="table-scroll" style="border:none;border-radius:0;">
+          <table class="ssr-table compare-table" aria-label="${{isEn ? "Side-by-Side Workload Comparison" : "横向同参数精算对比"}}">
+            <thead>
+              <tr>
+                <th scope="col">${{isEn ? "Metric" : "对比维度"}}</th>
+                ${{headCols}}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>${{isEn ? "Monthly Total Bill" : "当前负载月总账"}}</td>
+                ${{totalCells}}
+              </tr>
+              <tr>
+                <td>${{isEn ? "Input + Output Split" : "输入 + 输出拆分"}}</td>
+                ${{splitCells}}
+              </tr>
+              <tr>
+                <td>${{isEn ? "1M Unit Rate & Cache" : "百万单价与缓存系数"}}</td>
+                ${{unitCells}}
+              </tr>
+              <tr>
+                <td>${{isEn ? "Context & Plan Coverage" : "上下文与套餐覆盖"}}</td>
+                ${{ctxCells}}
+              </tr>
+              <tr>
+                <td>${{isEn ? "Quick Actions" : "操作与接入"}}</td>
+                ${{actionCells}}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      `;
     }}
 
     function updateAll(userTriggered) {{
@@ -3565,6 +3923,7 @@ def render_html_template(
 
       renderCodingPlans(baseCost, baselineModel);
       renderSelfHostBanner(baseCost);
+      renderCompareTray(baseCost, baselineModel);
 
       const q = state.searchQuery.trim().toLowerCase();
       let filtered = regionPool.filter(m => {{
@@ -3687,7 +4046,7 @@ def render_html_template(
             </div>
 
             <div class="card-ctas">
-              <a class="cta-primary ${{cta.isCn ? "cn-cta" : ""}}" href="${{esc(cta.url)}}" target="_blank" rel="noopener sponsored" data-offer-id="${{esc(cta.offerId)}}" data-card-slot="model_cta_${{idx + 1}}" data-affiliate-key="${{esc(m.provider_config_key || "")}}">
+              <a class="cta-primary ${{cta.isCn ? "cn-cta" : ""}}" href="${{esc(cta.url)}}" target="_blank" rel="${{relAttr(cta.url, m.provider_config_key)}}" data-offer-id="${{esc(cta.offerId)}}" data-card-slot="model_cta_${{idx + 1}}" data-affiliate-key="${{esc(m.provider_config_key || "")}}">
                 ${{esc(cta.label)}}
               </a>
               <div class="card-secondary-actions">
@@ -3696,6 +4055,9 @@ def render_html_template(
                   : `<button type="button" class="cta-copy-cfg" data-set-baseline="${{esc(m.id)}}">${{isEn ? "Set as Baseline" : "设为对账基准"}}</button>`}}
                 <button type="button" class="cta-copy-cfg" data-copy-model="${{esc(m.id)}}">
                   ${{isEn ? "Endpoint Config" : "配置专属端点"}}
+                </button>
+                <button type="button" class="cta-copy-cfg cta-compare-toggle ${{state.compareIds.includes(m.id) ? "is-active-compare" : ""}}" data-toggle-compare="${{esc(m.id)}}">
+                  ${{state.compareIds.includes(m.id) ? (isEn ? "Pinned to Compare ✓" : "已加入横向对比 ✓") : (isEn ? "+ Add to Compare (Max 3)" : "+ 加入横向对比（最多3款）")}}
                 </button>
               </div>
             </div>
@@ -4165,6 +4527,44 @@ def render_html_template(
       document.getElementById("cfgBillingModeSelect").addEventListener("change", refreshConfigModalSnippets);
 
       document.addEventListener("click", e => {{
+        const toggleCmpBtn = e.target.closest("[data-toggle-compare]");
+        if (toggleCmpBtn) {{
+          const targetId = toggleCmpBtn.getAttribute("data-toggle-compare");
+          if (targetId && MODELS.some(m => m.id === targetId)) {{
+            if (state.compareIds.includes(targetId)) {{
+              state.compareIds = state.compareIds.filter(id => id !== targetId);
+            }} else if (state.compareIds.length >= 3) {{
+              state.compareIds = [...state.compareIds.slice(1), targetId];
+            }} else {{
+              state.compareIds = [...state.compareIds, targetId];
+            }}
+            updateAll(true);
+          }}
+          return;
+        }}
+        const rmCmpBtn = e.target.closest("[data-remove-compare]");
+        if (rmCmpBtn) {{
+          const targetId = rmCmpBtn.getAttribute("data-remove-compare");
+          state.compareIds = state.compareIds.filter(id => id !== targetId);
+          updateAll(true);
+          return;
+        }}
+        const clearCmpBtn = e.target.closest("#clearCompareBtn");
+        if (clearCmpBtn) {{
+          state.compareIds = [];
+          updateAll(true);
+          return;
+        }}
+        const shareCmpBtn = e.target.closest("#shareCompareBtn");
+        if (shareCmpBtn) {{
+          const shareUrl = buildShareUrl();
+          try {{
+            window.history.replaceState(null, "", shareUrl);
+          }} catch (_) {{}}
+          trackEvent("share_copy", {{ slot_id: "compare_tray" }});
+          copyTextWithFeedback(shareUrl, shareCmpBtn, state.lang === "en" ? "Compare Link Copied" : "已复制对比链接");
+          return;
+        }}
         const setBaseBtn = e.target.closest("[data-set-baseline]");
         if (setBaseBtn) {{
           const targetId = setBaseBtn.getAttribute("data-set-baseline");

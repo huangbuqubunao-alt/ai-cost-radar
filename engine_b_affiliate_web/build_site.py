@@ -265,18 +265,20 @@ FALLBACK_MODELS: list[dict[str, Any]] = [
     },
     {
         "id": "volcengine/doubao-seed-2.0-pro",
-        "name": "火山方舟: Doubao-Seed-2.0-Pro 全能Agent模型",
+        "name": "火山引擎方舟: 豆包 Doubao-Seed-2.0-Pro (旗舰高并发)",
         "provider": "火山引擎 (Volcengine Ark)",
         "provider_config_key": "volcengine_ark_url",
+        "api_base_url": "https://ark.cn-beijing.volces.com/api/v3",
+        "api_model_id": "doubao-seed-2-0-pro-250415",
         "region": "cn_direct",
-        "input_rmb_per_1m": 3.2,
-        "output_rmb_per_1m": 16.0,
+        "input_rmb_per_1m": 0.8,
+        "output_rmb_per_1m": 2.0,
         "cache_hit_factor": 0.2,
         "context_length": 256000,
         "supports_tools": True,
         "is_free": False,
-        "value_score": 96.8,
-        "tags": ["coding", "reasoning", "cn_direct"],
+        "value_score": 98.1,
+        "tags": ["coding", "cheap", "cn_direct"],
     },
 ]
 
@@ -515,6 +517,28 @@ def detect_open_weights(model_id: str, name: str) -> bool:
     return any(k in hay for k in open_keywords)
 
 
+SPONSORED_URL_TOKENS = (
+    "userCode=",
+    "curl.qcloud.com",
+    "siliconflow.cn/i/",
+    "ref=",
+    "aff=",
+    "invite=",
+)
+
+
+def is_sponsored_link(url: str, config_key: str = "", commission_status: str = "") -> bool:
+    """Return True only when an outbound link carries referral/affiliate attribution."""
+    if commission_status == "none":
+        return False
+    raw_url = str(url or "")
+    if any(tok in raw_url for tok in SPONSORED_URL_TOKENS):
+        return True
+    if config_key in ("aliyun_bailian_url", "aliyun_ambassador_url", "tencent_cps_url", "siliconflow_invite_url") and "?" in raw_url:
+        return True
+    return False
+
+
 def channel_bonus_notes(config_key: str, is_free: bool) -> tuple[str, str]:
     if is_free:
         return ("¥0 免费调用层", "$0 Free API Tier")
@@ -718,6 +742,23 @@ def load_price_changes(live_path: Path, force_fallback: bool = False) -> list[di
     return []
 
 
+def load_official_rule_audit(live_path: Path, force_fallback: bool = False) -> dict[str, Any]:
+    default_audit = {"checked_at": f"{pricing_core.QUOTE_VERIFIED_DATE}T00:00:00Z", "vendors": []}
+    if force_fallback or not live_path.exists():
+        return default_audit
+    try:
+        payload = json.loads(live_path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict) and isinstance(payload.get("official_rule_audit"), dict):
+            raw_audit = payload["official_rule_audit"]
+            return {
+                "checked_at": str(raw_audit.get("checked_at") or default_audit["checked_at"]),
+                "vendors": [dict(v) for v in (raw_audit.get("vendors") or []) if isinstance(v, dict)],
+            }
+    except Exception:
+        pass
+    return default_audit
+
+
 def load_coding_plans(
     live_path: Path,
     affiliates: dict[str, str],
@@ -808,7 +849,17 @@ def build_ssr_coding_plan_tables_html(
             continue
         vendor_esc = html.escape(str(offer.get("vendor") or offer.get("name")))
         src_url = html.escape(str(offer.get("official_source_url") or ""))
-        buy_url = html.escape(str(offer.get("url") or src_url))
+        raw_buy_url = str(offer.get("url") or offer.get("official_source_url") or "")
+        buy_url = html.escape(raw_buy_url)
+        buy_rel = (
+            "noopener sponsored"
+            if is_sponsored_link(
+                raw_buy_url,
+                str(offer.get("provider_config_key") or ""),
+                str(offer.get("commission_status") or ""),
+            )
+            else "noopener"
+        )
         ep_cc = ((offer.get("endpoints") or {}).get("claude_code") or {}).get("base_url", "见官方文档")
         ep_oai = ((offer.get("endpoints") or {}).get("openai_compat") or {}).get("base_url", "见官方文档")
         for tier in offer.get("tiers") or []:
@@ -836,7 +887,7 @@ def build_ssr_coding_plan_tables_html(
                 f"<td class=\"num-cell\">{html.escape(quota_txt)}</td>"
                 f"<td class=\"mono-cell\">{ep_txt}</td>"
                 f"<td><a href=\"{src_url}\" target=\"_blank\" rel=\"noopener\">官方套餐规则</a> · "
-                f"<a href=\"{buy_url}\" target=\"_blank\" rel=\"noopener sponsored\">控制台入口</a></td>"
+                f"<a href=\"{buy_url}\" target=\"_blank\" rel=\"{buy_rel}\">控制台入口</a></td>"
                 f"</tr>"
             )
 
@@ -852,7 +903,17 @@ def build_ssr_coding_plan_tables_html(
             continue
         label = type_labels.get(otype, otype)
         src_url = html.escape(str(offer.get("official_source_url") or ""))
-        buy_url = html.escape(str(offer.get("url") or src_url))
+        raw_buy_url = str(offer.get("url") or offer.get("official_source_url") or "")
+        buy_url = html.escape(raw_buy_url)
+        buy_rel = (
+            "noopener sponsored"
+            if is_sponsored_link(
+                raw_buy_url,
+                str(offer.get("provider_config_key") or ""),
+                str(offer.get("commission_status") or ""),
+            )
+            else "noopener"
+        )
         price_str = (
             f"主机约 ¥{float(offer.get('monthly_rmb') or 68):.0f}/月起 + 未命中缓存 API 费"
             if otype == "cloud_host"
@@ -866,7 +927,7 @@ def build_ssr_coding_plan_tables_html(
             f"<td>支持交互式开发与非交互式自动化后端 API 服务</td>"
             f"<td class=\"mono-cell\">{html.escape(str(offer.get('commission_note_zh') or ''))}</td>"
             f"<td><a href=\"{src_url}\" target=\"_blank\" rel=\"noopener\">官方说明</a> · "
-            f"<a href=\"{buy_url}\" target=\"_blank\" rel=\"noopener sponsored\" data-offer-id=\"{html.escape(str(offer.get('id')))}\">前往官网</a></td>"
+            f"<a href=\"{buy_url}\" target=\"_blank\" rel=\"{buy_rel}\" data-offer-id=\"{html.escape(str(offer.get('id')))}\">前往官网</a></td>"
             f"</tr>"
         )
 
@@ -979,7 +1040,13 @@ def build_ssr_models_table_html(
         out_str = f"¥{m['output_rmb_per_1m']:.3f} (${m['output_usd_per_1m']:.3f})"
         cache_pct = f"{int(round(float(m['cache_hit_factor']) * 100))}%"
         ctx_k = f"{int(m['context_length']) // 1000}K" if int(m["context_length"]) < 1_000_000 else f"{int(m['context_length']) / 1_000_000:.1f}M"
-        aff_url = html.escape(m["affiliate_url"])
+        raw_aff_url = str(m.get("affiliate_url") or "")
+        aff_url = html.escape(raw_aff_url)
+        aff_rel = (
+            "noopener sponsored"
+            if is_sponsored_link(raw_aff_url, str(m.get("provider_config_key") or ""))
+            else "noopener"
+        )
         rows.append(
             f'<tr id="{anchor}">'
             f'<td><a href="#{anchor}" class="anchor-link">{name_esc}</a><br><code class="table-code">{id_esc}</code></td>'
@@ -988,7 +1055,7 @@ def build_ssr_models_table_html(
             f'<td class="num-cell">{html.escape(out_str)}</td>'
             f'<td class="num-cell">{html.escape(cache_pct)} 单价</td>'
             f'<td class="num-cell">{html.escape(ctx_k)}</td>'
-            f'<td><a href="{aff_url}" target="_blank" rel="noopener sponsored">官方通道</a></td>'
+            f'<td><a href="{aff_url}" target="_blank" rel="{aff_rel}">官方通道</a></td>'
             f"</tr>"
         )
 
@@ -1064,10 +1131,12 @@ def build_atom_feed_xml(
         det_iso = str(chg.get("detected_at") or verified_iso)
         summary_zh = str(chg.get("summary_zh") or "")
         is_plan = chg.get("entity_type") == "coding_plan"
+        is_rule_drift = chg.get("change_type") == "plan_rule_drift_warning"
+        tag_prefix = "规则巡检预警" if is_rule_drift else "价格异动"
         target_href = cp_url if is_plan else f"{base}#{_model_anchor_id(cid)}"
         entry_id = f"{feed_url}#delta-{idx}-{re.sub(r'[^a-zA-Z0-9._-]+', '-', cid)}-{det_iso[:10]}"
         dynamic_entries_xml += f"""  <entry>
-    <title>[价格异动 {html.escape(det_iso[:10])}] {html.escape(cname)} ({html.escape(cid)})</title>
+    <title>[{tag_prefix} {html.escape(det_iso[:10])}] {html.escape(cname)} ({html.escape(cid)})</title>
     <id>{html.escape(entry_id)}</id>
     <link href="{html.escape(target_href)}"/>
     <updated>{html.escape(det_iso)}</updated>
@@ -1253,6 +1322,7 @@ def build_site(
     )
     quote_verified_date, last_live_verified_at = load_quote_metadata(live_models_file, force_fallback=force_fallback)
     price_changes = load_price_changes(live_models_file, force_fallback=force_fallback)
+    official_rule_audit = load_official_rule_audit(live_models_file, force_fallback=force_fallback)
     build_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     coding_plans = load_coding_plans(live_models_file, affiliates, fx_rate, force_fallback=force_fallback)
 
@@ -1352,6 +1422,7 @@ def build_site(
         "last_live_verified_at": last_live_verified_at,
         "source": source_label,
         "fx_rate_usd_to_rmb": fx_rate,
+        "official_rule_audit": official_rule_audit,
         "price_changes": price_changes,
         "coding_plans": coding_plans,
         "models": [{**model, "signup_url": model.get("affiliate_url", "")} for model in models],

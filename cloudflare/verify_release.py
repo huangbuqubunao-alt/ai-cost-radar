@@ -62,6 +62,7 @@ def main():
     assert catalog["total_models"] == len(catalog["models"])
     assert catalog["quote_verified_date"], "Missing manual quote verification date"
     assert isinstance(catalog.get("price_changes"), list), "Missing price_changes list in catalog"
+    assert isinstance(catalog.get("official_rule_audit"), dict), "Missing official_rule_audit in catalog"
     atom_xml = (DIST / "feeds/price-changes.xml").read_text()
     assert '<feed xmlns="http://www.w3.org/2005/Atom">' in atom_xml, "Invalid Atom XML feed"
     if args.remote:
@@ -108,6 +109,7 @@ def main():
             budget = json.loads(body_budget)
             assert budget.get("status") == "ok" and budget.get("model_id") == "aliyun-bailian/qwen3-coder-next", f"Invalid /api/budget: {budget}"
             assert budget.get("monthly_requests") == 150000, f"Unexpected /api/budget monthly_requests: {budget}"
+            assert budget.get("recommended_overflow_hybrid_plan_id") == "aliyun-coding-plan", f"Missing v3.4 overflow hybrid recommendation: {budget}"
             st_feed, body_feed = request_remote("feeds/price-changes.xml")
             assert st_feed == 200 and "<feed" in body_feed, f"/feeds/price-changes.xml returned HTTP {st_feed}"
             st_admin, _ = request_remote("admin/stats")

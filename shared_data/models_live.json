@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-14T19:47:54Z",
-  "last_live_verified_at": "2026-11-14T19:47:54Z",
+  "updated_at": "2026-11-14T20:41:46Z",
+  "last_live_verified_at": "2026-11-14T20:41:46Z",
   "quote_verified_date": "2026-11-13",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
@@ -8,6 +8,29 @@
   "counts_by_region": {
     "cn_direct": 20,
     "global": 66
+  },
+  "official_rule_audit": {
+    "checked_at": "2026-11-14T20:41:46Z",
+    "vendors": [
+      {
+        "plan_id": "aliyun-coding-plan",
+        "url": "https://help.aliyun.com/zh/model-studio/coding-plan",
+        "status": "verified_markers",
+        "matched_groups": [
+          "pro_monthly_cap_90k",
+          "pro_renewal_200",
+          "pro_promo_39_9"
+        ],
+        "missing_groups": []
+      },
+      {
+        "plan_id": "tencent-coding-plan",
+        "url": "https://cloud.tencent.com/document/product/1823/130092",
+        "status": "csr_shell_manual_check",
+        "matched_groups": [],
+        "missing_groups": []
+      }
+    ]
   },
   "price_changes": [],
   "coding_plans": [
