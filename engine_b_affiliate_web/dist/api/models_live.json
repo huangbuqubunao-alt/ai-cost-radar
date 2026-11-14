@@ -7,11 +7,11 @@
   "build_date": "2026-11-14",
   "updated_at": "2026-11-14",
   "quote_verified_date": "2026-11-13",
-  "last_live_verified_at": "2026-11-14 20:41:46",
+  "last_live_verified_at": "2026-11-14 20:43:56",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
   "official_rule_audit": {
-    "checked_at": "2026-11-14T20:41:46Z",
+    "checked_at": "2026-11-14T20:43:56Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
