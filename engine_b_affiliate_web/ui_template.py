@@ -503,6 +503,154 @@ def render_html_template(
       color: var(--text-primary);
     }}
 
+    .usage-import-drawer {{
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      margin-bottom: 14px;
+      font-variant-numeric: tabular-nums;
+    }}
+
+    .usage-import-drawer > summary {{
+      cursor: pointer;
+      font-size: 0.81rem;
+      font-weight: 680;
+      color: var(--text-primary);
+      list-style-position: inside;
+      user-select: none;
+    }}
+
+    .usage-import-drawer[open] > summary {{
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }}
+
+    .usage-import-body {{
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }}
+
+    .usage-import-subhead {{
+      display: block;
+      font-size: 0.77rem;
+      font-weight: 640;
+      color: var(--text-secondary);
+      margin-bottom: 5px;
+    }}
+
+    .usage-import-textarea {{
+      width: 100%;
+      min-height: 70px;
+      resize: vertical;
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      font-family: var(--font-mono);
+      font-size: 0.77rem;
+      line-height: 1.45;
+      font-variant-numeric: tabular-nums;
+    }}
+
+    .usage-import-textarea::placeholder,
+    .usage-quick-field input::placeholder {{
+      color: var(--text-muted);
+      opacity: 1;
+    }}
+
+    .usage-import-actions {{
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+    }}
+
+    .usage-import-btn {{
+      border: 1px solid var(--border-strong);
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.76rem;
+      font-weight: 650;
+      padding: 5px 11px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: var(--transition);
+    }}
+
+    .usage-import-btn:hover {{
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }}
+
+    .usage-import-btn.primary {{
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }}
+
+    .usage-import-btn.primary:hover {{
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }}
+
+    .usage-import-divider {{
+      border: 0;
+      border-top: 1px solid var(--border);
+      margin: 2px 0;
+    }}
+
+    .usage-quick-grid {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }}
+
+    @media (max-width: 560px) {{
+      .usage-quick-grid {{
+        grid-template-columns: 1fr;
+      }}
+    }}
+
+    .usage-quick-field {{
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }}
+
+    .usage-quick-field label {{
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }}
+
+    .usage-quick-field .num-input {{
+      background: var(--bg-elevated);
+      font-size: 0.81rem;
+      padding: 6px 8px;
+    }}
+
+    .usage-import-status {{
+      font-size: 0.77rem;
+      line-height: 1.48;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      background: var(--emerald-soft);
+      color: var(--text-primary);
+    }}
+
+    .usage-import-status.is-error {{
+      border-color: rgba(244, 63, 94, 0.4);
+      background: var(--rose-soft);
+      color: var(--rose-text);
+    }}
+
     .control-group {{
       margin-bottom: 14px;
     }}
@@ -1802,6 +1950,53 @@ def render_html_template(
             <button type="button" class="preset-btn" data-calls="15000" data-in="2500" data-out="800" data-mode="automated_backend" data-i18n="presetBackend">自动化后端 (15,000次/天 · 排除个人套餐)</button>
           </div>
 
+          <details class="usage-import-drawer" id="usageImportDrawer">
+            <summary data-i18n="usageImportSummary">从真实日志或月度账单导入用量（支持 Claude Code /cost、OpenAI/百炼 usage JSON、月总账单）</summary>
+            <div class="usage-import-body">
+              <div>
+                <label class="usage-import-subhead" for="usageLogTextarea" data-i18n="usageLogLabel">方式一：粘贴 Claude Code /cost 输出、OpenAI/百炼 usage JSON 或云控制台统计文本</label>
+                <textarea id="usageLogTextarea" class="usage-import-textarea" rows="3" placeholder="示例：Input: 1.6M tokens / Cache read: 2.4M tokens / Output: 600k tokens / Requests: 1,200"></textarea>
+                <div class="usage-import-actions">
+                  <label for="usageDaysSelect" style="font-size:0.76rem;color:var(--text-secondary);font-weight:600;" data-i18n="usageDaysLabel">日志统计周期:</label>
+                  <select id="usageDaysSelect" class="select-sm" aria-label="Usage Observation Window">
+                    <option value="1">近 1 天 (24h)</option>
+                    <option value="7">近 7 天</option>
+                    <option value="14">近 14 天</option>
+                    <option value="30" selected>近 30 天 (整月)</option>
+                  </select>
+                  <button type="button" class="usage-import-btn primary" id="applyUsageLogBtn" data-i18n="applyUsageLogBtn">解析并填入测算器</button>
+                  <button type="button" class="usage-import-btn" id="fillSampleLogBtn" data-i18n="fillSampleLogBtn">填入 Claude Code 示例</button>
+                </div>
+              </div>
+              <hr class="usage-import-divider" />
+              <div>
+                <div class="usage-import-subhead" data-i18n="usageMonthlyQuickLabel">方式二：按月度总账单逆向折算（自动换算日均调用、单次均值与缓存命中率）</div>
+                <div class="usage-quick-grid">
+                  <div class="usage-quick-field">
+                    <label for="monthlyCallsQuick" data-i18n="labelMonthlyCallsQuick">月总请求数 (次/30天)</label>
+                    <input type="number" class="num-input" id="monthlyCallsQuick" min="1" max="60000000" step="100" placeholder="90000" />
+                  </div>
+                  <div class="usage-quick-field">
+                    <label for="monthlyInputMQuick" data-i18n="labelMonthlyInputMQuick">月总输入 (百万 M Tokens)</label>
+                    <input type="number" class="num-input" id="monthlyInputMQuick" min="0" max="1000000" step="0.1" placeholder="360" />
+                  </div>
+                  <div class="usage-quick-field">
+                    <label for="monthlyOutputMQuick" data-i18n="labelMonthlyOutputMQuick">月总输出 (百万 M Tokens)</label>
+                    <input type="number" class="num-input" id="monthlyOutputMQuick" min="0" max="1000000" step="0.1" placeholder="90" />
+                  </div>
+                  <div class="usage-quick-field">
+                    <label for="monthlyCachedMQuick" data-i18n="labelMonthlyCachedMQuick">其中缓存命中输入 (M, 可选)</label>
+                    <input type="number" class="num-input" id="monthlyCachedMQuick" min="0" max="1000000" step="0.1" placeholder="180" />
+                  </div>
+                </div>
+                <div class="usage-import-actions">
+                  <button type="button" class="usage-import-btn" id="applyMonthlyTotalsBtn" data-i18n="applyMonthlyTotalsBtn">按月度总额折算填入</button>
+                </div>
+              </div>
+              <div class="usage-import-status" id="usageImportStatus" role="status" hidden></div>
+            </div>
+          </details>
+
           <div class="control-group">
             <div class="control-label-row">
               <label class="control-label" for="dailyCallsNum" data-i18n="labelDailyCalls">每日模型 API 调用次数 (Daily Model Calls)</label>
@@ -2254,8 +2449,239 @@ def render_html_template(
       modalTargetModelId: "qwen3.5-plus",
       modalTargetName: "",
       modalFallbackBaseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-      modalOfficialCtaUrl: AFF.aliyun_bailian_url || "https://bailian.console.aliyun.com/"
+      modalOfficialCtaUrl: AFF.aliyun_bailian_url || "https://bailian.console.aliyun.com/",
+      lastUsageImport: null
     }};
+
+    function parseScaledNumber(rawVal) {{
+      if (typeof rawVal === "number") {{
+        if (!Number.isFinite(rawVal) || rawVal < 0) throw new Error("Invalid numeric value");
+        return rawVal;
+      }}
+      const s = String(rawVal ?? "").trim().replace(/[,_]/g, "");
+      if (!s) throw new Error("Empty number");
+      const m = s.match(/^([0-9]+(?:\\.[0-9]+)?)\\s*(百万|亿|万|千|[kKmMbBwW])?$/);
+      if (!m) throw new Error("Invalid number");
+      const base = Number(m[1]);
+      const unit = (m[2] || "").toLowerCase();
+      const multMap = {{ b: 1e9, "亿": 1e8, m: 1e6, "百万": 1e6, w: 1e4, "万": 1e4, k: 1e3, "千": 1e3, "": 1 }};
+      return Math.max(0, base * (multMap[unit] ?? 1));
+    }}
+
+    function parseUsageSnippet(rawText, daysObserved = 30, defaultTokensPerCall = 4000) {{
+      const text = String(rawText ?? "").trim();
+      if (!text || text.length > 32000) throw new Error("empty_snippet");
+      let days = Number(daysObserved ?? 30);
+      if (!Number.isFinite(days) || days <= 0 || days > 365) days = 30;
+
+      let totalInput = 0;
+      let cachedInput = 0;
+      let totalOutput = 0;
+      let explicitRequests = null;
+      let explicitDailyRequests = null;
+      let outputIncludesReasoning = false;
+      let detectedFormat = "text_summary";
+
+      let jsonObj = null;
+      if (text.includes("{{") && text.includes("}}")) {{
+        const startIdx = text.indexOf("{{");
+        const endIdx = text.lastIndexOf("}}");
+        if (endIdx > startIdx) {{
+          try {{
+            const parsed = JSON.parse(text.slice(startIdx, endIdx + 1));
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) jsonObj = parsed;
+          }} catch (_) {{
+            jsonObj = null;
+          }}
+        }}
+      }}
+
+      if (jsonObj) {{
+        const u = jsonObj.usage && typeof jsonObj.usage === "object" ? jsonObj.usage : {{}};
+        const merged = {{ ...jsonObj, ...u }};
+        if (merged.days_observed !== undefined && Number(daysObserved) === 30) {{
+          const dCand = Number(merged.days_observed);
+          if (Number.isFinite(dCand) && dCand > 0 && dCand <= 365) days = dCand;
+        }}
+        for (const rk of ["requests", "total_requests", "calls", "total_calls", "api_calls", "num_requests"]) {{
+          if (merged[rk] !== undefined && merged[rk] !== null) {{
+            explicitRequests = parseScaledNumber(merged[rk]);
+            break;
+          }}
+        }}
+        if (explicitRequests === null && merged.daily_requests !== undefined && merged.daily_requests !== null) {{
+          explicitDailyRequests = parseScaledNumber(merged.daily_requests);
+        }}
+        if ("cache_read_input_tokens" in merged || "cache_creation_input_tokens" in merged) {{
+          detectedFormat = "anthropic_usage_json";
+          const uncached = parseScaledNumber(merged.input_tokens ?? 0);
+          const cRead = parseScaledNumber(merged.cache_read_input_tokens ?? 0);
+          const cWrite = parseScaledNumber(merged.cache_creation_input_tokens ?? 0);
+          totalInput = uncached + cRead + cWrite;
+          cachedInput = cRead;
+        }} else {{
+          detectedFormat = "openai_usage_json";
+          const pDetails = merged.prompt_tokens_details && typeof merged.prompt_tokens_details === "object" ? merged.prompt_tokens_details : {{}};
+          const inDetails = merged.input_tokens_details && typeof merged.input_tokens_details === "object" ? merged.input_tokens_details : {{}};
+          const rawIn = merged.prompt_tokens ?? merged.input_tokens;
+          if (rawIn !== undefined && rawIn !== null) totalInput = parseScaledNumber(rawIn);
+          else if (merged.monthly_input_m !== undefined && merged.monthly_input_m !== null) totalInput = parseScaledNumber(merged.monthly_input_m) * 1e6;
+          const rawCached = pDetails.cached_tokens ?? inDetails.cached_tokens ?? merged.cached_tokens ?? merged.cached_input_tokens;
+          if (rawCached !== undefined && rawCached !== null) {{
+            cachedInput = parseScaledNumber(rawCached);
+            if (totalInput < cachedInput) totalInput = cachedInput;
+          }}
+        }}
+        const rawOut = merged.completion_tokens ?? merged.output_tokens;
+        if (rawOut !== undefined && rawOut !== null) totalOutput = parseScaledNumber(rawOut);
+        else if (merged.monthly_output_m !== undefined && merged.monthly_output_m !== null) totalOutput = parseScaledNumber(merged.monthly_output_m) * 1e6;
+        const cDetails = merged.completion_tokens_details && typeof merged.completion_tokens_details === "object" ? merged.completion_tokens_details : {{}};
+        const oDetails = merged.output_tokens_details && typeof merged.output_tokens_details === "object" ? merged.output_tokens_details : {{}};
+        const rTok = cDetails.reasoning_tokens ?? oDetails.reasoning_tokens ?? merged.reasoning_tokens;
+        if (rTok !== undefined && rTok !== null && parseScaledNumber(rTok) > 0) outputIncludesReasoning = true;
+      }} else {{
+        const mIn = text.match(/(?:total\\s+input(?:\\s+tokens?)?|uncached\\s+input|prompt\\s+tokens?|\\binput(?:\\s+tokens?)?|输入\\s*(?:token|tokens)?)\\s*[:：=]?\\s*([0-9][0-9,._]*\\s*(?:百万|亿|万|千|[kKmMbBwW])?)/i);
+        const mCacheRead = text.match(/(?:cache\\s*read(?:\\s+input)?(?:\\s+tokens?)?|cached(?:\\s+input)?(?:\\s+tokens?)?|缓存命中(?:\\s*token|\\s*tokens|\\s*输入)?|命中缓存)\\s*[:：=]?\\s*([0-9][0-9,._]*\\s*(?:百万|亿|万|千|[kKmMbBwW])?)/i);
+        const mCacheWrite = text.match(/(?:cache\\s*(?:write|creation)(?:\\s+tokens?)?|缓存写入)\\s*[:：=]?\\s*([0-9][0-9,._]*\\s*(?:百万|亿|万|千|[kKmMbBwW])?)/i);
+        const mOut = text.match(/(?:total\\s+output(?:\\s+tokens?)?|completion\\s+tokens?|\\boutput(?:\\s+tokens?)?|输出\\s*(?:token|tokens)?)\\s*[:：=]?\\s*([0-9][0-9,._]*\\s*(?:百万|亿|万|千|[kKmMbBwW])?)/i);
+        const mReason = text.match(/(?:reasoning\\s+tokens?|思考\\s*(?:token|tokens)?)\\s*[:：=]?\\s*([0-9][0-9,._]*\\s*(?:百万|亿|万|千|[kKmMbBwW])?)/i);
+        const mReq = text.match(/(?:total\\s+requests?|api\\s+calls?|total\\s+calls?|\\brequests?|\\bturns?|调用(?:次数|量)?|请求(?:次数|数)?)\\s*[:：=]?\\s*([0-9][0-9,._]*\\s*(?:百万|亿|万|千|[kKmMbBwW])?)/i);
+
+        const rawInVal = mIn ? parseScaledNumber(mIn[1]) : 0;
+        const cacheReadVal = mCacheRead ? parseScaledNumber(mCacheRead[1]) : 0;
+        const cacheWriteVal = mCacheWrite ? parseScaledNumber(mCacheWrite[1]) : 0;
+        totalOutput = mOut ? parseScaledNumber(mOut[1]) : 0;
+
+        const isClaudeCodeStyle = /cache\\s*read/i.test(text) && !/total\\s+input/i.test(text);
+        if (isClaudeCodeStyle) {{
+          detectedFormat = "claude_code_cost";
+          totalInput = rawInVal + cacheReadVal + cacheWriteVal;
+          cachedInput = cacheReadVal;
+        }} else if (rawInVal >= cacheReadVal && rawInVal > 0) {{
+          totalInput = rawInVal;
+          cachedInput = cacheReadVal;
+        }} else {{
+          totalInput = rawInVal + cacheReadVal + cacheWriteVal;
+          cachedInput = cacheReadVal;
+        }}
+        if (mReason && parseScaledNumber(mReason[1]) > 0) outputIncludesReasoning = true;
+        if (mReq) explicitRequests = parseScaledNumber(mReq[1]);
+      }}
+
+      if (totalInput <= 0 && totalOutput <= 0) {{
+        throw new Error("no_tokens");
+      }}
+      cachedInput = Math.min(totalInput, Math.max(0, cachedInput));
+      const cacheHitRate = totalInput > 0 ? Math.round((cachedInput / totalInput) * 10000) / 10000 : 0;
+
+      let callsEstimated = false;
+      let estTotalCalls = 1;
+      let dailyRequests = 1;
+      if (explicitDailyRequests !== null && explicitDailyRequests > 0) {{
+        dailyRequests = Math.max(1, Math.round(explicitDailyRequests));
+        estTotalCalls = Math.max(1, explicitDailyRequests * days);
+      }} else if (explicitRequests !== null && explicitRequests > 0) {{
+        estTotalCalls = Math.max(1, explicitRequests);
+        dailyRequests = Math.max(1, Math.round(estTotalCalls / days));
+      }} else {{
+        callsEstimated = true;
+        const denom = Math.max(200, Math.round(defaultTokensPerCall || 4000));
+        estTotalCalls = Math.max(1, totalInput > 0 ? Math.round(totalInput / denom) : Math.round(totalOutput / 800));
+        dailyRequests = Math.max(1, Math.round(estTotalCalls / days));
+      }}
+
+      const avgInputTokens = totalInput > 0 ? Math.max(1, Math.round(totalInput / estTotalCalls)) : 1500;
+      const avgOutputTokens = totalOutput > 0 ? Math.max(1, Math.round(totalOutput / estTotalCalls)) : 500;
+      const monthlyInputM = Math.round((((totalInput / days) * 30) / 1e6) * 1e6) / 1e6;
+      const monthlyOutputM = Math.round((((totalOutput / days) * 30) / 1e6) * 1e6) / 1e6;
+
+      return {{
+        detected_format: detectedFormat,
+        days_observed: days,
+        total_input_tokens: Math.round(totalInput),
+        cached_input_tokens: Math.round(cachedInput),
+        total_output_tokens: Math.round(totalOutput),
+        monthly_input_m: monthlyInputM,
+        monthly_output_m: monthlyOutputM,
+        daily_requests: dailyRequests,
+        avg_input_tokens: avgInputTokens,
+        avg_output_tokens: avgOutputTokens,
+        cache_hit_rate: cacheHitRate,
+        output_includes_reasoning: outputIncludesReasoning,
+        calls_estimated: callsEstimated
+      }};
+    }}
+
+    function syncCacheHitSelectOption(rateVal) {{
+      const select = document.getElementById("cacheHitRateSelect");
+      if (!select) return;
+      const rounded = Math.round(Math.min(1, Math.max(0, Number(rateVal) || 0)) * 100) / 100;
+      state.cacheHitRate = rounded;
+      const existing = Array.from(select.options).find(opt => Math.abs(Number(opt.value) - rounded) < 0.001);
+      if (existing) {{
+        select.value = existing.value;
+      }} else {{
+        const pct = Math.round(rounded * 100);
+        const label = state.lang === "en" ? `Hit Rate ${{pct}}%` : `命中率 ${{pct}}%`;
+        const opt = new Option(label, String(rounded));
+        select.add(opt);
+        select.value = String(rounded);
+      }}
+    }}
+
+    function renderUsageImportStatus() {{
+      const el = document.getElementById("usageImportStatus");
+      if (!el) return;
+      const info = state.lastUsageImport;
+      if (!info) {{
+        el.hidden = true;
+        el.textContent = "";
+        return;
+      }}
+      const isEn = state.lang === "en";
+      el.hidden = false;
+      if (info.error) {{
+        el.className = "usage-import-status is-error";
+        if (info.error === "monthly_invalid") {{
+          el.textContent = isEn
+            ? "Enter a positive monthly call count and monthly input or output M tokens (cached input cannot exceed total input)."
+            : "请填写大于 0 的月总请求数以及月总输入/输出百万 Token（其中缓存命中不可超过月总输入）。";
+        }} else {{
+          el.textContent = isEn
+            ? "Could not detect token counts in the pasted text. Paste Claude Code /cost output, OpenAI/Anthropic usage JSON, or Input/Output token lines."
+            : "未从粘贴文本中识别到输入/输出 Token 数值。请粘贴 Claude Code /cost 输出、OpenAI/百炼 usage JSON 或含「输入/输出 Token」的统计文本。";
+        }}
+        return;
+      }}
+      el.className = "usage-import-status";
+      const p = info.parsed;
+      const hitPct = Math.round((p.cache_hit_rate || 0) * 100);
+      if (info.mode === "monthly_totals") {{
+        el.textContent = isEn
+          ? `Applied monthly bill totals: ${{fmtNum(p.monthly_requests)}} calls/mo → ${{fmtNum(p.daily_requests)}}/day · Avg ${{fmtNum(p.avg_input_tokens)}} in / ${{fmtNum(p.avg_output_tokens)}} out tokens · Cache hit ${{hitPct}}%.`
+          : `已按月度账单折算填入：月总 ${{fmtNum(p.monthly_requests)}} 次 → 日均 ${{fmtNum(p.daily_requests)}} 次 · 单次均值 ${{fmtNum(p.avg_input_tokens)}} 输入 / ${{fmtNum(p.avg_output_tokens)}} 输出 Token · 缓存命中率 ${{hitPct}}%。`;
+        return;
+      }}
+      const fmtMapEn = {{
+        claude_code_cost: "Claude Code /cost (additive cache)",
+        anthropic_usage_json: "Anthropic JSON (additive cache)",
+        openai_usage_json: "OpenAI / CN JSON",
+        text_summary: "Console summary"
+      }};
+      const fmtMapZh = {{
+        claude_code_cost: "Claude Code /cost（未命中+缓存读取累加）",
+        anthropic_usage_json: "Anthropic JSON（未命中+缓存读取累加）",
+        openai_usage_json: "OpenAI / 国产兼容 JSON",
+        text_summary: "控制台统计文本"
+      }};
+      const callNoteEn = p.calls_estimated ? " (calls estimated from ~4k input/call)" : "";
+      const callNoteZh = p.calls_estimated ? "（未含请求数，已按单次 ~4K 输入折算调用量）" : "";
+      const reasonNoteEn = p.output_includes_reasoning ? " · Reasoning tokens included (multiplier auto-guarded)" : "";
+      const reasonNoteZh = p.output_includes_reasoning ? " · 已自动勾选「输出含思考 Token」防重算" : "";
+      el.textContent = isEn
+        ? `Imported ${{fmtMapEn[p.detected_format] || p.detected_format}} (${{p.days_observed}}d window): ${{fmtNum(p.daily_requests)}} calls/day${{callNoteEn}} · Avg ${{fmtNum(p.avg_input_tokens)}} in / ${{fmtNum(p.avg_output_tokens)}} out · Cache hit ${{hitPct}}%${{reasonNoteEn}}.`
+        : `已导入 ${{fmtMapZh[p.detected_format] || p.detected_format}}（按 ${{p.days_observed}} 天折算）：日均 ${{fmtNum(p.daily_requests)}} 次调用${{callNoteZh}} · 单次 ${{fmtNum(p.avg_input_tokens)}} 输入 / ${{fmtNum(p.avg_output_tokens)}} 输出 · 缓存命中率 ${{hitPct}}%${{reasonNoteZh}}。`;
+    }}
 
     function esc(s) {{
       return String(s ?? "")
@@ -4336,6 +4762,17 @@ def render_html_template(
       presetPro: "Heavy IDE (2,500/day · 75k/mo)",
       presetOver: "Over-Cap Case (5,000/day · 150k/mo)",
       presetBackend: "Backend API (15,000/day · PayG/Host)",
+      usageImportSummary: "Import from Real Logs or Monthly Bill (Claude Code /cost, OpenAI/CN usage JSON, Monthly Totals)",
+      usageLogLabel: "Option 1: Paste Claude Code /cost output, OpenAI/Anthropic usage JSON, or console token stats",
+      usageDaysLabel: "Log Window:",
+      applyUsageLogBtn: "Parse & Apply to Calculator",
+      fillSampleLogBtn: "Fill Claude Code Sample",
+      usageMonthlyQuickLabel: "Option 2: Convert Monthly Bill Totals (auto-computes daily calls, per-call avg & cache hit %)",
+      labelMonthlyCallsQuick: "Monthly API Calls (30-day total)",
+      labelMonthlyInputMQuick: "Monthly Input (Million M Tokens)",
+      labelMonthlyOutputMQuick: "Monthly Output (Million M Tokens)",
+      labelMonthlyCachedMQuick: "Cached Input Included (M, optional)",
+      applyMonthlyTotalsBtn: "Apply Monthly Totals",
       labelDailyCalls: "Daily Model API Calls (30-Day Monthly Basis)",
       unitHintCalls: "Unit is underlying Model API Calls (not user prompts): 1 agent prompt in Claude Code / Cline / Cursor typically triggers 5–30 model calls.",
       promptCalcLabel: "Prompts → Calls:",
@@ -4523,6 +4960,23 @@ def render_html_template(
         ? "Dedicated Endpoint Generator (Client × Billing Mode)"
         : "按客户端与计费模式生成专属接入配置";
 
+      const usageTextarea = document.getElementById("usageLogTextarea");
+      if (usageTextarea) {{
+        usageTextarea.placeholder = isEn
+          ? "Example: Input: 1.6M tokens / Cache read: 2.4M tokens / Output: 600k tokens / Requests: 1,200"
+          : "示例：Input: 1.6M tokens / Cache read: 2.4M tokens / Output: 600k tokens / Requests: 1,200";
+      }}
+      const usageDaysSel = document.getElementById("usageDaysSelect");
+      if (usageDaysSel) {{
+        const dayLabelsEn = {{ "1": "Last 1 Day (24h)", "7": "Last 7 Days", "14": "Last 14 Days", "30": "Last 30 Days (Monthly)" }};
+        const dayLabelsZh = {{ "1": "近 1 天 (24h)", "7": "近 7 天", "14": "近 14 天", "30": "近 30 天 (整月)" }};
+        Array.from(usageDaysSel.options).forEach(opt => {{
+          const map = isEn ? dayLabelsEn : dayLabelsZh;
+          if (map[opt.value]) opt.textContent = map[opt.value];
+        }});
+      }}
+      renderUsageImportStatus();
+
       renderPartnerMatrix();
       applyTheme(state.theme);
       updateAll(false);
@@ -4586,6 +5040,104 @@ def render_html_template(
           applyWorkload(btn.dataset.calls, btn.dataset.in, btn.dataset.out, btn.dataset.mode);
         }});
       }});
+
+      const fillSampleBtn = document.getElementById("fillSampleLogBtn");
+      if (fillSampleBtn) {{
+        fillSampleBtn.addEventListener("click", () => {{
+          const sampleText = [
+            "Total cost: $18.40",
+            "Total duration (API): 42m 12s",
+            "Input: 1.6M tokens",
+            "Cache read: 2.4M tokens",
+            "Output: 600k tokens",
+            "Requests: 1,200"
+          ].join("\\n");
+          const ta = document.getElementById("usageLogTextarea");
+          const ds = document.getElementById("usageDaysSelect");
+          if (ta) ta.value = sampleText;
+          if (ds) ds.value = "30";
+        }});
+      }}
+
+      const applyLogBtn = document.getElementById("applyUsageLogBtn");
+      if (applyLogBtn) {{
+        applyLogBtn.addEventListener("click", () => {{
+          const rawText = document.getElementById("usageLogTextarea")?.value || "";
+          const daysVal = Number(document.getElementById("usageDaysSelect")?.value || 30) || 30;
+          try {{
+            const parsed = parseUsageSnippet(rawText, daysVal);
+            state.dailyCalls = Math.min(2000000, Math.max(1, parsed.daily_requests));
+            state.inputTokens = Math.min(500000, Math.max(1, parsed.avg_input_tokens));
+            state.outputTokens = Math.min(128000, Math.max(1, parsed.avg_output_tokens));
+            state.cacheEnabled = parsed.cache_hit_rate > 0;
+            syncCacheHitSelectOption(parsed.cache_hit_rate > 0 ? parsed.cache_hit_rate : 0.5);
+            if (parsed.output_includes_reasoning) {{
+              state.outputIncludesReasoning = true;
+              document.getElementById("outputIncludesReasoningToggle").checked = true;
+            }}
+            document.getElementById("dailyCallsNum").value = String(state.dailyCalls);
+            document.getElementById("dailyCallsRange").value = String(callsToSlider(state.dailyCalls));
+            document.getElementById("inputTokensNum").value = String(state.inputTokens);
+            document.getElementById("inputTokensRange").value = String(Math.min(32000, state.inputTokens));
+            document.getElementById("outputTokensNum").value = String(state.outputTokens);
+            document.getElementById("outputTokensRange").value = String(Math.min(8000, state.outputTokens));
+            document.getElementById("cacheToggle").checked = state.cacheEnabled;
+            document.querySelectorAll("#presetBar .preset-btn, [data-prompt-calls]").forEach(b => b.classList.remove("active"));
+            state.lastUsageImport = {{ mode: "log_snippet", parsed }};
+            renderUsageImportStatus();
+            updateAll(true);
+            trackEvent("usage_import", {{ slot_id: parsed.detected_format }});
+          }} catch (_) {{
+            state.lastUsageImport = {{ error: "parse_failed" }};
+            renderUsageImportStatus();
+          }}
+        }});
+      }}
+
+      const applyMonthlyBtn = document.getElementById("applyMonthlyTotalsBtn");
+      if (applyMonthlyBtn) {{
+        applyMonthlyBtn.addEventListener("click", () => {{
+          const moCalls = Number(document.getElementById("monthlyCallsQuick")?.value);
+          const moInM = Number(document.getElementById("monthlyInputMQuick")?.value || 0);
+          const moOutM = Number(document.getElementById("monthlyOutputMQuick")?.value || 0);
+          const moCachedM = Number(document.getElementById("monthlyCachedMQuick")?.value || 0);
+          if (!Number.isFinite(moCalls) || moCalls <= 0 || moCalls > 60000000 || !Number.isFinite(moInM) || moInM < 0 || !Number.isFinite(moOutM) || moOutM < 0 || (moInM <= 0 && moOutM <= 0) || !Number.isFinite(moCachedM) || moCachedM < 0 || (moInM > 0 && moCachedM > moInM)) {{
+            state.lastUsageImport = {{ error: "monthly_invalid" }};
+            renderUsageImportStatus();
+            return;
+          }}
+          const dailyCalls = Math.min(2000000, Math.max(1, Math.round(moCalls / 30)));
+          const avgIn = moInM > 0 ? Math.min(500000, Math.max(1, Math.round((moInM * 1e6) / moCalls))) : state.inputTokens;
+          const avgOut = moOutM > 0 ? Math.min(128000, Math.max(1, Math.round((moOutM * 1e6) / moCalls))) : state.outputTokens;
+          const hitRate = moInM > 0 && moCachedM > 0 ? Math.min(1, Math.max(0, Math.round((moCachedM / moInM) * 100) / 100)) : 0;
+          state.dailyCalls = dailyCalls;
+          state.inputTokens = avgIn;
+          state.outputTokens = avgOut;
+          state.cacheEnabled = hitRate > 0;
+          syncCacheHitSelectOption(hitRate > 0 ? hitRate : 0.5);
+          document.getElementById("dailyCallsNum").value = String(state.dailyCalls);
+          document.getElementById("dailyCallsRange").value = String(callsToSlider(state.dailyCalls));
+          document.getElementById("inputTokensNum").value = String(state.inputTokens);
+          document.getElementById("inputTokensRange").value = String(Math.min(32000, state.inputTokens));
+          document.getElementById("outputTokensNum").value = String(state.outputTokens);
+          document.getElementById("outputTokensRange").value = String(Math.min(8000, state.outputTokens));
+          document.getElementById("cacheToggle").checked = state.cacheEnabled;
+          document.querySelectorAll("#presetBar .preset-btn, [data-prompt-calls]").forEach(b => b.classList.remove("active"));
+          state.lastUsageImport = {{
+            mode: "monthly_totals",
+            parsed: {{
+              monthly_requests: Math.round(moCalls),
+              daily_requests: dailyCalls,
+              avg_input_tokens: avgIn,
+              avg_output_tokens: avgOut,
+              cache_hit_rate: hitRate
+            }}
+          }};
+          renderUsageImportStatus();
+          updateAll(true);
+          trackEvent("usage_import", {{ slot_id: "monthly_totals" }});
+        }});
+      }}
 
       document.querySelectorAll("[data-prompt-calls]").forEach(btn => {{
         btn.addEventListener("click", () => {{

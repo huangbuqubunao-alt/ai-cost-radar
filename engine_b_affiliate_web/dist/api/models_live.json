@@ -7,11 +7,11 @@
   "build_date": "2026-11-14",
   "updated_at": "2026-11-14",
   "quote_verified_date": "2026-11-13",
-  "last_live_verified_at": "2026-11-14 21:48:01",
+  "last_live_verified_at": "2026-11-14 22:42:26",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
   "official_rule_audit": {
-    "checked_at": "2026-11-14T21:48:01Z",
+    "checked_at": "2026-11-14T22:42:26Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -22,14 +22,32 @@
           "pro_renewal_200",
           "pro_promo_39_9"
         ],
-        "missing_groups": []
+        "missing_groups": [],
+        "last_verified_at": "2026-11-14T22:42:26Z",
+        "last_verified_groups": [
+          "pro_monthly_cap_90k",
+          "pro_renewal_200",
+          "pro_promo_39_9"
+        ]
       },
       {
         "plan_id": "tencent-coding-plan",
         "url": "https://cloud.tencent.com/document/product/1823/130092",
-        "status": "csr_shell_manual_check",
-        "matched_groups": [],
-        "missing_groups": []
+        "status": "verified_markers",
+        "matched_groups": [
+          "lite_monthly_cap_18k",
+          "lite_renewal_40",
+          "pro_monthly_cap_90k",
+          "pro_renewal_200"
+        ],
+        "missing_groups": [],
+        "last_verified_at": "2026-11-14T22:42:26Z",
+        "last_verified_groups": [
+          "lite_monthly_cap_18k",
+          "lite_renewal_40",
+          "pro_monthly_cap_90k",
+          "pro_renewal_200"
+        ]
       },
       {
         "plan_id": "volcengine-coding-plan",
@@ -41,7 +59,14 @@
           "dedicated_coding_endpoint",
           "interactive_ide_only"
         ],
-        "missing_groups": []
+        "missing_groups": [],
+        "last_verified_at": "2026-11-14T22:42:26Z",
+        "last_verified_groups": [
+          "tiers_lite_pro",
+          "quota_window_5h",
+          "dedicated_coding_endpoint",
+          "interactive_ide_only"
+        ]
       }
     ]
   },

@@ -249,6 +249,23 @@ FALLBACK_MODELS: list[dict[str, Any]] = [
         "tags": ["coding", "cheap", "free", "cn_direct"],
     },
     {
+        "id": "tencent-cloud/deepseek-v3",
+        "name": "腾讯云: DeepSeek-V3.2 满血专线版",
+        "provider": "腾讯云 (Tencent Cloud)",
+        "provider_config_key": "tencent_cps_url",
+        "api_base_url": "https://api.lkeap.cloud.tencent.com/v1",
+        "api_model_id": "deepseek-v3",
+        "region": "cn_direct",
+        "input_rmb_per_1m": 2.0,
+        "output_rmb_per_1m": 8.0,
+        "cache_hit_factor": 0.2,
+        "context_length": 131072,
+        "supports_tools": True,
+        "is_free": False,
+        "value_score": 97.4,
+        "tags": ["coding", "cheap", "cn_direct"],
+    },
+    {
         "id": "tencent-cloud/hunyuan-t1",
         "name": "腾讯云 LKEAP: Hunyuan-T1 深度思考旗舰",
         "provider": "腾讯云 (Tencent Cloud)",
@@ -403,10 +420,10 @@ SEO_ROUTES: list[dict[str, Any]] = [
         "nav_label": "Claude Code 专属端点",
         "priority": "0.85",
         "title": "2026 Claude Code / Cursor / Cline 国内模型接入配置与 Coding Plan 专属端点核对",
-        "description": "区分阿里云百炼与腾讯云 Coding Plan 的 Anthropic 原生专属端点（sk-sp-）与普通按量 OpenAI 兼容端点，防止买了包月仍误走按量扣费。",
+        "description": "区分阿里云百炼、腾讯云与火山方舟 Coding Plan 的 Anthropic 原生专属端点（sk-sp- / ark-）与普通按量 OpenAI 兼容端点，防止买了包月仍误走按量扣费。",
         "hero_main": "Claude Code / Cursor 国内模型接入与算账，",
         "hero_accent": "严格区分包月专属端点与按量端点",
-        "hero_sub": "点击任一模型或套餐卡的「配置专属端点」，先选客户端（Claude Code 或 OpenAI 兼容）与计费方式（Coding Plan 包月或按量付费），再复制对应协议变量。",
+        "hero_sub": "默认横评百炼 Qwen3-Coder-Next、腾讯云 DeepSeek-V3 与火山方舟 Doubao-Seed-2.0-Pro 三厂编码主力；点击「配置专属端点」按客户端与计费方式一键复制协议变量。",
         "preset": {
             "region": "cn",
             "filter": "coding",
@@ -419,6 +436,11 @@ SEO_ROUTES: list[dict[str, Any]] = [
             "reasoningMultiplier": 2.5,
             "usageMode": "interactive_ide",
             "baselineId": "aliyun-bailian/qwen3-coder-next",
+            "compareIds": [
+                "aliyun-bailian/qwen3-coder-next",
+                "tencent-cloud/deepseek-v3",
+                "volcengine/doubao-seed-2.0-pro",
+            ],
         },
     },
     {
@@ -853,6 +875,28 @@ def build_ssr_coding_plan_tables_html(
         cache_hit_rate=0.5,
         cache_hit_factor=0.2,
     )
+    bill_team5 = pricing_core.calculate_token_bill(
+        monthly_input_m=(6000 * 30 * 4000) / 1_000_000,
+        monthly_output_m=(6000 * 30 * 1000) / 1_000_000,
+        input_price_per_1m=qc_in,
+        output_price_per_1m=qc_out,
+        cache_hit_rate=0.5,
+        cache_hit_factor=qc_hit_factor,
+        reasoning_multiplier=1.0,
+    )
+    eval_team5 = pricing_core.evaluate_coding_plans(
+        daily_calls=6000,
+        payg_monthly_rmb=bill_team5["total_cost"],
+        usage_mode="interactive_ide",
+        model_id="aliyun-bailian/qwen3-coder-next",
+        team_size=5,
+    )
+    team5_aliyun = next(
+        p for p in eval_team5["eligible_subscriptions"] if p.get("plan_id") == "aliyun-coding-plan"
+    )
+    team5_first = float(team5_aliyun.get("first_month_rmb") or 199.5)
+    team5_renew = float(team5_aliyun.get("renewal_rmb") or 1000.0)
+    team5_save = float(team5_aliyun.get("renewal_savings_rmb") or (bill_team5["total_cost"] - team5_renew))
 
     plan_rows: list[str] = []
     for offer in coding_plans:
@@ -1002,6 +1046,11 @@ def build_ssr_coding_plan_tables_html(
                   <td><strong>案例 D：Prompt 缓存命中率拆分验算</strong><br><span class="table-sub">输入 100 万 Token · 普通输入单价 ¥1.0/M · 命中单价 ¥0.2/M · 命中率 50%</span></td>
                   <td class="num-cell">输入实付 ¥{bill_cache_demo['input_cost']:.2f}</td>
                   <td>未命中 50% 按 ¥1.0 计（¥0.50）＋ 命中 50% 按 ¥0.2 计（¥0.10）＝ <strong>¥{bill_cache_demo['total_cost']:.2f}</strong>，避免将全部输入误按 2 折计算。</td>
+                </tr>
+                <tr>
+                  <td><strong>案例 E：5 人研发团队合规多席位采购（合计每天 6,000 次调用）</strong><br><span class="table-sub">5 个独立 IDE 席位 · 对比 Qwen3-Coder-Next 共享按量（输入 4K / 输出 1K · 50% 缓存命中）</span></td>
+                  <td class="num-cell">180,000 次/月 · 团队共享按量约 ¥{bill_team5['total_cost']:,.2f}/月</td>
+                  <td>一人一席配置 5 份独立 Pro（合计上限 450,000 次/月，严禁混用单个 <code>sk-sp-</code> 密钥）：百炼 5×Pro 新客首月 <strong>¥{team5_first:.2f}</strong>、续费 <strong>¥{team5_renew:,.0f}/月</strong>，续费月仍比纯按量净省 <strong>¥{team5_save:.2f}/月</strong>。</td>
                 </tr>
               </tbody>
             </table>

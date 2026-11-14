@@ -155,6 +155,15 @@ def execute_single_query(item: dict[str, Any]) -> dict[str, Any]:
     args = dict(item)
     if action == "list_free_and_ultra_cheap_models" and "region" not in args:
         args["region"] = args.get("region_preference", "any")
+    if (
+        action == "calculate_api_budget"
+        and args.get("monthly_requests") is None
+        and args.get("daily_requests") is not None
+        and args.get("monthly_input_m") == 10
+        and args.get("monthly_output_m") == 2
+    ):
+        args.pop("monthly_input_m", None)
+        args.pop("monthly_output_m", None)
 
     charge_info = charge_ppe_event(PPE_EVENT_NAME, count=1)
     tool_result = mcp_server.dispatch_tool_call(action, args)

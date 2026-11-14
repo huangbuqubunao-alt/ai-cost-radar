@@ -1073,3 +1073,259 @@ def evaluate_self_host_vs_payg(
         "gpu_saves_money": gpu_saves,
         "recommendation_zh": rec_zh,
     }
+
+
+def _parse_scaled_number(raw_val: Any) -> float:
+    if isinstance(raw_val, (int, float)):
+        return max(0.0, float(raw_val))
+    s = str(raw_val or "").strip().replace(",", "").replace("_", "")
+    if not s:
+        raise ValueError("empty_number")
+    import re
+
+    m = re.match(r"^([0-9]+(?:\.[0-9]+)?)\s*(百万|亿|万|千|[kKmMbBwW])?$", s)
+    if not m:
+        raise ValueError(f"invalid_number:{raw_val}")
+    base = float(m.group(1))
+    unit = (m.group(2) or "").lower()
+    mult_map = {
+        "b": 1_000_000_000.0,
+        "亿": 100_000_000.0,
+        "m": 1_000_000.0,
+        "百万": 1_000_000.0,
+        "w": 10_000.0,
+        "万": 10_000.0,
+        "k": 1_000.0,
+        "千": 1_000.0,
+        "": 1.0,
+    }
+    return max(0.0, base * mult_map.get(unit, 1.0))
+
+
+def parse_usage_log_snippet(
+    raw_text: str,
+    *,
+    days_observed: float = 30.0,
+    default_tokens_per_call: int = 4000,
+) -> dict[str, Any]:
+    """
+    Deterministically parse real LLM usage logs or billing summaries into calculator parameters.
+    Supports:
+      1. Anthropic / Claude Code `/cost` plaintext or JSON (where `input_tokens` and `cache_read` are additive)
+      2. OpenAI / OpenRouter / Bailian / DeepSeek `usage` JSON (where `cached_tokens` is a subset of `prompt_tokens`,
+         and `reasoning_tokens` inside `completion_tokens_details` triggers `output_includes_reasoning=True`)
+      3. Chinese & English cloud console text summaries (`输入 Token 28M（缓存命中 14M），输出 Token 7M`)
+    """
+    import json
+    import re
+
+    text = str(raw_text or "").strip()
+    if not text or len(text) > 32000:
+        raise ValueError("Empty or oversized usage_snippet")
+
+    days = float(days_observed if days_observed is not None else 30.0)
+    if not math.isfinite(days) or days <= 0 or days > 365:
+        raise ValueError("Invalid days_observed (must be between 0.1 and 365)")
+
+    total_input = 0.0
+    cached_input = 0.0
+    total_output = 0.0
+    explicit_requests: float | None = None
+    explicit_daily_requests: float | None = None
+    output_includes_reasoning = False
+    detected_format = "text_summary"
+
+    # Try JSON object parsing first if snippet contains `{...}`
+    json_obj: dict[str, Any] | None = None
+    if text.startswith("{") and text.endswith("}"):
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, dict):
+                json_obj = parsed
+        except json.JSONDecodeError:
+            json_obj = None
+    elif "{" in text and "}" in text:
+        start_idx = text.find("{")
+        end_idx = text.rfind("}")
+        if end_idx > start_idx:
+            try:
+                parsed = json.loads(text[start_idx : end_idx + 1])
+                if isinstance(parsed, dict):
+                    json_obj = parsed
+            except json.JSONDecodeError:
+                json_obj = None
+
+    if json_obj is not None:
+        u = dict(json_obj.get("usage")) if isinstance(json_obj.get("usage"), dict) else {}
+        merged = {**json_obj, **u}
+
+        if merged.get("days_observed") is not None and days_observed == 30.0:
+            try:
+                d_cand = float(merged["days_observed"])
+                if 0 < d_cand <= 365:
+                    days = d_cand
+            except (TypeError, ValueError):
+                pass
+
+        for rk in ("requests", "total_requests", "calls", "total_calls", "api_calls", "num_requests"):
+            if merged.get(rk) is not None:
+                explicit_requests = _parse_scaled_number(merged[rk])
+                break
+        if explicit_requests is None and merged.get("daily_requests") is not None:
+            explicit_daily_requests = _parse_scaled_number(merged["daily_requests"])
+
+        has_anthropic_cache = (
+            "cache_read_input_tokens" in merged or "cache_creation_input_tokens" in merged
+        )
+        if has_anthropic_cache:
+            detected_format = "anthropic_usage_json"
+            uncached = _parse_scaled_number(merged.get("input_tokens") or 0)
+            c_read = _parse_scaled_number(merged.get("cache_read_input_tokens") or 0)
+            c_write = _parse_scaled_number(merged.get("cache_creation_input_tokens") or 0)
+            total_input = uncached + c_read + c_write
+            cached_input = c_read
+        else:
+            detected_format = "openai_usage_json"
+            p_details = merged.get("prompt_tokens_details") if isinstance(merged.get("prompt_tokens_details"), dict) else {}
+            in_details = merged.get("input_tokens_details") if isinstance(merged.get("input_tokens_details"), dict) else {}
+            raw_in = merged.get("prompt_tokens")
+            if raw_in is None:
+                raw_in = merged.get("input_tokens")
+            if raw_in is not None:
+                total_input = _parse_scaled_number(raw_in)
+            elif merged.get("monthly_input_m") is not None:
+                total_input = _parse_scaled_number(merged["monthly_input_m"]) * 1_000_000.0
+
+            raw_cached = (
+                p_details.get("cached_tokens")
+                if p_details.get("cached_tokens") is not None
+                else (
+                    in_details.get("cached_tokens")
+                    if in_details.get("cached_tokens") is not None
+                    else (merged.get("cached_tokens") if merged.get("cached_tokens") is not None else merged.get("cached_input_tokens"))
+                )
+            )
+            if raw_cached is not None:
+                cached_input = _parse_scaled_number(raw_cached)
+                if total_input < cached_input:
+                    total_input = cached_input
+
+        raw_out = merged.get("completion_tokens")
+        if raw_out is None:
+            raw_out = merged.get("output_tokens")
+        if raw_out is not None:
+            total_output = _parse_scaled_number(raw_out)
+        elif merged.get("monthly_output_m") is not None:
+            total_output = _parse_scaled_number(merged["monthly_output_m"]) * 1_000_000.0
+
+        c_details = merged.get("completion_tokens_details") if isinstance(merged.get("completion_tokens_details"), dict) else {}
+        o_details = merged.get("output_tokens_details") if isinstance(merged.get("output_tokens_details"), dict) else {}
+        r_tok = (
+            c_details.get("reasoning_tokens")
+            if c_details.get("reasoning_tokens") is not None
+            else (o_details.get("reasoning_tokens") if o_details.get("reasoning_tokens") is not None else merged.get("reasoning_tokens"))
+        )
+        if r_tok is not None and _parse_scaled_number(r_tok) > 0:
+            output_includes_reasoning = True
+    else:
+        num_pat = r"([0-9][0-9,._]*\s*(?:百万|亿|万|千|[kKmMbBwW])?)"
+
+        m_in = re.search(
+            r"(?:total\s+input(?:\s+tokens?)?|uncached\s+input|prompt\s+tokens?|\binput(?:\s+tokens?)?|输入\s*(?:token|tokens)?)\s*[:：=]?\s*"
+            + num_pat,
+            text,
+            flags=re.IGNORECASE,
+        )
+        m_cache_read = re.search(
+            r"(?:cache\s*read(?:\s+input)?(?:\s+tokens?)?|cached(?:\s+input)?(?:\s+tokens?)?|缓存命中(?:\s*token|\s*tokens|\s*输入)?|命中缓存)\s*[:：=]?\s*"
+            + num_pat,
+            text,
+            flags=re.IGNORECASE,
+        )
+        m_cache_write = re.search(
+            r"(?:cache\s*(?:write|creation)(?:\s+tokens?)?|缓存写入)\s*[:：=]?\s*" + num_pat,
+            text,
+            flags=re.IGNORECASE,
+        )
+        m_out = re.search(
+            r"(?:total\s+output(?:\s+tokens?)?|completion\s+tokens?|\boutput(?:\s+tokens?)?|输出\s*(?:token|tokens)?)\s*[:：=]?\s*"
+            + num_pat,
+            text,
+            flags=re.IGNORECASE,
+        )
+        m_reason = re.search(
+            r"(?:reasoning\s+tokens?|思考\s*(?:token|tokens)?)\s*[:：=]?\s*" + num_pat,
+            text,
+            flags=re.IGNORECASE,
+        )
+        m_req = re.search(
+            r"(?:total\s+requests?|api\s+calls?|total\s+calls?|\brequests?|\bturns?|调用(?:次数|量)?|请求(?:次数|数)?)\s*[:：=]?\s*"
+            + num_pat,
+            text,
+            flags=re.IGNORECASE,
+        )
+
+        raw_in_val = _parse_scaled_number(m_in.group(1)) if m_in else 0.0
+        cache_read_val = _parse_scaled_number(m_cache_read.group(1)) if m_cache_read else 0.0
+        cache_write_val = _parse_scaled_number(m_cache_write.group(1)) if m_cache_write else 0.0
+        total_output = _parse_scaled_number(m_out.group(1)) if m_out else 0.0
+
+        is_claude_code_style = bool(re.search(r"cache\s*read", text, flags=re.IGNORECASE)) and not bool(
+            re.search(r"total\s+input", text, flags=re.IGNORECASE)
+        )
+        if is_claude_code_style:
+            detected_format = "claude_code_cost"
+            total_input = raw_in_val + cache_read_val + cache_write_val
+            cached_input = cache_read_val
+        else:
+            if raw_in_val >= cache_read_val and raw_in_val > 0:
+                total_input = raw_in_val
+                cached_input = cache_read_val
+            else:
+                total_input = raw_in_val + cache_read_val + cache_write_val
+                cached_input = cache_read_val
+
+        if m_reason and _parse_scaled_number(m_reason.group(1)) > 0:
+            output_includes_reasoning = True
+        if m_req:
+            explicit_requests = _parse_scaled_number(m_req.group(1))
+
+    if total_input <= 0 and total_output <= 0:
+        raise ValueError("Unable to find input/output token counts in usage_snippet")
+
+    cached_input = min(total_input, max(0.0, cached_input))
+    cache_hit_rate = round(cached_input / total_input, 4) if total_input > 0 else 0.0
+
+    calls_estimated = False
+    if explicit_daily_requests is not None and explicit_daily_requests > 0:
+        daily_requests = max(1, int(round(explicit_daily_requests)))
+        est_total_calls = max(1.0, explicit_daily_requests * days)
+    elif explicit_requests is not None and explicit_requests > 0:
+        est_total_calls = max(1.0, explicit_requests)
+        daily_requests = max(1, int(round(est_total_calls / days)))
+    else:
+        calls_estimated = True
+        denom = max(200, int(default_tokens_per_call or 4000))
+        est_total_calls = max(1.0, round(total_input / denom) if total_input > 0 else round(total_output / 800.0))
+        daily_requests = max(1, int(round(est_total_calls / days)))
+
+    avg_input_tokens = max(1, int(round(total_input / est_total_calls))) if total_input > 0 else 1500
+    avg_output_tokens = max(1, int(round(total_output / est_total_calls))) if total_output > 0 else 500
+    monthly_input_m = round(((total_input / days) * 30.0) / 1_000_000.0, 6)
+    monthly_output_m = round(((total_output / days) * 30.0) / 1_000_000.0, 6)
+
+    return {
+        "detected_format": detected_format,
+        "days_observed": days,
+        "total_input_tokens": int(round(total_input)),
+        "cached_input_tokens": int(round(cached_input)),
+        "total_output_tokens": int(round(total_output)),
+        "monthly_input_m": monthly_input_m,
+        "monthly_output_m": monthly_output_m,
+        "daily_requests": daily_requests,
+        "avg_input_tokens": avg_input_tokens,
+        "avg_output_tokens": avg_output_tokens,
+        "cache_hit_rate": cache_hit_rate,
+        "output_includes_reasoning": output_includes_reasoning,
+        "calls_estimated": calls_estimated,
+    }

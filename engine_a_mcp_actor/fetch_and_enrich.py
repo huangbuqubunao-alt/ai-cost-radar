@@ -1073,6 +1073,7 @@ def _fetch_doc_html_for_audit(url: str, timeout: int = 8) -> str:
         headers={
             "User-Agent": "Mozilla/5.0 (compatible; AI-Cost-Radar-RuleAudit/1.0)",
             "Accept": "text/html,application/xhtml+xml",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
             "Accept-Encoding": "gzip, deflate",
         },
     )
@@ -1120,10 +1121,12 @@ def audit_official_coding_plan_docs(
     checked_at: str | None = None,
     fetcher: Any | None = None,
     timeout: int = 8,
+    prior_audit: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Lightweight, non-blocking SSR rule fingerprint audit against official Coding Plan docs.
-    Distinguishes verified SSR markers vs CSR shells (no false alarms) vs true marker drift.
+    Distinguishes verified SSR markers vs CSR shells (no false alarms) vs true marker drift,
+    and preserves `last_verified_at` / `last_verified_groups` across overseas CSR degradation.
     """
     ts = checked_at or dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     fetch_fn = (
@@ -1131,6 +1134,28 @@ def audit_official_coding_plan_docs(
         if callable(fetcher)
         else ((lambda u: _fetch_doc_html_for_audit(u)) if timeout == 8 else (lambda u: _fetch_doc_html_for_audit(u, timeout)))
     )
+
+    prior_checked_at = str((prior_audit or {}).get("checked_at") or "")
+    prior_by_id: dict[str, dict[str, Any]] = {}
+    for item in (prior_audit or {}).get("vendors") or []:
+        if isinstance(item, dict) and item.get("plan_id"):
+            prior_by_id[str(item["plan_id"])] = item
+
+    def _carry_prior_verified(entry: dict[str, Any], pid: str) -> dict[str, Any]:
+        prev = prior_by_id.get(pid)
+        if not prev:
+            return entry
+        prev_ts = prev.get("last_verified_at") or (
+            prior_checked_at if prev.get("status") == "verified_markers" else None
+        )
+        prev_groups = prev.get("last_verified_groups") or (
+            prev.get("matched_groups") if prev.get("status") == "verified_markers" else None
+        )
+        if prev_ts:
+            entry["last_verified_at"] = str(prev_ts)
+        if prev_groups:
+            entry["last_verified_groups"] = list(prev_groups)
+        return entry
 
     vendor_reports: list[dict[str, Any]] = []
     drift_warnings: list[dict[str, Any]] = []
@@ -1144,14 +1169,17 @@ def audit_official_coding_plan_docs(
             raw_html = str(fetch_fn(url) or "")
         except Exception as exc:  # noqa: BLE001
             vendor_reports.append(
-                {
-                    "plan_id": plan_id,
-                    "url": url,
-                    "status": "unreachable",
-                    "matched_groups": [],
-                    "missing_groups": [],
-                    "note": str(exc)[:160],
-                }
+                _carry_prior_verified(
+                    {
+                        "plan_id": plan_id,
+                        "url": url,
+                        "status": "unreachable",
+                        "matched_groups": [],
+                        "missing_groups": [],
+                        "note": str(exc)[:160],
+                    },
+                    plan_id,
+                )
             )
             continue
 
@@ -1165,13 +1193,16 @@ def audit_official_coding_plan_docs(
         )
         if not has_doc_body:
             vendor_reports.append(
-                {
-                    "plan_id": plan_id,
-                    "url": url,
-                    "status": "csr_shell_manual_check",
-                    "matched_groups": [],
-                    "missing_groups": [],
-                }
+                _carry_prior_verified(
+                    {
+                        "plan_id": plan_id,
+                        "url": url,
+                        "status": "csr_shell_manual_check",
+                        "matched_groups": [],
+                        "missing_groups": [],
+                    },
+                    plan_id,
+                )
             )
             continue
 
@@ -1214,6 +1245,8 @@ def audit_official_coding_plan_docs(
                     "status": "verified_markers",
                     "matched_groups": matched,
                     "missing_groups": [],
+                    "last_verified_at": ts,
+                    "last_verified_groups": list(matched),
                 }
             )
 
@@ -1234,6 +1267,7 @@ def refresh_models_live(output_path: Path = OUTPUT_PATH) -> dict[str, Any]:
     prev_global_models: list[dict[str, Any]] = []
     prev_plans: list[dict[str, Any]] = []
     prior_changes: list[dict[str, Any]] = []
+    prev_rule_audit: dict[str, Any] | None = None
     if output_path.exists():
         try:
             prev_obj = json.loads(output_path.read_text(encoding="utf-8"))
@@ -1241,6 +1275,8 @@ def refresh_models_live(output_path: Path = OUTPUT_PATH) -> dict[str, Any]:
             prev_all_models = [dict(m) for m in (prev_obj.get("models") or []) if isinstance(m, dict)]
             prev_plans = [dict(p) for p in (prev_obj.get("coding_plans") or []) if isinstance(p, dict)]
             prior_changes = [dict(c) for c in (prev_obj.get("price_changes") or []) if isinstance(c, dict)]
+            if isinstance(prev_obj.get("official_rule_audit"), dict):
+                prev_rule_audit = dict(prev_obj["official_rule_audit"])
             prev_source = str(prev_obj.get("source") or "")
             if "openrouter_live" in prev_source or "openrouter_cached" in prev_source:
                 prev_global_models = [
@@ -1254,6 +1290,7 @@ def refresh_models_live(output_path: Path = OUTPUT_PATH) -> dict[str, Any]:
             prev_global_models = []
             prev_plans = []
             prior_changes = []
+            prev_rule_audit = None
 
     now_iso = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     raw_openrouter, source_label = fetch_openrouter_raw()
@@ -1281,7 +1318,7 @@ def refresh_models_live(output_path: Path = OUTPUT_PATH) -> dict[str, Any]:
 
     merged = cn_models + global_models
     merged.sort(key=lambda m: (-m["value_score"], m["blended_usd_per_1m"]))
-    rule_audit = audit_official_coding_plan_docs(checked_at=now_iso)
+    rule_audit = audit_official_coding_plan_docs(checked_at=now_iso, prior_audit=prev_rule_audit)
     non_drift_prior = [c for c in prior_changes if c.get("change_type") != "plan_rule_drift_warning"]
     base_changes = compute_price_changes(
         prev_models=prev_all_models,

@@ -10,6 +10,7 @@
 
 - 🔗 **5,000 次/天超额复算案例**：https://ai-cost-radar-nlu.pages.dev/coding-plan-2026/?calls=5000&in=4000&out=1000&cache=0.5&mode=interactive_ide&qv=2026-11-13
 - 🔗 **800 次/天个人开发盈亏案例**：https://ai-cost-radar-nlu.pages.dev/coding-plan-2026/?calls=800&in=4000&out=1000&cache=0.5&mode=interactive_ide&qv=2026-11-13
+- 🔗 **5 人团队多席位合规采购对账案例**：https://ai-cost-radar-nlu.pages.dev/coding-plan-2026/?calls=6000&seats=5&in=4000&out=1000&cache=0.5&mode=interactive_ide&qv=2026-11-13
 
 ---
 
@@ -84,6 +85,16 @@
   ```
 - **Cursor / Cline / CodeBuddy（OpenAI 兼容协议）**：
   - Base URL：`https://api.lkeap.cloud.tencent.com/coding/v3`（注意不是按量的 `api.lkeap.cloud.tencent.com/v1`）
+
+### 3. 火山方舟 Coding Plan 专属端点
+- **Claude Code（Anthropic 原生协议）**：
+  ```bash
+  export ANTHROPIC_BASE_URL="https://ark.cn-beijing.volces.com/api/coding"
+  export ANTHROPIC_AUTH_TOKEN="ark-coding-plan-你的火山方舟套餐Key"
+  export ANTHROPIC_MODEL="doubao-seed-2.0-code"
+  ```
+- **Cursor / Cline / Trae（OpenAI 兼容协议）**：
+  - Base URL：`https://ark.cn-beijing.volces.com/api/coding/v3`（注意不是按量的 `ark.cn-beijing.volces.com/api/v3`）
 
 ---
 

@@ -816,6 +816,180 @@ def _run_recommend(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, An
     )
 
 
+def _parse_scaled_num(raw_val: Any) -> float:
+    if isinstance(raw_val, (int, float)):
+        return max(0.0, float(raw_val))
+    import re
+
+    s = str(raw_val or "").strip().replace(",", "").replace("_", "")
+    m = re.match(r"^([0-9]+(?:\.[0-9]+)?)\s*(百万|亿|万|千|[kKmMbBwW])?$", s)
+    if not m:
+        raise ValueError(f"invalid_number:{raw_val}")
+    base = float(m.group(1))
+    unit = (m.group(2) or "").lower()
+    mult_map = {
+        "b": 1_000_000_000.0,
+        "亿": 100_000_000.0,
+        "m": 1_000_000.0,
+        "百万": 1_000_000.0,
+        "w": 10_000.0,
+        "万": 10_000.0,
+        "k": 1_000.0,
+        "千": 1_000.0,
+        "": 1.0,
+    }
+    return max(0.0, base * mult_map.get(unit, 1.0))
+
+
+def _parse_usage_snippet(raw_text: str, days_observed: float = 30.0) -> dict[str, Any]:
+    import re
+
+    text = str(raw_text or "").strip()
+    if not text or len(text) > 32000:
+        raise ValueError("Invalid usage_snippet")
+    days = float(days_observed if days_observed is not None else 30.0)
+    if not math.isfinite(days) or days <= 0 or days > 365:
+        days = 30.0
+
+    total_input = 0.0
+    cached_input = 0.0
+    total_output = 0.0
+    explicit_requests: float | None = None
+    explicit_daily_requests: float | None = None
+    output_includes_reasoning = False
+    detected_format = "text_summary"
+
+    json_obj: dict[str, Any] | None = None
+    if "{" in text and "}" in text:
+        start_idx = text.find("{")
+        end_idx = text.rfind("}")
+        if end_idx > start_idx:
+            try:
+                parsed = json.loads(text[start_idx : end_idx + 1])
+                if isinstance(parsed, dict):
+                    json_obj = parsed
+            except json.JSONDecodeError:
+                json_obj = None
+
+    if json_obj is not None:
+        u = dict(json_obj.get("usage")) if isinstance(json_obj.get("usage"), dict) else {}
+        merged = {**json_obj, **u}
+        for rk in ("requests", "total_requests", "calls", "total_calls", "api_calls", "num_requests"):
+            if merged.get(rk) is not None:
+                explicit_requests = _parse_scaled_num(merged[rk])
+                break
+        if explicit_requests is None and merged.get("daily_requests") is not None:
+            explicit_daily_requests = _parse_scaled_num(merged["daily_requests"])
+        if "cache_read_input_tokens" in merged or "cache_creation_input_tokens" in merged:
+            detected_format = "anthropic_usage_json"
+            uncached = _parse_scaled_num(merged.get("input_tokens") or 0)
+            c_read = _parse_scaled_num(merged.get("cache_read_input_tokens") or 0)
+            c_write = _parse_scaled_num(merged.get("cache_creation_input_tokens") or 0)
+            total_input = uncached + c_read + c_write
+            cached_input = c_read
+        else:
+            detected_format = "openai_usage_json"
+            p_det = merged.get("prompt_tokens_details") if isinstance(merged.get("prompt_tokens_details"), dict) else {}
+            in_det = merged.get("input_tokens_details") if isinstance(merged.get("input_tokens_details"), dict) else {}
+            raw_in = merged.get("prompt_tokens") if merged.get("prompt_tokens") is not None else merged.get("input_tokens")
+            if raw_in is not None:
+                total_input = _parse_scaled_num(raw_in)
+            raw_cached = (
+                p_det.get("cached_tokens")
+                if p_det.get("cached_tokens") is not None
+                else (
+                    in_det.get("cached_tokens")
+                    if in_det.get("cached_tokens") is not None
+                    else (merged.get("cached_tokens") if merged.get("cached_tokens") is not None else merged.get("cached_input_tokens"))
+                )
+            )
+            if raw_cached is not None:
+                cached_input = _parse_scaled_num(raw_cached)
+                if total_input < cached_input:
+                    total_input = cached_input
+        raw_out = merged.get("completion_tokens") if merged.get("completion_tokens") is not None else merged.get("output_tokens")
+        if raw_out is not None:
+            total_output = _parse_scaled_num(raw_out)
+        c_det = merged.get("completion_tokens_details") if isinstance(merged.get("completion_tokens_details"), dict) else {}
+        o_det = merged.get("output_tokens_details") if isinstance(merged.get("output_tokens_details"), dict) else {}
+        r_tok = (
+            c_det.get("reasoning_tokens")
+            if c_det.get("reasoning_tokens") is not None
+            else (o_det.get("reasoning_tokens") if o_det.get("reasoning_tokens") is not None else merged.get("reasoning_tokens"))
+        )
+        if r_tok is not None and _parse_scaled_num(r_tok) > 0:
+            output_includes_reasoning = True
+    else:
+        num_pat = r"([0-9][0-9,._]*\s*(?:百万|亿|万|千|[kKmMbBwW])?)"
+        m_in = re.search(
+            r"(?:total\s+input(?:\s+tokens?)?|uncached\s+input|prompt\s+tokens?|\binput(?:\s+tokens?)?|输入\s*(?:token|tokens)?)\s*[:：=]?\s*" + num_pat,
+            text,
+            flags=re.IGNORECASE,
+        )
+        m_cr = re.search(
+            r"(?:cache\s*read(?:\s+input)?(?:\s+tokens?)?|cached(?:\s+input)?(?:\s+tokens?)?|缓存命中(?:\s*token|\s*tokens|\s*输入)?|命中缓存)\s*[:：=]?\s*" + num_pat,
+            text,
+            flags=re.IGNORECASE,
+        )
+        m_cw = re.search(r"(?:cache\s*(?:write|creation)(?:\s+tokens?)?|缓存写入)\s*[:：=]?\s*" + num_pat, text, flags=re.IGNORECASE)
+        m_out = re.search(
+            r"(?:total\s+output(?:\s+tokens?)?|completion\s+tokens?|\boutput(?:\s+tokens?)?|输出\s*(?:token|tokens)?)\s*[:：=]?\s*" + num_pat,
+            text,
+            flags=re.IGNORECASE,
+        )
+        m_rs = re.search(r"(?:reasoning\s+tokens?|思考\s*(?:token|tokens)?)\s*[:：=]?\s*" + num_pat, text, flags=re.IGNORECASE)
+        m_rq = re.search(
+            r"(?:total\s+requests?|api\s+calls?|total\s+calls?|\brequests?|\bturns?|调用(?:次数|量)?|请求(?:次数|数)?)\s*[:：=]?\s*" + num_pat,
+            text,
+            flags=re.IGNORECASE,
+        )
+        raw_in_val = _parse_scaled_num(m_in.group(1)) if m_in else 0.0
+        cr_val = _parse_scaled_num(m_cr.group(1)) if m_cr else 0.0
+        cw_val = _parse_scaled_num(m_cw.group(1)) if m_cw else 0.0
+        total_output = _parse_scaled_num(m_out.group(1)) if m_out else 0.0
+        is_cc = bool(re.search(r"cache\s*read", text, flags=re.IGNORECASE)) and not bool(re.search(r"total\s+input", text, flags=re.IGNORECASE))
+        if is_cc:
+            detected_format = "claude_code_cost"
+            total_input = raw_in_val + cr_val + cw_val
+            cached_input = cr_val
+        elif raw_in_val >= cr_val and raw_in_val > 0:
+            total_input = raw_in_val
+            cached_input = cr_val
+        else:
+            total_input = raw_in_val + cr_val + cw_val
+            cached_input = cr_val
+        if m_rs and _parse_scaled_num(m_rs.group(1)) > 0:
+            output_includes_reasoning = True
+        if m_rq:
+            explicit_requests = _parse_scaled_num(m_rq.group(1))
+
+    if total_input <= 0 and total_output <= 0:
+        raise ValueError("Unable to find input/output token counts in usage_snippet")
+    cached_input = min(total_input, max(0.0, cached_input))
+    cache_hit_rate = round(cached_input / total_input, 4) if total_input > 0 else 0.0
+    if explicit_daily_requests is not None and explicit_daily_requests > 0:
+        daily_requests = max(1, int(round(explicit_daily_requests)))
+        est_total_calls = max(1.0, explicit_daily_requests * days)
+    elif explicit_requests is not None and explicit_requests > 0:
+        est_total_calls = max(1.0, explicit_requests)
+        daily_requests = max(1, int(round(est_total_calls / days)))
+    else:
+        est_total_calls = max(1.0, round(total_input / 4000.0) if total_input > 0 else round(total_output / 800.0))
+        daily_requests = max(1, int(round(est_total_calls / days)))
+
+    return {
+        "detected_format": detected_format,
+        "days_observed": days,
+        "monthly_input_m": round(((total_input / days) * 30.0) / 1_000_000.0, 6),
+        "monthly_output_m": round(((total_output / days) * 30.0) / 1_000_000.0, 6),
+        "daily_requests": daily_requests,
+        "avg_input_tokens": max(1, int(round(total_input / est_total_calls))) if total_input > 0 else 1500,
+        "avg_output_tokens": max(1, int(round(total_output / est_total_calls))) if total_output > 0 else 500,
+        "cache_hit_rate": cache_hit_rate,
+        "output_includes_reasoning": output_includes_reasoning,
+    }
+
+
 def _run_budget(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, Any], str]:
     models = catalog.get("models", [])
     q = str(_get_param(inp, "model_query", "deepseek-v3")).strip().lower()
@@ -827,6 +1001,54 @@ def _run_budget(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, Any],
     inc_cot = str(_get_param(inp, "output_includes_reasoning", "false")).lower() in ("true", "1", "yes")
     usage_mode = str(_get_param(inp, "usage_mode", "interactive_ide"))
     wants_free = "free" in q
+
+    raw_snippet = _get_param(inp, "usage_snippet", None)
+    raw_days = float(_get_param(inp, "days_observed", 30.0))
+    raw_m_reqs = _get_param(inp, "monthly_requests", None)
+    raw_m_in = _get_param(inp, "monthly_input_m", None)
+    raw_m_out = _get_param(inp, "monthly_output_m", None)
+    raw_c_in = _get_param(inp, "cached_input_m", None)
+    exact_monthly_in_m: float | None = None
+    exact_monthly_out_m: float | None = None
+    parsed_usage_summary: dict[str, Any] | None = None
+
+    if raw_snippet is not None and str(raw_snippet).strip() != "":
+        parsed_usage_summary = _parse_usage_snippet(str(raw_snippet), days_observed=raw_days)
+        reqs = float(parsed_usage_summary["daily_requests"])
+        in_tok = float(parsed_usage_summary["avg_input_tokens"])
+        out_tok = float(parsed_usage_summary["avg_output_tokens"])
+        hit_rate = float(parsed_usage_summary["cache_hit_rate"])
+        exact_monthly_in_m = float(parsed_usage_summary["monthly_input_m"])
+        exact_monthly_out_m = float(parsed_usage_summary["monthly_output_m"])
+        if parsed_usage_summary.get("output_includes_reasoning"):
+            inc_cot = True
+    elif any(v is not None for v in (raw_m_reqs, raw_m_in, raw_m_out, raw_c_in)):
+        if raw_m_reqs is not None:
+            m_reqs = max(1, int(round(float(raw_m_reqs))))
+        elif raw_m_in is not None and float(raw_m_in) > 0:
+            m_reqs = max(1, int(round((float(raw_m_in) * 1_000_000.0) / max(1.0, in_tok))))
+        else:
+            m_reqs = max(1, int(round(reqs * 30.0)))
+        m_in = max(0.0, float(raw_m_in)) if raw_m_in is not None else (m_reqs * in_tok) / 1_000_000.0
+        m_out = max(0.0, float(raw_m_out)) if raw_m_out is not None else (m_reqs * out_tok) / 1_000_000.0
+        if raw_c_in is not None:
+            c_in = max(0.0, float(raw_c_in))
+            hit_rate = round(min(1.0, c_in / m_in), 4) if m_in > 0 else 0.0
+        exact_monthly_in_m = m_in
+        exact_monthly_out_m = m_out
+        reqs = float(max(1, math.ceil(m_reqs / 30.0) if m_reqs % 30 != 0 else (m_reqs // 30)))
+        in_tok = float(max(0, int(round((m_in * 1_000_000.0) / m_reqs))))
+        out_tok = float(max(0, int(round((m_out * 1_000_000.0) / m_reqs))))
+        parsed_usage_summary = {
+            "detected_format": "monthly_bill_totals",
+            "monthly_requests": m_reqs,
+            "monthly_input_m": round(m_in, 6),
+            "monthly_output_m": round(m_out, 6),
+            "daily_requests": int(reqs),
+            "avg_input_tokens": int(in_tok),
+            "avg_output_tokens": int(out_tok),
+            "cache_hit_rate": hit_rate,
+        }
 
     best_match = models[0]
     best_rank = -1.0
@@ -866,15 +1088,15 @@ def _run_budget(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, Any],
                 best_rank = score
                 best_match = m
 
-    monthly_in_m = (reqs * in_tok * 30.0) / 1_000_000.0
-    monthly_out_m = (reqs * out_tok * 30.0) / 1_000_000.0
+    monthly_in_m = exact_monthly_in_m if exact_monthly_in_m is not None else ((reqs * in_tok * 30.0) / 1_000_000.0)
+    monthly_out_m = exact_monthly_out_m if exact_monthly_out_m is not None else ((reqs * out_tok * 30.0) / 1_000_000.0)
     model_hit_factor = float(
         best_match.get("cache_hit_factor")
         if best_match.get("cache_hit_factor") is not None
         else (0.2 if best_match.get("region") == "cn_direct" else 0.5)
     )
     is_reasoning = "reasoning" in (best_match.get("tags") or [])
-    effective_r_mult = r_mult if is_reasoning else 1.0
+    effective_r_mult = 1.0 if (inc_cot or not is_reasoning) else r_mult
 
     bill_rmb = _calc_token_bill(
         monthly_in_m,
@@ -961,21 +1183,24 @@ def _run_budget(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, Any],
         f"按量月账单约 ¥{monthly_rmb:.2f} (${monthly_usd:.2f})。"
         f"{coding_eval['headline_zh']} {coding_eval['window_note_zh']}"
     )
+    out_data: dict[str, Any] = {
+        "matched_model": _compact_view(best_match),
+        "monthly_input_millions": round(monthly_in_m, 4),
+        "monthly_output_millions": round(monthly_out_m, 4),
+        "budget_estimate": {
+            "daily_rmb": round(monthly_rmb / 30.0, 4),
+            "monthly_rmb": monthly_rmb,
+            "yearly_rmb": round((monthly_rmb / 30.0) * 365.0, 2),
+            "monthly_usd": monthly_usd,
+        },
+        "coding_plan_evaluation": coding_eval,
+        "cheaper_alternatives": alts[:4],
+    }
+    if parsed_usage_summary is not None:
+        out_data["parsed_usage_summary"] = parsed_usage_summary
     return (
         summary,
-        {
-            "matched_model": _compact_view(best_match),
-            "monthly_input_millions": round(monthly_in_m, 4),
-            "monthly_output_millions": round(monthly_out_m, 4),
-            "budget_estimate": {
-                "daily_rmb": round(monthly_rmb / 30.0, 4),
-                "monthly_rmb": monthly_rmb,
-                "yearly_rmb": round((monthly_rmb / 30.0) * 365.0, 2),
-                "monthly_usd": monthly_usd,
-            },
-            "coding_plan_evaluation": coding_eval,
-            "cheaper_alternatives": alts[:4],
-        },
+        out_data,
         deep_url,
     )
 

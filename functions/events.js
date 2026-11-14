@@ -5,6 +5,7 @@
 const ALLOWED_EVENTS = new Set([
   "page_view",
   "result_view",
+  "usage_import",
   "offer_impression",
   "affiliate_click",
   "share_copy",

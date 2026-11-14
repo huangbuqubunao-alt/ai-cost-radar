@@ -114,6 +114,10 @@ def main():
             assert st_team == 200, f"/api/budget team_size=5 returned HTTP {st_team}: {body_team}"
             team_budget = json.loads(body_team)
             assert team_budget.get("team_size") == 5 and team_budget.get("recommended_same_family_plan_id") == "aliyun-coding-plan", f"Unexpected /api/budget team_size=5 payload: {team_budget}"
+            st_mo, body_mo = request_remote("api/budget?model_id=qwen3-coder-next&monthly_requests=90000&monthly_input_m=360&monthly_output_m=90&cached_input_m=216")
+            assert st_mo == 200, f"/api/budget monthly totals returned HTTP {st_mo}: {body_mo}"
+            mo_budget = json.loads(body_mo)
+            assert abs(float(mo_budget.get("monthly_rmb", 0)) - 656.64) < 0.02, f"Unexpected /api/budget monthly_rmb: {mo_budget}"
             st_feed, body_feed = request_remote("feeds/price-changes.xml")
             assert st_feed == 200 and "<feed" in body_feed, f"/feeds/price-changes.xml returned HTTP {st_feed}"
             st_admin, _ = request_remote("admin/stats")

@@ -420,6 +420,65 @@
               "maximum": 50,
               "default": 1
             }
+          },
+          {
+            "name": "monthly_requests",
+            "in": "query",
+            "required": false,
+            "description": "可选：月度总调用请求次数（来自云控制台月账单）",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "monthly_input_m",
+            "in": "query",
+            "required": false,
+            "description": "可选：月度总输入百万 Token 数",
+            "schema": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "monthly_output_m",
+            "in": "query",
+            "required": false,
+            "description": "可选：月度总输出百万 Token 数",
+            "schema": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cached_input_m",
+            "in": "query",
+            "required": false,
+            "description": "可选：月度命中缓存输入百万 Token 数（自动换算精确缓存命中率）",
+            "schema": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "usage_snippet",
+            "in": "query",
+            "required": false,
+            "description": "可选：Claude Code /cost 日志、OpenAI/百炼 usage JSON 或云控制台统计文本",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "days_observed",
+            "in": "query",
+            "required": false,
+            "description": "可选：usage_snippet 对应的统计天数（默认 30）",
+            "schema": {
+              "type": "number",
+              "default": 30
+            }
           }
         ],
         "responses": {

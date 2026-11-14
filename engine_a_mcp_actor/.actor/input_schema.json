@@ -98,6 +98,28 @@
       "description": "Number of interactive IDE developer seats (1..50). Compares N compliant Coding Plan seats against a shared team Pay-As-You-Go API pool.",
       "default": 1
     },
+    "monthly_requests": {
+      "title": "Optional Monthly Total Requests (for calculate_api_budget)",
+      "type": "integer",
+      "description": "Optional total API requests per month from a cloud billing statement (overrides daily_requests when set)."
+    },
+    "cached_input_m": {
+      "title": "Optional Monthly Cached Input Tokens (Millions)",
+      "type": "number",
+      "description": "Optional monthly cached input tokens in millions to compute exact cache_hit_rate."
+    },
+    "usage_snippet": {
+      "title": "Optional Raw Usage Log / JSON Snippet",
+      "type": "string",
+      "description": "Paste Claude Code `/cost` output, OpenAI/Bailian `usage` JSON, or cloud console summary to auto-parse usage.",
+      "editor": "textarea"
+    },
+    "days_observed": {
+      "title": "Observation Window in Days (for usage_snippet)",
+      "type": "number",
+      "description": "Number of days covered by usage_snippet (default 30).",
+      "default": 30
+    },
     "refresh_live": {
       "title": "Refresh Live OpenRouter Data First",
       "type": "boolean",

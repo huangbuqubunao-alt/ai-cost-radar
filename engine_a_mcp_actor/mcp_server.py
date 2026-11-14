@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import math
 import sys
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -283,10 +284,18 @@ def calculate_api_budget(
     usage_mode: str = "interactive_ide",
     peak_5h_calls: int | None = None,
     team_size: int = 1,
+    monthly_requests: int | None = None,
+    monthly_input_m: float | None = None,
+    monthly_output_m: float | None = None,
+    cached_input_m: float | None = None,
+    usage_snippet: str | None = None,
+    days_observed: float = 30.0,
 ) -> dict[str, Any]:
     """
     Calculate daily/monthly/annual USD & RMB API budget for a given model, evaluate Coding Plan quotas
     & renewal breakeven, and suggest cheaper alternatives.
+    Supports direct monthly bill totals (`monthly_requests`, `monthly_input_m`, `monthly_output_m`, `cached_input_m`)
+    and deterministic log/JSON parsing (`usage_snippet`, `days_observed`).
     """
     catalog = load_models_catalog()
     models: list[dict[str, Any]] = catalog.get("models", [])
@@ -297,15 +306,75 @@ def calculate_api_budget(
     hit_rate = min(1.0, max(0.0, float(cache_hit_rate or 0.0)))
     r_mult = max(1.0, float(reasoning_multiplier or 1.0))
     inc_cot = bool(output_includes_reasoning)
+    parsed_usage_summary: dict[str, Any] | None = None
+    exact_monthly_in_m: float | None = None
+    exact_monthly_out_m: float | None = None
+
+    if usage_snippet is not None and str(usage_snippet).strip() != "":
+        parsed_usage_summary = pricing_core.parse_usage_log_snippet(
+            str(usage_snippet),
+            days_observed=float(days_observed if days_observed is not None else 30.0),
+        )
+        reqs = float(parsed_usage_summary["daily_requests"])
+        in_tok = float(parsed_usage_summary["avg_input_tokens"])
+        out_tok = float(parsed_usage_summary["avg_output_tokens"])
+        hit_rate = float(parsed_usage_summary["cache_hit_rate"])
+        exact_monthly_in_m = float(parsed_usage_summary["monthly_input_m"])
+        exact_monthly_out_m = float(parsed_usage_summary["monthly_output_m"])
+        if parsed_usage_summary.get("output_includes_reasoning"):
+            inc_cot = True
+    elif any(v is not None for v in (monthly_requests, monthly_input_m, monthly_output_m, cached_input_m)):
+        if monthly_requests is not None:
+            m_reqs = int(round(float(monthly_requests)))
+            if m_reqs <= 0 or m_reqs > 30_000_000:
+                raise ValueError("Invalid monthly_requests (must be between 1 and 30,000,000)")
+        elif monthly_input_m is not None and float(monthly_input_m) > 0:
+            m_reqs = max(1, int(round((float(monthly_input_m) * 1_000_000.0) / max(1.0, in_tok))))
+        else:
+            m_reqs = max(1, int(round(reqs * 30.0)))
+
+        m_in = float(monthly_input_m) if monthly_input_m is not None else (m_reqs * in_tok) / 1_000_000.0
+        m_out = float(monthly_output_m) if monthly_output_m is not None else (m_reqs * out_tok) / 1_000_000.0
+        if m_in < 0 or m_out < 0:
+            raise ValueError("Monthly token totals must be non-negative")
+
+        if cached_input_m is not None:
+            c_in = float(cached_input_m)
+            if c_in < 0 or (m_in > 0 and c_in > m_in) or (m_in == 0 and c_in > 0):
+                raise ValueError("Invalid cached_input_m")
+            hit_rate = round(c_in / m_in, 4) if m_in > 0 else 0.0
+
+        exact_monthly_in_m = m_in
+        exact_monthly_out_m = m_out
+        reqs = float(max(1, math.ceil(m_reqs / 30.0) if m_reqs % 30 != 0 else (m_reqs // 30)))
+        in_tok = float(max(0, int(round((m_in * 1_000_000.0) / m_reqs))))
+        out_tok = float(max(0, int(round((m_out * 1_000_000.0) / m_reqs))))
+        parsed_usage_summary = {
+            "detected_format": "monthly_bill_totals",
+            "monthly_requests": m_reqs,
+            "monthly_input_m": round(m_in, 6),
+            "monthly_output_m": round(m_out, 6),
+            "cached_input_m": round(float(cached_input_m), 6) if cached_input_m is not None else round(m_in * hit_rate, 6),
+            "daily_requests": int(reqs),
+            "avg_input_tokens": int(in_tok),
+            "avg_output_tokens": int(out_tok),
+            "cache_hit_rate": hit_rate,
+        }
 
     best_match, match_note = pricing_core.resolve_model_query(models, model_query)
     if best_match is None:
         raise ValueError("Model catalog is empty")
 
-    daily_in_m = (reqs * in_tok) / 1_000_000.0
-    daily_out_m = (reqs * out_tok) / 1_000_000.0
-    monthly_in_m = daily_in_m * 30.0
-    monthly_out_m = daily_out_m * 30.0
+    if exact_monthly_in_m is not None and exact_monthly_out_m is not None:
+        monthly_in_m = exact_monthly_in_m
+        monthly_out_m = exact_monthly_out_m
+        daily_in_m = monthly_in_m / 30.0
+        daily_out_m = monthly_out_m / 30.0
+    else:
+        daily_in_m = (reqs * in_tok) / 1_000_000.0
+        daily_out_m = (reqs * out_tok) / 1_000_000.0
+        monthly_in_m = daily_in_m * 30.0
+        monthly_out_m = daily_out_m * 30.0
 
     model_hit_factor = float(
         best_match.get("cache_hit_factor")
@@ -313,7 +382,7 @@ def calculate_api_budget(
         else (0.2 if best_match.get("region") == "cn_direct" else 0.5)
     )
     is_reasoning = "reasoning" in (best_match.get("tags") or [])
-    effective_r_mult = r_mult if is_reasoning else 1.0
+    effective_r_mult = 1.0 if (inc_cot or not is_reasoning) else r_mult
 
     bill_usd = pricing_core.calculate_token_bill(
         monthly_input_m=monthly_in_m,
@@ -476,6 +545,8 @@ def calculate_api_budget(
         },
         "cheaper_alternatives": alternatives,
     }
+    if parsed_usage_summary is not None:
+        response["parsed_usage_summary"] = parsed_usage_summary
     stale_warn = _check_snapshot_staleness(catalog)
     if stale_warn:
         response["snapshot_stale_warning"] = stale_warn
@@ -627,6 +698,35 @@ MCP_TOOLS_SPEC: list[dict[str, Any]] = [
                     "description": "Number of interactive IDE developer seats (1..50, default 1). Compares N compliant personal Coding Plan seats against a shared team Pay-As-You-Go API pool.",
                     "default": 1,
                 },
+                "monthly_requests": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Optional monthly API call total from a billing statement (overrides daily_requests when provided).",
+                },
+                "monthly_input_m": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Optional monthly input tokens in millions from a billing statement.",
+                },
+                "monthly_output_m": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Optional monthly output tokens in millions from a billing statement.",
+                },
+                "cached_input_m": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Optional cached input tokens in millions (computes exact cache_hit_rate = cached_input_m / monthly_input_m).",
+                },
+                "usage_snippet": {
+                    "type": "string",
+                    "description": "Optional raw Claude Code `/cost` output, OpenAI/Bailian/DeepSeek `usage` JSON, or cloud console summary to parse automatically.",
+                },
+                "days_observed": {
+                    "type": "number",
+                    "description": "Observation window in days for `usage_snippet` (default 30; e.g. 7 for a 7-day log).",
+                    "default": 30.0,
+                },
             },
             "required": ["model_query"],
         },
@@ -675,6 +775,12 @@ def dispatch_tool_call(tool_name: str, arguments: dict[str, Any] | None) -> dict
             usage_mode=args.get("usage_mode", "interactive_ide"),
             peak_5h_calls=args.get("peak_5h_calls"),
             team_size=args.get("team_size", 1),
+            monthly_requests=args.get("monthly_requests"),
+            monthly_input_m=args.get("monthly_input_m"),
+            monthly_output_m=args.get("monthly_output_m"),
+            cached_input_m=args.get("cached_input_m"),
+            usage_snippet=args.get("usage_snippet"),
+            days_observed=args.get("days_observed", 30.0),
         )
     if tool_name == "list_free_and_ultra_cheap_models":
         return list_free_and_ultra_cheap_models(
@@ -969,22 +1075,51 @@ class ModelRouterHTTPHandler(BaseHTTPRequestHandler):
         if path == "/api/budget":
             if not self._check_x402_gate(path):
                 return
-            inc_raw = str(qs.get("output_includes_reasoning", "false")).strip().lower()
-            inc_reasoning = inc_raw in ("1", "true", "yes")
-            peak_val = int(float(qs["peak_5h_calls"])) if "peak_5h_calls" in qs and qs["peak_5h_calls"] != "" else None
-            res = calculate_api_budget(
-                model_query=qs.get("model_query") or qs.get("model_id") or "deepseek-v3",
-                daily_requests=int(float(qs.get("daily_requests", 1000))),
-                avg_input_tokens=int(float(qs.get("avg_input_tokens", 1500))),
-                avg_output_tokens=int(float(qs.get("avg_output_tokens", 500))),
-                cache_hit_rate=float(qs.get("cache_hit_rate", 0.0)),
-                reasoning_multiplier=float(qs.get("reasoning_multiplier", 1.0)),
-                output_includes_reasoning=inc_reasoning,
-                usage_mode=qs.get("usage_mode", "interactive_ide"),
-                peak_5h_calls=peak_val,
-                team_size=int(float(qs.get("team_size", 1))),
-            )
-            self._send_json(200, res)
+            try:
+                inc_raw = str(qs.get("output_includes_reasoning", "false")).strip().lower()
+                inc_reasoning = inc_raw in ("1", "true", "yes")
+                peak_val = int(float(qs["peak_5h_calls"])) if "peak_5h_calls" in qs and qs["peak_5h_calls"] != "" else None
+                m_reqs_val = (
+                    int(float(qs["monthly_requests"]))
+                    if "monthly_requests" in qs and qs["monthly_requests"] != ""
+                    else None
+                )
+                m_in_val = (
+                    float(qs["monthly_input_m"])
+                    if "monthly_input_m" in qs and qs["monthly_input_m"] != ""
+                    else None
+                )
+                m_out_val = (
+                    float(qs["monthly_output_m"])
+                    if "monthly_output_m" in qs and qs["monthly_output_m"] != ""
+                    else None
+                )
+                c_in_val = (
+                    float(qs["cached_input_m"])
+                    if "cached_input_m" in qs and qs["cached_input_m"] != ""
+                    else None
+                )
+                res = calculate_api_budget(
+                    model_query=qs.get("model_query") or qs.get("model_id") or "deepseek-v3",
+                    daily_requests=int(float(qs.get("daily_requests", 1000))),
+                    avg_input_tokens=int(float(qs.get("avg_input_tokens", 1500))),
+                    avg_output_tokens=int(float(qs.get("avg_output_tokens", 500))),
+                    cache_hit_rate=float(qs.get("cache_hit_rate", 0.0)),
+                    reasoning_multiplier=float(qs.get("reasoning_multiplier", 1.0)),
+                    output_includes_reasoning=inc_reasoning,
+                    usage_mode=qs.get("usage_mode", "interactive_ide"),
+                    peak_5h_calls=peak_val,
+                    team_size=int(float(qs.get("team_size", 1))),
+                    monthly_requests=m_reqs_val,
+                    monthly_input_m=m_in_val,
+                    monthly_output_m=m_out_val,
+                    cached_input_m=c_in_val,
+                    usage_snippet=qs.get("usage_snippet"),
+                    days_observed=float(qs.get("days_observed", 30.0)),
+                )
+                self._send_json(200, res)
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)})
             return
 
         if path == "/api/free-cheap":

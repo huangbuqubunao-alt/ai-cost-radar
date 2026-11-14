@@ -158,6 +158,35 @@
                     "minimum": 1,
                     "maximum": 50,
                     "default": 1
+                  },
+                  "monthly_requests": {
+                    "type": "integer",
+                    "description": "可选：月度总调用请求次数（来自云控制台账单，传入后自动换算日均请求）",
+                    "minimum": 1
+                  },
+                  "monthly_input_m": {
+                    "type": "number",
+                    "description": "可选：月度总输入 Token 数（百万 Token）",
+                    "minimum": 0
+                  },
+                  "monthly_output_m": {
+                    "type": "number",
+                    "description": "可选：月度总输出 Token 数（百万 Token）",
+                    "minimum": 0
+                  },
+                  "cached_input_m": {
+                    "type": "number",
+                    "description": "可选：月度命中缓存输入 Token 数（百万 Token），自动核算精确 cache_hit_rate",
+                    "minimum": 0
+                  },
+                  "usage_snippet": {
+                    "type": "string",
+                    "description": "可选：粘贴 Claude Code /cost 输出、OpenAI/百炼/DeepSeek usage JSON 或云控制台统计摘要，自动解析用量"
+                  },
+                  "days_observed": {
+                    "type": "number",
+                    "description": "可选：usage_snippet 对应的统计天数（默认 30 天，如近 7 天日志可传 7）",
+                    "default": 30
                   }
                 }
               }

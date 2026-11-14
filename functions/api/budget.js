@@ -8,6 +8,176 @@ function number(params, key, fallback, max) {
   return value;
 }
 
+function parseScaledNumber(rawVal) {
+  if (typeof rawVal === "number") {
+    if (!Number.isFinite(rawVal) || rawVal < 0) throw new Error("Invalid numeric value");
+    return rawVal;
+  }
+  const s = String(rawVal ?? "").trim().replace(/[,_]/g, "");
+  if (!s) throw new Error("Empty number");
+  const m = s.match(/^([0-9]+(?:\.[0-9]+)?)\s*(百万|亿|万|千|[kKmMbBwW])?$/);
+  if (!m) throw new Error(`Invalid number: ${rawVal}`);
+  const base = Number(m[1]);
+  const unit = (m[2] || "").toLowerCase();
+  const multMap = {
+    b: 1e9,
+    "亿": 1e8,
+    m: 1e6,
+    "百万": 1e6,
+    w: 1e4,
+    "万": 1e4,
+    k: 1e3,
+    "千": 1e3,
+    "": 1,
+  };
+  return Math.max(0, base * (multMap[unit] ?? 1));
+}
+
+export function parseUsageSnippet(rawText, daysObserved = 30, defaultTokensPerCall = 4000) {
+  const text = String(rawText ?? "").trim();
+  if (!text || text.length > 32000) throw new Error("Invalid usage_snippet");
+  let days = Number(daysObserved ?? 30);
+  if (!Number.isFinite(days) || days <= 0 || days > 365) throw new Error("Invalid days_observed");
+
+  let totalInput = 0;
+  let cachedInput = 0;
+  let totalOutput = 0;
+  let explicitRequests = null;
+  let explicitDailyRequests = null;
+  let outputIncludesReasoning = false;
+  let detectedFormat = "text_summary";
+
+  let jsonObj = null;
+  if (text.includes("{") && text.includes("}")) {
+    const startIdx = text.indexOf("{");
+    const endIdx = text.lastIndexOf("}");
+    if (endIdx > startIdx) {
+      try {
+        const parsed = JSON.parse(text.slice(startIdx, endIdx + 1));
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) jsonObj = parsed;
+      } catch {
+        jsonObj = null;
+      }
+    }
+  }
+
+  if (jsonObj) {
+    const u = jsonObj.usage && typeof jsonObj.usage === "object" ? jsonObj.usage : {};
+    const merged = {...jsonObj, ...u};
+    if (merged.days_observed !== undefined && daysObserved === 30) {
+      const dCand = Number(merged.days_observed);
+      if (Number.isFinite(dCand) && dCand > 0 && dCand <= 365) days = dCand;
+    }
+    for (const rk of ["requests", "total_requests", "calls", "total_calls", "api_calls", "num_requests"]) {
+      if (merged[rk] !== undefined && merged[rk] !== null) {
+        explicitRequests = parseScaledNumber(merged[rk]);
+        break;
+      }
+    }
+    if (explicitRequests === null && merged.daily_requests !== undefined && merged.daily_requests !== null) {
+      explicitDailyRequests = parseScaledNumber(merged.daily_requests);
+    }
+    if ("cache_read_input_tokens" in merged || "cache_creation_input_tokens" in merged) {
+      detectedFormat = "anthropic_usage_json";
+      const uncached = parseScaledNumber(merged.input_tokens ?? 0);
+      const cRead = parseScaledNumber(merged.cache_read_input_tokens ?? 0);
+      const cWrite = parseScaledNumber(merged.cache_creation_input_tokens ?? 0);
+      totalInput = uncached + cRead + cWrite;
+      cachedInput = cRead;
+    } else {
+      detectedFormat = "openai_usage_json";
+      const pDetails = merged.prompt_tokens_details && typeof merged.prompt_tokens_details === "object" ? merged.prompt_tokens_details : {};
+      const inDetails = merged.input_tokens_details && typeof merged.input_tokens_details === "object" ? merged.input_tokens_details : {};
+      const rawIn = merged.prompt_tokens ?? merged.input_tokens;
+      if (rawIn !== undefined && rawIn !== null) totalInput = parseScaledNumber(rawIn);
+      else if (merged.monthly_input_m !== undefined && merged.monthly_input_m !== null) totalInput = parseScaledNumber(merged.monthly_input_m) * 1e6;
+      const rawCached = pDetails.cached_tokens ?? inDetails.cached_tokens ?? merged.cached_tokens ?? merged.cached_input_tokens;
+      if (rawCached !== undefined && rawCached !== null) {
+        cachedInput = parseScaledNumber(rawCached);
+        if (totalInput < cachedInput) totalInput = cachedInput;
+      }
+    }
+    const rawOut = merged.completion_tokens ?? merged.output_tokens;
+    if (rawOut !== undefined && rawOut !== null) totalOutput = parseScaledNumber(rawOut);
+    else if (merged.monthly_output_m !== undefined && merged.monthly_output_m !== null) totalOutput = parseScaledNumber(merged.monthly_output_m) * 1e6;
+    const cDetails = merged.completion_tokens_details && typeof merged.completion_tokens_details === "object" ? merged.completion_tokens_details : {};
+    const oDetails = merged.output_tokens_details && typeof merged.output_tokens_details === "object" ? merged.output_tokens_details : {};
+    const rTok = cDetails.reasoning_tokens ?? oDetails.reasoning_tokens ?? merged.reasoning_tokens;
+    if (rTok !== undefined && rTok !== null && parseScaledNumber(rTok) > 0) outputIncludesReasoning = true;
+  } else {
+    const numPat = "([0-9][0-9,._]*\\s*(?:百万|亿|万|千|[kKmMbBwW])?)";
+    const mIn = text.match(new RegExp("(?:total\\s+input(?:\\s+tokens?)?|uncached\\s+input|prompt\\s+tokens?|\\binput(?:\\s+tokens?)?|输入\\s*(?:token|tokens)?)\\s*[:：=]?\\s*" + numPat, "i"));
+    const mCacheRead = text.match(new RegExp("(?:cache\\s*read(?:\\s+input)?(?:\\s+tokens?)?|cached(?:\\s+input)?(?:\\s+tokens?)?|缓存命中(?:\\s*token|\\s*tokens|\\s*输入)?|命中缓存)\\s*[:：=]?\\s*" + numPat, "i"));
+    const mCacheWrite = text.match(new RegExp("(?:cache\\s*(?:write|creation)(?:\\s+tokens?)?|缓存写入)\\s*[:：=]?\\s*" + numPat, "i"));
+    const mOut = text.match(new RegExp("(?:total\\s+output(?:\\s+tokens?)?|completion\\s+tokens?|\\boutput(?:\\s+tokens?)?|输出\\s*(?:token|tokens)?)\\s*[:：=]?\\s*" + numPat, "i"));
+    const mReason = text.match(new RegExp("(?:reasoning\\s+tokens?|思考\\s*(?:token|tokens)?)\\s*[:：=]?\\s*" + numPat, "i"));
+    const mReq = text.match(new RegExp("(?:total\\s+requests?|api\\s+calls?|total\\s+calls?|\\brequests?|\\bturns?|调用(?:次数|量)?|请求(?:次数|数)?)\\s*[:：=]?\\s*" + numPat, "i"));
+
+    const rawInVal = mIn ? parseScaledNumber(mIn[1]) : 0;
+    const cacheReadVal = mCacheRead ? parseScaledNumber(mCacheRead[1]) : 0;
+    const cacheWriteVal = mCacheWrite ? parseScaledNumber(mCacheWrite[1]) : 0;
+    totalOutput = mOut ? parseScaledNumber(mOut[1]) : 0;
+
+    const isClaudeCodeStyle = /cache\s*read/i.test(text) && !/total\s+input/i.test(text);
+    if (isClaudeCodeStyle) {
+      detectedFormat = "claude_code_cost";
+      totalInput = rawInVal + cacheReadVal + cacheWriteVal;
+      cachedInput = cacheReadVal;
+    } else if (rawInVal >= cacheReadVal && rawInVal > 0) {
+      totalInput = rawInVal;
+      cachedInput = cacheReadVal;
+    } else {
+      totalInput = rawInVal + cacheReadVal + cacheWriteVal;
+      cachedInput = cacheReadVal;
+    }
+    if (mReason && parseScaledNumber(mReason[1]) > 0) outputIncludesReasoning = true;
+    if (mReq) explicitRequests = parseScaledNumber(mReq[1]);
+  }
+
+  if (totalInput <= 0 && totalOutput <= 0) {
+    throw new Error("Unable to find input/output token counts in usage_snippet");
+  }
+  cachedInput = Math.min(totalInput, Math.max(0, cachedInput));
+  const cacheHitRate = totalInput > 0 ? Math.round((cachedInput / totalInput) * 10000) / 10000 : 0;
+
+  let callsEstimated = false;
+  let estTotalCalls = 1;
+  let dailyRequests = 1;
+  if (explicitDailyRequests !== null && explicitDailyRequests > 0) {
+    dailyRequests = Math.max(1, Math.round(explicitDailyRequests));
+    estTotalCalls = Math.max(1, explicitDailyRequests * days);
+  } else if (explicitRequests !== null && explicitRequests > 0) {
+    estTotalCalls = Math.max(1, explicitRequests);
+    dailyRequests = Math.max(1, Math.round(estTotalCalls / days));
+  } else {
+    callsEstimated = true;
+    const denom = Math.max(200, Math.round(defaultTokensPerCall || 4000));
+    estTotalCalls = Math.max(1, totalInput > 0 ? Math.round(totalInput / denom) : Math.round(totalOutput / 800));
+    dailyRequests = Math.max(1, Math.round(estTotalCalls / days));
+  }
+
+  const avgInputTokens = totalInput > 0 ? Math.max(1, Math.round(totalInput / estTotalCalls)) : 1500;
+  const avgOutputTokens = totalOutput > 0 ? Math.max(1, Math.round(totalOutput / estTotalCalls)) : 500;
+  const monthlyInputM = Math.round((((totalInput / days) * 30) / 1e6) * 1e6) / 1e6;
+  const monthlyOutputM = Math.round((((totalOutput / days) * 30) / 1e6) * 1e6) / 1e6;
+
+  return {
+    detected_format: detectedFormat,
+    days_observed: days,
+    total_input_tokens: Math.round(totalInput),
+    cached_input_tokens: Math.round(cachedInput),
+    total_output_tokens: Math.round(totalOutput),
+    monthly_input_m: monthlyInputM,
+    monthly_output_m: monthlyOutputM,
+    daily_requests: dailyRequests,
+    avg_input_tokens: avgInputTokens,
+    avg_output_tokens: avgOutputTokens,
+    cache_hit_rate: cacheHitRate,
+    output_includes_reasoning: outputIncludesReasoning,
+    calls_estimated: callsEstimated,
+  };
+}
+
 export function resolveCatalogModel(models, rawId) {
   const raw = String(rawId || "").trim();
   if (!raw) return null;
@@ -61,29 +231,89 @@ export function calculateBudget(catalog, params) {
   const id = params.get("model_id");
   const model = resolveCatalogModel(catalog.models || [], id);
   if (!model) throw new Error("Unknown model_id; pass an id or api_model_id from /api/models_live.json");
-  const daily = number(params, "daily_requests", 1000, 1000000);
-  const input = number(params, "avg_input_tokens", 1500, 10000000);
-  const output = number(params, "avg_output_tokens", 500, 10000000);
-  const hit = number(params, "cache_hit_rate", 0, 1);
+  let daily = number(params, "daily_requests", 1000, 1000000);
+  let input = number(params, "avg_input_tokens", 1500, 10000000);
+  let output = number(params, "avg_output_tokens", 500, 10000000);
+  let hit = number(params, "cache_hit_rate", 0, 1);
   const multiplier = number(params, "reasoning_multiplier", 1, 10);
   if (multiplier < 1) throw new Error("reasoning_multiplier must be at least 1");
   const incRaw = params.get("output_includes_reasoning") ?? "false";
   if (!["true", "false"].includes(incRaw)) throw new Error("Invalid output_includes_reasoning");
-  const includesReasoning = incRaw === "true";
+  let includesReasoning = incRaw === "true";
   const mode = params.get("usage_mode") || "interactive_ide";
   if (!["interactive_ide", "automated_backend"].includes(mode)) throw new Error("Invalid usage_mode");
   const peak = params.has("peak_5h_calls") ? number(params, "peak_5h_calls", 0, 10000000) : null;
   const seats = number(params, "team_size", 1, 50);
   if (seats < 1 || !Number.isInteger(seats)) throw new Error("Invalid team_size");
   if (![daily, input, output, ...(peak === null ? [] : [peak])].every(Number.isInteger)) throw new Error("Request and token counts must be integers");
-  const monthly = daily * 30;
+
+  let explicitMonthlyRequests = null;
+  let exactMonthlyInputM = null;
+  let exactMonthlyOutputM = null;
+  let parsedUsageSummary = null;
+
+  if (params.has("usage_snippet")) {
+    const rawSnippet = params.get("usage_snippet");
+    const daysObs = params.has("days_observed") ? number(params, "days_observed", 30, 365) : 30;
+    parsedUsageSummary = parseUsageSnippet(rawSnippet, daysObs);
+    daily = parsedUsageSummary.daily_requests;
+    input = parsedUsageSummary.avg_input_tokens;
+    output = parsedUsageSummary.avg_output_tokens;
+    hit = parsedUsageSummary.cache_hit_rate;
+    exactMonthlyInputM = parsedUsageSummary.monthly_input_m;
+    exactMonthlyOutputM = parsedUsageSummary.monthly_output_m;
+    if (parsedUsageSummary.output_includes_reasoning) includesReasoning = true;
+  } else if (
+    params.has("monthly_requests") ||
+    params.has("monthly_input_m") ||
+    params.has("monthly_output_m") ||
+    params.has("cached_input_m")
+  ) {
+    let mReqs;
+    if (params.has("monthly_requests")) {
+      mReqs = number(params, "monthly_requests", 0, 30000000);
+      if (mReqs < 1 || !Number.isInteger(mReqs)) throw new Error("Invalid monthly_requests");
+    } else if (params.has("monthly_input_m") && number(params, "monthly_input_m", 0, 10000000) > 0) {
+      const tmpInM = number(params, "monthly_input_m", 0, 10000000);
+      mReqs = Math.max(1, Math.round((tmpInM * 1000000) / Math.max(1, input)));
+    } else {
+      mReqs = Math.max(1, daily * 30);
+    }
+    const mInM = params.has("monthly_input_m") ? number(params, "monthly_input_m", 0, 10000000) : (mReqs * input) / 1000000;
+    const mOutM = params.has("monthly_output_m") ? number(params, "monthly_output_m", 0, 10000000) : (mReqs * output) / 1000000;
+    if (params.has("cached_input_m")) {
+      const cInM = number(params, "cached_input_m", 0, 10000000);
+      if ((mInM > 0 && cInM > mInM) || (mInM === 0 && cInM > 0)) throw new Error("Invalid cached_input_m");
+      hit = mInM > 0 ? Math.round((cInM / mInM) * 10000) / 10000 : 0;
+    }
+    explicitMonthlyRequests = mReqs;
+    exactMonthlyInputM = mInM;
+    exactMonthlyOutputM = mOutM;
+    daily = Math.max(1, mReqs % 30 !== 0 ? Math.ceil(mReqs / 30) : mReqs / 30);
+    input = Math.max(0, Math.round((mInM * 1000000) / mReqs));
+    output = Math.max(0, Math.round((mOutM * 1000000) / mReqs));
+    parsedUsageSummary = {
+      detected_format: "monthly_bill_totals",
+      monthly_requests: mReqs,
+      monthly_input_m: Math.round(mInM * 1000000) / 1000000,
+      monthly_output_m: Math.round(mOutM * 1000000) / 1000000,
+      daily_requests: daily,
+      avg_input_tokens: input,
+      avg_output_tokens: output,
+      cache_hit_rate: hit,
+    };
+  }
+
+  const monthly = explicitMonthlyRequests ?? (daily * 30);
   const perSeatMonthly = monthly > 0 ? Math.ceil(monthly / seats) : 0;
   const effectiveMultiplier = includesReasoning || !(model.tags || []).includes("reasoning") ? 1 : multiplier;
   const factor = model.cache_hit_factor ?? 1;
   const round = (value) => Math.round((value + Number.EPSILON) * 1000000) / 1000000;
+  const monthlyInM = exactMonthlyInputM ?? ((monthly * input) / 1000000);
+  const monthlyOutM = exactMonthlyOutputM ?? ((monthly * output) / 1000000);
   const bill = (currency) => {
-    const inputCost = monthly * input / 1000000 * model[`input_${currency}_per_1m`] * (1 - hit + hit * factor);
-    const outputCost = monthly * output / 1000000 * model[`output_${currency}_per_1m`] * effectiveMultiplier;
+    const inputCost = monthlyInM * model[`input_${currency}_per_1m`] * (1 - hit + hit * factor);
+    const outputCost = monthlyOutM * model[`output_${currency}_per_1m`] * effectiveMultiplier;
     return {input_cost: round(inputCost), output_cost: round(outputCost), total_cost: round(inputCost + outputCost)};
   };
   const rmb = bill("rmb");
@@ -232,7 +462,7 @@ export function calculateBudget(catalog, params) {
   });
   if (peak !== null) share.set("peak5h", String(peak));
   if (seats > 1) share.set("seats", String(seats));
-  return {status: "ok", summary_cn: summary, model_id: model.id, team_size: seats, per_seat_monthly_requests: perSeatMonthly, monthly_requests: monthly,
+  const outPayload = {status: "ok", summary_cn: summary, model_id: model.id, team_size: seats, per_seat_monthly_requests: perSeatMonthly, monthly_requests: monthly,
     monthly_rmb: rmb.total_cost, monthly_usd: usd.total_cost, input_cost_rmb: rmb.input_cost, output_cost_rmb: rmb.output_cost,
     cache_hit_rate: hit, effective_reasoning_multiplier: effectiveMultiplier,
     recommended_same_family_plan_id: recommendedSameFamilyPlanId,
@@ -240,6 +470,8 @@ export function calculateBudget(catalog, params) {
     coding_plans: plans,
     quote_verified_date: catalog.quote_verified_date, last_live_verified_at: catalog.last_live_verified_at,
     web_calculator_url: `https://ai-cost-radar-nlu.pages.dev/coding-plan-2026/?${share}`};
+  if (parsedUsageSummary) outPayload.parsed_usage_summary = parsedUsageSummary;
+  return outPayload;
 }
 
 export async function onRequestGet({request, env}) {
