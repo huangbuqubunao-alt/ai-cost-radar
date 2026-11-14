@@ -945,20 +945,43 @@ def refresh_models_live(output_path: Path = OUTPUT_PATH) -> dict[str, Any]:
     affiliate_map = resolve_affiliate_map(config)
 
     prev_live_verified_at: str | None = None
+    prev_global_models: list[dict[str, Any]] = []
     if output_path.exists():
         try:
             prev_obj = json.loads(output_path.read_text(encoding="utf-8"))
             prev_live_verified_at = prev_obj.get("last_live_verified_at") or prev_obj.get("updated_at")
+            prev_source = str(prev_obj.get("source") or "")
+            if "openrouter_live" in prev_source or "openrouter_cached" in prev_source:
+                prev_global_models = [
+                    dict(m)
+                    for m in (prev_obj.get("models") or [])
+                    if isinstance(m, dict) and m.get("region") == "global"
+                ]
         except (OSError, json.JSONDecodeError):
             prev_live_verified_at = None
+            prev_global_models = []
 
     now_iso = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     raw_openrouter, source_label = fetch_openrouter_raw()
-    last_live_verified_at = (
-        now_iso if "openrouter_live" in source_label else (prev_live_verified_at or f"{pricing_core.QUOTE_VERIFIED_DATE}T00:00:00Z")
-    )
+    if "openrouter_live" in source_label:
+        last_live_verified_at = now_iso
+        global_models = normalize_openrouter_models(raw_openrouter, affiliate_map, limit=TARGET_OPENROUTER_COUNT)
+    elif len(prev_global_models) >= 20:
+        last_live_verified_at = prev_live_verified_at or f"{pricing_core.QUOTE_VERIFIED_DATE}T00:00:00Z"
+        source_label = "openrouter_cached+curated_cn_2026"
+        or_url = affiliate_map.get("openrouter_url") or "https://openrouter.ai"
+        global_models = [
+            {
+                **m,
+                "signup_url": or_url,
+                "affiliate_url": or_url,
+            }
+            for m in prev_global_models
+        ]
+    else:
+        last_live_verified_at = prev_live_verified_at or f"{pricing_core.QUOTE_VERIFIED_DATE}T00:00:00Z"
+        global_models = normalize_openrouter_models(raw_openrouter, affiliate_map, limit=TARGET_OPENROUTER_COUNT)
 
-    global_models = normalize_openrouter_models(raw_openrouter, affiliate_map, limit=TARGET_OPENROUTER_COUNT)
     cn_models = build_domestic_cn_models(affiliate_map)
     coding_plans = build_coding_plans(affiliate_map)
 

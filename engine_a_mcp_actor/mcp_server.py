@@ -442,6 +442,7 @@ def calculate_api_budget(
         payg_monthly_rmb=monthly_rmb,
         usage_mode=usage_mode,
         peak_5h_calls=peak_5h_calls,
+        model_id=best_match,
     )
     self_host_eval = pricing_core.evaluate_self_host_vs_payg(current_payg_rmb=monthly_rmb)
     api_model_id = str(best_match.get("api_model_id") or best_match["id"])

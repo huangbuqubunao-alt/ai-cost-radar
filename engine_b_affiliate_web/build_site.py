@@ -44,7 +44,7 @@ import pricing_core  # noqa: E402
 from ui_template import render_html_template  # noqa: E402
 
 DEFAULT_FX_USD_TO_RMB = 7.25
-DEFAULT_SITE_URL = "https://huangbuqubunao-alt.github.io/ai-cost-radar/"
+DEFAULT_SITE_URL = "https://ai-cost-radar-nlu.pages.dev/"
 
 DEFAULT_AFFILIATES: dict[str, str] = {
     # Domestic RMB channels (clean official URLs when unconfigured)
@@ -1155,7 +1155,12 @@ def build_seo_nav_html(base_prefix: str, active_slug: str) -> str:
     return "\n          ".join(links)
 
 
-def build_site(*, force_fallback: bool = False, site_url: str | None = None) -> dict[str, Any]:
+def build_site(
+    *,
+    force_fallback: bool = False,
+    site_url: str | None = None,
+    dist_dir: Path | None = None,
+) -> dict[str, Any]:
     affiliates = load_affiliates(CONFIG_PATH)
     models, fx_rate, updated_date, source_label = load_models_dataset(
         LIVE_MODELS_PATH,
@@ -1179,8 +1184,9 @@ def build_site(*, force_fallback: bool = False, site_url: str | None = None) -> 
         quote_verified_date=quote_verified_date,
     )
 
-    DIST_DIR.mkdir(parents=True, exist_ok=True)
-    index_path = DIST_DIR / "index.html"
+    target_dist = Path(dist_dir) if dist_dir is not None else DIST_DIR
+    target_dist.mkdir(parents=True, exist_ok=True)
+    index_path = target_dist / "index.html"
 
     for route in SEO_ROUTES:
         slug = route["slug"]
@@ -1243,12 +1249,12 @@ def build_site(*, force_fallback: bool = False, site_url: str | None = None) -> 
             badge_svg_href=f"{base_prefix}badges/coding-plan-status.svg",
         )
 
-        out_file = DIST_DIR / "index.html" if is_root else (DIST_DIR / slug.strip("/") / "index.html")
+        out_file = target_dist / "index.html" if is_root else (target_dist / slug.strip("/") / "index.html")
         out_file.parent.mkdir(parents=True, exist_ok=True)
         out_file.write_text("\n".join(line.rstrip() for line in html_output.splitlines()) + "\n", encoding="utf-8")
 
     # Static public JSON API snapshot inside dist/
-    api_dir = DIST_DIR / "api"
+    api_dir = target_dist / "api"
     api_dir.mkdir(parents=True, exist_ok=True)
     api_payload = {
         "total_models": len(models),
@@ -1270,12 +1276,12 @@ def build_site(*, force_fallback: bool = False, site_url: str | None = None) -> 
     (api_dir / "openapi.json").write_text(coze_spec.read_text(encoding="utf-8"), encoding="utf-8")
 
     # Embeddable SVG status badge + Atom price-change feed
-    badges_dir = DIST_DIR / "badges"
+    badges_dir = target_dist / "badges"
     badges_dir.mkdir(parents=True, exist_ok=True)
     badge_path = badges_dir / "coding-plan-status.svg"
     badge_path.write_text(build_status_badge_svg(quote_verified_date, len(models)), encoding="utf-8")
 
-    feeds_dir = DIST_DIR / "feeds"
+    feeds_dir = target_dist / "feeds"
     feeds_dir.mkdir(parents=True, exist_ok=True)
     feed_path = feeds_dir / "price-changes.xml"
     feed_path.write_text(
@@ -1283,8 +1289,8 @@ def build_site(*, force_fallback: bool = False, site_url: str | None = None) -> 
         encoding="utf-8",
     )
 
-    sitemap_path = DIST_DIR / "sitemap.xml"
-    robots_path = DIST_DIR / "robots.txt"
+    sitemap_path = target_dist / "sitemap.xml"
+    robots_path = target_dist / "robots.txt"
     sitemap_path.write_text(build_sitemap_xml(resolved_site_url, build_date), encoding="utf-8")
     robots_path.write_text(build_robots_txt(resolved_site_url), encoding="utf-8")
 

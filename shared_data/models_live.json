@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-14T15:11:26Z",
-  "last_live_verified_at": "2026-11-14T15:11:26Z",
+  "updated_at": "2026-11-14T16:39:55Z",
+  "last_live_verified_at": "2026-11-14T16:39:55Z",
   "quote_verified_date": "2026-11-13",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
@@ -108,7 +108,11 @@
       "pro_monthly_rmb": 200.0,
       "renewal_rmb": 200.0,
       "models_covered": [
-        "tc-code-latest"
+        "tc-code-latest",
+        "hunyuan-t1",
+        "kimi-k2.5",
+        "glm-5",
+        "MiniMax-M2.5"
       ],
       "speed_highlight": "Lite 月限 18,000 次 (¥40) · Pro 月限 90,000 次 (¥200)",
       "best_for": "仅限 Claude Code / Cursor / Cline / CodeBuddy 交互式编程；严禁自动化脚本或后端业务调用",

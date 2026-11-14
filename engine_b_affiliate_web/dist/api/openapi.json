@@ -272,7 +272,7 @@
             "name": "model_id",
             "in": "query",
             "required": true,
-            "description": "从价格查询工具中选取完整 id，必须精确匹配",
+            "description": "模型完整 id 或常用 api_model_id（支持大小写容错，例如 aliyun-bailian/qwen3-coder-next、qwen3.5-plus、deepseek-v3、siliconflow/THUDM/GLM-5）",
             "schema": {
               "type": "string"
             }

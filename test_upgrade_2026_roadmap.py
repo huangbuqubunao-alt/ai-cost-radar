@@ -88,39 +88,43 @@ class Roadmap2026UpgradeTests(unittest.TestCase):
                 self.assertTrue(str(m["api_base_url"]).startswith("https://"))
 
     def test_03_engine_b_programmatic_seo_pages_and_conversion_hooks(self) -> None:
-        summary = build_site.build_site(site_url="https://huangbuqubunao-alt.github.io/ai-cost-radar/")
-        dist_dir = ROOT_DIR / "engine_b_affiliate_web" / "dist"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dist_dir = Path(tmpdir) / "dist"
+            summary = build_site.build_site(
+                site_url="https://huangbuqubunao-alt.github.io/ai-cost-radar/",
+                dist_dir=dist_dir,
+            )
 
-        expected_routes = [
-            dist_dir / "index.html",
-            dist_dir / "claude-code-domestic" / "index.html",
-            dist_dir / "coding-plan-2026" / "index.html",
-            dist_dir / "deepseek-vs-qwen" / "index.html",
-            dist_dir / "dify-openclaw-cloud-server" / "index.html",
-        ]
-        for route_file in expected_routes:
-            self.assertTrue(route_file.exists(), f"Missing programmatic SEO page: {route_file}")
-            html_text = route_file.read_text(encoding="utf-8")
-            self.assertNotIn("YOUR_DO_REF", html_text)
-            self.assertNotIn("YOUR_RUNPOD_REF", html_text)
-            self.assertNotIn("YOUR_RAILWAY_CODE", html_text)
+            expected_routes = [
+                dist_dir / "index.html",
+                dist_dir / "claude-code-domestic" / "index.html",
+                dist_dir / "coding-plan-2026" / "index.html",
+                dist_dir / "deepseek-vs-qwen" / "index.html",
+                dist_dir / "dify-openclaw-cloud-server" / "index.html",
+            ]
+            for route_file in expected_routes:
+                self.assertTrue(route_file.exists(), f"Missing programmatic SEO page: {route_file}")
+                html_text = route_file.read_text(encoding="utf-8")
+                self.assertNotIn("YOUR_DO_REF", html_text)
+                self.assertNotIn("YOUR_RUNPOD_REF", html_text)
+                self.assertNotIn("YOUR_RAILWAY_CODE", html_text)
 
-        index_html = (dist_dir / "index.html").read_text(encoding="utf-8")
-        self.assertIn("codingPlanSection", index_html, "Must render Coding Plan PK section")
-        self.assertIn("reasoningToggle", index_html, "Must render Reasoning Token overhead toggle")
-        self.assertIn("configModal", index_html, "Must render 1-Click Claude Code / Cursor config modal")
-        self.assertIn("vlxk7knp", index_html)
-        self.assertIn("EGH3k1cs", index_html)
+            index_html = (dist_dir / "index.html").read_text(encoding="utf-8")
+            self.assertIn("codingPlanSection", index_html, "Must render Coding Plan PK section")
+            self.assertIn("reasoningToggle", index_html, "Must render Reasoning Token overhead toggle")
+            self.assertIn("configModal", index_html, "Must render 1-Click Claude Code / Cursor config modal")
+            self.assertIn("vlxk7knp", index_html)
+            self.assertIn("EGH3k1cs", index_html)
 
-        sitemap_xml = (dist_dir / "sitemap.xml").read_text(encoding="utf-8")
-        for slug in (
-            "claude-code-domestic/",
-            "coding-plan-2026/",
-            "deepseek-vs-qwen/",
-            "dify-openclaw-cloud-server/",
-        ):
-            self.assertIn(slug, sitemap_xml, f"sitemap.xml missing SEO route {slug}")
-        self.assertGreaterEqual(summary.get("seo_pages_count", 0), 5)
+            sitemap_xml = (dist_dir / "sitemap.xml").read_text(encoding="utf-8")
+            for slug in (
+                "claude-code-domestic/",
+                "coding-plan-2026/",
+                "deepseek-vs-qwen/",
+                "dify-openclaw-cloud-server/",
+            ):
+                self.assertIn(slug, sitemap_xml, f"sitemap.xml missing SEO route {slug}")
+            self.assertGreaterEqual(summary.get("seo_pages_count", 0), 5)
 
     def test_04_engine_c_multichain_bounty_queries_and_l2_solana_classifier(self) -> None:
         self.assertGreaterEqual(

@@ -114,7 +114,7 @@ OFFERS_CATALOG_2026: list[dict[str, Any]] = [
         "monthly_rmb": 40.0,
         "pro_monthly_rmb": 200.0,
         "renewal_rmb": 200.0,
-        "models_covered": ["tc-code-latest"],
+        "models_covered": ["tc-code-latest", "hunyuan-t1", "kimi-k2.5", "glm-5", "MiniMax-M2.5"],
         "speed_highlight": "Lite 月限 18,000 次 (¥40) · Pro 月限 90,000 次 (¥200)",
         "best_for": "仅限 Claude Code / Cursor / Cline / CodeBuddy 交互式编程；严禁自动化脚本或后端业务调用",
         "featured_partner": True,
@@ -335,6 +335,45 @@ def get_offers_catalog() -> list[dict[str, Any]]:
     return deepcopy(OFFERS_CATALOG_2026)
 
 
+def plan_covers_model(plan_or_id: str | dict[str, Any], model_id_or_obj: str | dict[str, Any] | None) -> bool:
+    """
+    Determine whether a Coding Plan subscription natively includes the selected model's family
+    (same-family direct coverage vs cross-model domestic replacement).
+    """
+    if model_id_or_obj is None:
+        return False
+    if isinstance(plan_or_id, str):
+        plan = next((o for o in OFFERS_CATALOG_2026 if o["id"] == plan_or_id), None)
+    else:
+        plan = plan_or_id
+    if not plan or plan.get("offer_type") != "subscription":
+        return False
+
+    if isinstance(model_id_or_obj, dict):
+        model_text = f"{model_id_or_obj.get('id', '')} {model_id_or_obj.get('api_model_id', '')} {model_id_or_obj.get('name', '')}".lower()
+    else:
+        model_text = str(model_id_or_obj).strip().lower()
+    if not model_text:
+        return False
+
+    cov = " ".join(str(x).lower() for x in (plan.get("models_covered") or []))
+    if "qwen" in model_text and "qwen" in cov:
+        return True
+    if ("hunyuan" in model_text or "tc-code" in model_text) and ("hunyuan" in cov or "tc-code" in cov):
+        return True
+    if "doubao" in model_text and "doubao" in cov:
+        return True
+    if "kimi" in model_text and "kimi" in cov:
+        return True
+    if "glm" in model_text and "glm" in cov:
+        return True
+    if "minimax" in model_text and "minimax" in cov:
+        return True
+    if ("deepseek-v3" in model_text or "deepseek-chat" in model_text) and "deepseek-v3" in cov:
+        return True
+    return False
+
+
 def calculate_token_bill(
     *,
     monthly_input_m: float,
@@ -391,6 +430,7 @@ def evaluate_coding_plans(
     payg_monthly_rmb: float,
     usage_mode: str = "interactive_ide",
     peak_5h_calls: int | None = None,
+    model_id: str | dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Evaluate 2026 Coding Plan subscriptions against same-model Pay-As-You-Go cost and hard call caps.
@@ -426,7 +466,7 @@ def evaluate_coding_plans(
         purchasable_tiers = [t for t in offer.get("tiers", []) if t.get("purchasable")]
         chosen_tier: dict[str, Any] | None = None
         for tier in purchasable_tiers:
-            if monthly_calls <= int(tier["quota_monthly"]):
+            if monthly_calls <= int(tier["quota_monthly"]) and (d_calls * 7) <= int(tier["quota_weekly"]):
                 if peak_5h_calls is None or peak_5h_calls <= int(tier["quota_5h"]):
                     chosen_tier = tier
                     break
@@ -437,6 +477,7 @@ def evaluate_coding_plans(
         if ref_tier is None:
             continue
 
+        covers_model = plan_covers_model(offer, model_id) if model_id is not None else True
         first_rmb = ref_tier.get("first_month_rmb")
         renewal_rmb = float(ref_tier["renewal_rmb"])
         effective_first_rmb = float(first_rmb) if first_rmb is not None else renewal_rmb
@@ -458,25 +499,26 @@ def evaluate_coding_plans(
         else:
             first_month_saving = round(payg_rmb - effective_first_rmb, 2)
             renewal_saving = round(payg_rmb - renewal_rmb, 2)
+            cov_prefix = "套餐含同系模型，" if covers_model else "跨模型国产平替（套餐不含所选原模型），"
             if renewal_saving > 0:
                 status = "recommended_even_on_renewal"
                 verdict_zh = (
-                    f"匹配 {chosen_tier['name']}（月上限 {chosen_tier['quota_monthly']:,} 次）："
-                    f"同模型按量预计 ¥{payg_rmb:.2f}/月，"
+                    f"{cov_prefix}匹配 {chosen_tier['name']}（月上限 {chosen_tier['quota_monthly']:,} 次）："
+                    f"同基准按量预计 ¥{payg_rmb:.2f}/月，"
                     + (f"首月 ¥{effective_first_rmb:.2f} 省 ¥{first_month_saving:.2f}，" if first_rmb is not None else "")
                     + f"续费 ¥{renewal_rmb:.0f}/月 仍净省 ¥{renewal_saving:.2f}。"
                 )
             elif first_rmb is not None and first_month_saving > 0:
                 status = "first_month_only"
                 verdict_zh = (
-                    f"仅首月特惠划算：同模型按量预计 ¥{payg_rmb:.2f}/月，"
+                    f"{cov_prefix}仅首月特惠划算：按量预计 ¥{payg_rmb:.2f}/月，"
                     f"首月 ¥{effective_first_rmb:.2f} 可省 ¥{first_month_saving:.2f}，"
                     f"但次月续费恢复 ¥{renewal_rmb:.0f}/月 后将比按量贵 ¥{abs(renewal_saving):.2f}。"
                 )
             else:
                 status = "payg_cheaper"
                 verdict_zh = (
-                    f"建议直接按量付费：同模型按量仅需 ¥{payg_rmb:.2f}/月，"
+                    f"建议直接按量付费：按量仅需 ¥{payg_rmb:.2f}/月，"
                     f"低于 {chosen_tier['name']} 价格（¥{effective_first_rmb:.2f}～¥{renewal_rmb:.0f}/月）。"
                 )
 
@@ -485,6 +527,8 @@ def evaluate_coding_plans(
                 "plan_id": offer["id"],
                 "name": offer["name"],
                 "vendor": offer["vendor"],
+                "featured_partner": bool(offer.get("featured_partner")),
+                "covers_selected_model": covers_model,
                 "official_source_url": offer["official_source_url"],
                 "verified_date": offer["verified_date"],
                 "status": status,
@@ -501,6 +545,16 @@ def evaluate_coding_plans(
                 "verdict_zh": verdict_zh,
             }
         )
+
+    same_family_candidates = [
+        item for item in eligible
+        if item["covers_selected_model"] and item["status"] == "recommended_even_on_renewal"
+    ]
+    same_family_candidates.sort(
+        key=lambda x: (float(x["renewal_savings_rmb"] or 0.0), 1 if x.get("featured_partner") else 0),
+        reverse=True,
+    )
+    recommended_same_family_plan_id = same_family_candidates[0]["plan_id"] if same_family_candidates else None
 
     if norm_mode == "automated_backend":
         headline_zh = (
@@ -550,6 +604,7 @@ def evaluate_coding_plans(
         "window_note_zh": window_note_zh,
         "eligible_subscriptions": eligible,
         "excluded_subscriptions": excluded,
+        "recommended_same_family_plan_id": recommended_same_family_plan_id,
         "quote_verified_date": QUOTE_VERIFIED_DATE,
     }
 

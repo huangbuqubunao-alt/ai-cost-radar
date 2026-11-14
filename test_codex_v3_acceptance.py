@@ -338,53 +338,57 @@ class CodexV3AcceptanceTests(unittest.TestCase):
     def test_04_ssr_no_js_htmlparser_and_shareable_url_params(self) -> None:
         import build_site
 
-        build_site.build_site(site_url="https://huangbuqubunao-alt.github.io/ai-cost-radar/")
-        dist_dir = ROOT_DIR / "engine_b_affiliate_web" / "dist"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dist_dir = Path(tmpdir) / "dist"
+            build_site.build_site(
+                site_url="https://huangbuqubunao-alt.github.io/ai-cost-radar/",
+                dist_dir=dist_dir,
+            )
 
-        for rel_path in ("index.html", "coding-plan-2026/index.html", "deepseek-vs-qwen/index.html"):
-            raw_html = (dist_dir / rel_path).read_text(encoding="utf-8")
-            inspector = _NoScriptHTMLInspector()
-            inspector.feed(raw_html)
-            self.assertGreater(inspector.table_count, 0, f"{rel_path} must contain SSR <table> outside <script>")
-            self.assertGreater(inspector.tr_count, 2, f"{rel_path} must contain SSR <tr> rows outside <script>")
-            self.assertGreater(inspector.caption_count, 0, f"{rel_path} must contain <caption>")
+            for rel_path in ("index.html", "coding-plan-2026/index.html", "deepseek-vs-qwen/index.html"):
+                raw_html = (dist_dir / rel_path).read_text(encoding="utf-8")
+                inspector = _NoScriptHTMLInspector()
+                inspector.feed(raw_html)
+                self.assertGreater(inspector.table_count, 0, f"{rel_path} must contain SSR <table> outside <script>")
+                self.assertGreater(inspector.tr_count, 2, f"{rel_path} must contain SSR <tr> rows outside <script>")
+                self.assertGreater(inspector.caption_count, 0, f"{rel_path} must contain <caption>")
 
-        cp_raw = (dist_dir / "coding-plan-2026" / "index.html").read_text(encoding="utf-8")
-        cp = _NoScriptHTMLInspector()
-        cp.feed(cp_raw)
-        vis = cp.visible_text
+            cp_raw = (dist_dir / "coding-plan-2026" / "index.html").read_text(encoding="utf-8")
+            cp = _NoScriptHTMLInspector()
+            cp.feed(cp_raw)
+            vis = cp.visible_text
 
-        # Core prices, quotas, dual dates, worked example, and official sources visible WITHOUT JS
-        self.assertIn("39.9", vis)
-        self.assertIn("200", vis)
-        self.assertIn("90,000", vis)
-        self.assertIn("18,000", vis)
-        self.assertIn("按 30 天预计 15 万次", vis)
-        self.assertIn("超出 Pro 月额度 6 万次", vis)
-        self.assertIn("页面构建日", vis)
-        self.assertIn("报价核验日", vis)
-        self.assertIn("估算日 UV", vis)
-        self.assertTrue(
-            any("help.aliyun.com/zh/model-studio/coding-plan" in h for h in cp.hrefs),
-            "SSR page must link directly to Aliyun Coding Plan official documentation",
-        )
-        self.assertTrue(
-            any("cloud.tencent.com/document/product/1823/130092" in h for h in cp.hrefs),
-            "SSR page must link directly to Tencent Coding Plan official documentation",
-        )
-        self.assertEqual(
-            cp.canonical_href,
-            "https://huangbuqubunao-alt.github.io/ai-cost-radar/coding-plan-2026/",
-        )
+            # Core prices, quotas, dual dates, worked example, and official sources visible WITHOUT JS
+            self.assertIn("39.9", vis)
+            self.assertIn("200", vis)
+            self.assertIn("90,000", vis)
+            self.assertIn("18,000", vis)
+            self.assertIn("按 30 天预计 15 万次", vis)
+            self.assertIn("超出 Pro 月额度 6 万次", vis)
+            self.assertIn("页面构建日", vis)
+            self.assertIn("报价核验日", vis)
+            self.assertIn("估算日 UV", vis)
+            self.assertTrue(
+                any("help.aliyun.com/zh/model-studio/coding-plan" in h for h in cp.hrefs),
+                "SSR page must link directly to Aliyun Coding Plan official documentation",
+            )
+            self.assertTrue(
+                any("cloud.tencent.com/document/product/1823/130092" in h for h in cp.hrefs),
+                "SSR page must link directly to Tencent Coding Plan official documentation",
+            )
+            self.assertEqual(
+                cp.canonical_href,
+                "https://huangbuqubunao-alt.github.io/ai-cost-radar/coding-plan-2026/",
+            )
 
-        # Shareable URLSearchParams + sendBeacon(/events) + IntersectionObserver in client script
-        self.assertIn("URLSearchParams", cp_raw)
-        self.assertIn("sendBeacon", cp_raw)
-        self.assertIn("IntersectionObserver", cp_raw)
+            # Shareable URLSearchParams + sendBeacon(/events) + IntersectionObserver in client script
+            self.assertIn("URLSearchParams", cp_raw)
+            self.assertIn("sendBeacon", cp_raw)
+            self.assertIn("IntersectionObserver", cp_raw)
 
-        # Static SVG badge & Atom feed generated
-        self.assertTrue((dist_dir / "badges" / "coding-plan-status.svg").exists())
-        self.assertTrue((dist_dir / "feeds" / "price-changes.xml").exists())
+            # Static SVG badge & Atom feed generated
+            self.assertTrue((dist_dir / "badges" / "coding-plan-status.svg").exists())
+            self.assertTrue((dist_dir / "feeds" / "price-changes.xml").exists())
 
     def test_05_events_attribution_reconcile_and_honest_marketing_pack(self) -> None:
         import events_reconcile

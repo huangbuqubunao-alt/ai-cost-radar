@@ -251,6 +251,7 @@ def render_html_template(
       align-items: center;
       gap: 8px;
       flex-wrap: wrap;
+      max-width: 100%;
     }}
 
     .region-switcher {{
@@ -260,6 +261,8 @@ def render_html_template(
       border-radius: 999px;
       padding: 3px;
       gap: 3px;
+      max-width: 100%;
+      flex-wrap: wrap;
     }}
 
     .region-btn {{
@@ -274,6 +277,13 @@ def render_html_template(
       cursor: pointer;
       transition: var(--transition);
       white-space: nowrap;
+    }}
+
+    @media (max-width: 520px) {{
+      .region-btn {{
+        font-size: 0.77rem;
+        padding: 6px 9px;
+      }}
     }}
 
     .region-btn:hover {{
@@ -1553,9 +1563,9 @@ def render_html_template(
           <p data-i18n="heroSubtitle">{hero_subtitle}</p>
         </div>
         <nav class="quick-jumps" aria-label="Quick section links">
-          <a href="#codingPlanSection" class="jump-chip">Coding Plan 核验表</a>
+          <a href="#codingPlanSection" class="jump-chip" data-i18n="jumpCodingPlan">Coding Plan 核验表</a>
           <a href="#modelsSection" class="jump-chip" data-i18n="jumpModels">模型比价目录 ({total_models})</a>
-          <a href="#selfHostBanner" class="jump-chip">缓存网关与自建总账</a>
+          <a href="#selfHostBanner" class="jump-chip" data-i18n="jumpSelfHost">缓存网关与自建总账</a>
           <a href="#faqSection" class="jump-chip" data-i18n="jumpFaq">计费规则问答</a>
         </nav>
       </div>
@@ -1565,19 +1575,19 @@ def render_html_template(
           <div class="panel-header">
             <div class="panel-title" data-i18n="simTitle">月度模型调用量与计费条件输入</div>
             <div class="baseline-select-wrap">
-              <label for="usageModeSelect">调用场景:</label>
+              <label for="usageModeSelect" data-i18n="usageModeLabel">调用场景:</label>
               <select id="usageModeSelect" class="select-sm" aria-label="Workload Usage Mode">
-                <option value="interactive_ide">交互式编程工具 (Claude Code / Cursor / Cline)</option>
-                <option value="automated_backend">非交互式后端 / 批处理 API（排除个人套餐）</option>
+                <option value="interactive_ide" data-i18n="optModeIde">交互式编程工具 (Claude Code / Cursor / Cline)</option>
+                <option value="automated_backend" data-i18n="optModeBackend">非交互式后端 / 批处理 API（排除个人套餐）</option>
               </select>
             </div>
           </div>
 
           <div class="preset-row" id="presetBar">
-            <button type="button" class="preset-btn" data-calls="800" data-in="4000" data-out="1000" data-mode="interactive_ide">独立开发 (800次/天 · 2.4万/月)</button>
-            <button type="button" class="preset-btn active" data-calls="2500" data-in="2000" data-out="800" data-mode="interactive_ide">编程主力 (2,500次/天 · 7.5万/月)</button>
-            <button type="button" class="preset-btn" data-calls="5000" data-in="4000" data-out="1000" data-mode="interactive_ide">超额反例 (5,000次/天 · 15万/月)</button>
-            <button type="button" class="preset-btn" data-calls="15000" data-in="2500" data-out="800" data-mode="automated_backend">自动化后端 (15,000次/天 · 排除个人套餐)</button>
+            <button type="button" class="preset-btn" data-calls="800" data-in="4000" data-out="1000" data-mode="interactive_ide" data-i18n="presetIndie">独立开发 (800次/天 · 2.4万/月)</button>
+            <button type="button" class="preset-btn active" data-calls="2500" data-in="2000" data-out="800" data-mode="interactive_ide" data-i18n="presetPro">编程主力 (2,500次/天 · 7.5万/月)</button>
+            <button type="button" class="preset-btn" data-calls="5000" data-in="4000" data-out="1000" data-mode="interactive_ide" data-i18n="presetOver">超额反例 (5,000次/天 · 15万/月)</button>
+            <button type="button" class="preset-btn" data-calls="15000" data-in="2500" data-out="800" data-mode="automated_backend" data-i18n="presetBackend">自动化后端 (15,000次/天 · 排除个人套餐)</button>
           </div>
 
           <div class="control-group">
@@ -1589,13 +1599,19 @@ def render_html_template(
               <input type="range" id="dailyCallsRange" min="0" max="1000" value="460" aria-label="Daily Model Calls Slider" />
               <input type="number" class="num-input" id="dailyCallsNum" min="1" max="2000000" step="50" value="2500" />
             </div>
-            <div class="unit-hint">
-              注意单位是<strong>模型 API 调用次数</strong>而非用户提问次数：在 Claude Code / Cline / Cursor 中提问 1 次通常连续触发 5～30 次模型调用。
+            <div class="unit-hint" data-i18n="unitHintCalls">
+              注意单位是模型 API 调用次数而非用户提问次数：在 Claude Code / Cline / Cursor 中提问 1 次通常连续触发 5～30 次模型调用。
+            </div>
+            <div class="preset-row" id="promptToCallsBar" style="margin-top:8px;margin-bottom:0;align-items:center;">
+              <span style="font-size:0.78rem;color:var(--text-secondary);font-weight:600;" data-i18n="promptCalcLabel">按每日提问数折算：</span>
+              <button type="button" class="preset-btn" data-prompt-calls="480" data-i18n="promptChipLight">轻度 40问×12次 = 480/天</button>
+              <button type="button" class="preset-btn" data-prompt-calls="2000" data-i18n="promptChipMid">主力 100问×20次 = 2,000/天</button>
+              <button type="button" class="preset-btn" data-prompt-calls="5000" data-i18n="promptChipHeavy">重度 200问×25次 = 5,000/天 [超Pro上限]</button>
             </div>
           </div>
 
           <div class="control-group">
-            <label class="control-label" for="peak5h">最忙的连续 5 小时调用次数（可选）</label>
+            <label class="control-label" for="peak5h" data-i18n="labelPeak5h">最忙的连续 5 小时调用次数（可选）</label>
             <input type="number" class="num-input" id="peak5h" min="0" step="1" placeholder="未知" />
           </div>
           <div class="control-group">
@@ -1962,7 +1978,7 @@ def render_html_template(
     const state = {{
       region: "all",
       currency: "RMB",
-      lang: "zh",
+      lang: safeGetStorage("ai_cost_lang", "zh") === "en" ? "en" : "zh",
       theme: safeGetStorage("ai_cost_theme", "dark"),
       dailyCalls: 2500,
       peak5h: null,
@@ -2087,30 +2103,48 @@ def render_html_template(
     }}
 
     function getModelCtaInfo(m) {{
+      const isEn = state.lang === "en";
       const key = m.provider_config_key || (m.region === "cn_direct" ? "aliyun_bailian_url" : "openrouter_url");
       const url = AFF[key] || m.affiliate_url || "https://openrouter.ai";
       if (key === "aliyun_bailian_url") {{
-        return {{ url, offerId: "aliyun-payg", label: "前往阿里云百炼控制台", isCn: true }};
+        return {{ url, offerId: "aliyun-payg", label: isEn ? "Open Aliyun Bailian Console" : "前往阿里云百炼控制台", isCn: true }};
       }}
       if (key === "tencent_cps_url") {{
-        return {{ url, offerId: "tencent-payg", label: "前往腾讯云 LKEAP / 特惠页", isCn: true }};
+        return {{ url, offerId: "tencent-payg", label: isEn ? "Open Tencent LKEAP Console" : "前往腾讯云 LKEAP / 特惠页", isCn: true }};
       }}
       if (key === "aliyun_ambassador_url") {{
-        return {{ url, offerId: "aliyun-ecs-agent-host", label: "查看阿里云 ECS / 轻量云机型", isCn: true }};
+        return {{ url, offerId: "aliyun-ecs-agent-host", label: isEn ? "View Aliyun ECS / Cloud Deals" : "查看阿里云 ECS / 轻量云机型", isCn: true }};
       }}
       if (key === "siliconflow_invite_url") {{
-        return {{ url, offerId: "siliconflow-coding-pack", label: "前往硅基流动按量控制台", isCn: true }};
+        return {{ url, offerId: "siliconflow-coding-pack", label: isEn ? "Open SiliconFlow PayG Console" : "前往硅基流动按量控制台", isCn: true }};
       }}
       if (key === "volcengine_ark_url") {{
-        return {{ url, offerId: "volcengine-payg", label: "前往火山方舟控制台", isCn: true }};
+        return {{ url, offerId: "volcengine-payg", label: isEn ? "Open Volcengine Ark Console" : "前往火山方舟控制台", isCn: true }};
       }}
-      return {{ url: AFF.openrouter_url || url, offerId: "openrouter-global-coding", label: "前往 OpenRouter 官网", isCn: false }};
+      return {{ url: AFF.openrouter_url || url, offerId: "openrouter-global-coding", label: isEn ? "Visit OpenRouter" : "前往 OpenRouter 官网", isCn: false }};
     }}
 
-    function evaluateSingleSubscription(plan, monthlyCalls, paygRmb) {{
+    function planCoversModel(plan, model) {{
+      if (!plan || plan.offer_type !== "subscription" || !model) return false;
+      const text = `${{model.id || ""}} ${{model.api_model_id || ""}} ${{model.name || ""}}`.toLowerCase();
+      const cov = (plan.models_covered || []).map(x => String(x).toLowerCase()).join(" ");
+      if (text.includes("qwen") && cov.includes("qwen")) return true;
+      if ((text.includes("hunyuan") || text.includes("tc-code")) && (cov.includes("hunyuan") || cov.includes("tc-code"))) return true;
+      if (text.includes("doubao") && cov.includes("doubao")) return true;
+      if (text.includes("kimi") && cov.includes("kimi")) return true;
+      if (text.includes("glm") && cov.includes("glm")) return true;
+      if (text.includes("minimax") && cov.includes("minimax")) return true;
+      if ((text.includes("deepseek-v3") || text.includes("deepseek-chat")) && cov.includes("deepseek-v3")) return true;
+      return false;
+    }}
+
+    function evaluateSingleSubscription(plan, monthlyCalls, paygRmb, baselineModel) {{
+      const coversModel = baselineModel ? planCoversModel(plan, baselineModel) : true;
+      const baseShort = baselineModel ? baselineModel.name.replace(/^[^:]+:\\s*/, "") : "";
       if (state.usageMode === "automated_backend" && plan.interactive_only) {{
         return {{
           excluded: true,
+          coversModel,
           badgeHtml: `<span class="badge badge-warn">场景排除 · 禁用于后端</span>`,
           priceMain: "不可用于后端",
           tierSummary: "官方条款仅限交互式编程工具",
@@ -2120,7 +2154,8 @@ def render_html_template(
       const purchasable = (plan.tiers || []).filter(t => t.purchasable);
       let matched = null;
       for (const t of purchasable) {{
-        if (monthlyCalls <= Number(t.quota_monthly) && (state.peak5h === null || state.peak5h <= t.quota_5h)) {{
+        const weekFits = (state.dailyCalls * 7) <= Number(t.quota_weekly || 999999);
+        if (monthlyCalls <= Number(t.quota_monthly) && weekFits && (state.peak5h === null || state.peak5h <= t.quota_5h)) {{
           matched = t;
           break;
         }}
@@ -2128,10 +2163,13 @@ def render_html_template(
       const proTier = purchasable.find(t => t.tier_id === "pro") || purchasable[purchasable.length - 1];
       if (!matched && proTier && monthlyCalls <= proTier.quota_monthly) {{
         return {{
-          badgeHtml: '<span class="badge badge-warn">5 小时峰值超限</span>',
+          coversModel,
+          badgeHtml: '<span class="badge badge-warn">5 小时或单周峰值超限</span>',
           priceMain: "高峰期额度不足",
           tierSummary: proTier.name,
-          detailText: `5 小时峰值 ${{fmtNum(state.peak5h)}} 次，超过窗口上限 ${{fmtNum(proTier.quota_5h)}} 次。`
+          detailText: state.peak5h !== null && state.peak5h > proTier.quota_5h
+            ? `5 小时峰值 ${{fmtNum(state.peak5h)}} 次，超过窗口上限 ${{fmtNum(proTier.quota_5h)}} 次。`
+            : `按日均推算 7 天调用 ${{fmtNum(state.dailyCalls * 7)}} 次，超过单周滚动上限 ${{fmtNum(proTier.quota_weekly)}} 次。`
         }};
       }}
       if (!matched) {{
@@ -2139,6 +2177,7 @@ def render_html_template(
         return {{
           excluded: false,
           exceedsCap: true,
+          coversModel,
           badgeHtml: `<span class="badge badge-warn">超出 Pro 月上限 ${{fmtWanCalls(over)}}</span>`,
           priceMain: proTier ? `Pro 续费 ¥${{Number(proTier.renewal_rmb).toFixed(0)}}/月` : "超出月上限",
           tierSummary: proTier && proTier.first_month_rmb
@@ -2159,11 +2198,15 @@ def render_html_template(
 
       let badgeHtml = "";
       let detailText = "";
-      if (saveRenew > 0) {{
-        badgeHtml = `<span class="badge badge-save">续费月仍省 ¥${{saveRenew.toFixed(0)}}</span>`;
-        detailText = `匹配 ${{matched.name}}（月限 ${{fmtNum(matched.quota_monthly)}} 次）：同基准按量约 ¥${{paygRmb.toFixed(2)}}/月，`
+      if (saveRenew > 0 && coversModel) {{
+        badgeHtml = `<span class="badge badge-save">套餐含同系模型 · 续费省 ¥${{saveRenew.toFixed(0)}}</span>`;
+        detailText = `套餐含同系模型，匹配 ${{matched.name}}（月限 ${{fmtNum(matched.quota_monthly)}} 次）：同基准按量约 ¥${{paygRmb.toFixed(2)}}/月，`
           + (hasPromo ? `首月 ¥${{firstRmb.toFixed(2)}} 省 ¥${{saveFirst.toFixed(2)}}，` : "")
           + `续费 ¥${{renewalRmb.toFixed(0)}}/月 仍省 ¥${{saveRenew.toFixed(2)}}。${{peakNote}}`;
+      }} else if (saveRenew > 0 && !coversModel) {{
+        const sampleModels = (plan.models_covered || []).slice(0, 3).join(" / ");
+        badgeHtml = `<span class="badge badge-neutral">跨模型国产平替 · 差额 ¥${{saveRenew.toFixed(0)}}</span>`;
+        detailText = `套餐不含所选「${{baseShort}}」原模型（可用 ${{sampleModels}} 等平替）：若接受切换模型，匹配 ${{matched.name}} 后续费 ¥${{renewalRmb.toFixed(0)}}/月 比原按量少支 ¥${{saveRenew.toFixed(2)}}。${{peakNote}}`;
       }} else if (hasPromo && saveFirst > 0) {{
         badgeHtml = `<span class="badge badge-warn">仅首月省 · 续费反贵</span>`;
         detailText = `对比所选按量基准（¥${{paygRmb.toFixed(2)}}/月）：首月特惠 ¥${{firstRmb.toFixed(2)}} 可省 ¥${{saveFirst.toFixed(2)}}，但次月恢复 ¥${{renewalRmb.toFixed(0)}}/月续费后将比按量贵 ¥${{Math.abs(saveRenew).toFixed(2)}}。${{peakNote}}`;
@@ -2181,6 +2224,7 @@ def render_html_template(
       return {{
         excluded: false,
         exceedsCap: false,
+        coversModel,
         saveRenew,
         saveFirst,
         matched,
@@ -2231,50 +2275,91 @@ def render_html_template(
         if (overPeak) verdictEl.className = "verdict-banner danger";
       }}
 
-      // Single focused Primary CTA under simulator result (transparent first/renewal, audience & affiliate disclosure)
+      const subEvals = CODING_PLANS
+        .filter(p => (p.offer_type || "subscription") === "subscription")
+        .map(plan => ({{ plan, ev: evaluateSingleSubscription(plan, monthlyCalls, paygRmb, baselineModel) }}));
+      const sameFamilyWins = subEvals
+        .filter(x => !x.ev.excluded && !x.ev.exceedsCap && x.ev.matched && x.ev.coversModel && x.ev.saveRenew > 0)
+        .sort((a, b) => (b.ev.saveRenew - a.ev.saveRenew) || ((b.plan.featured_partner ? 1 : 0) - (a.plan.featured_partner ? 1 : 0)));
+      const crossFamilyWins = subEvals
+        .filter(x => !x.ev.excluded && !x.ev.exceedsCap && x.ev.matched && !x.ev.coversModel && x.ev.saveRenew > 0)
+        .sort((a, b) => ((b.plan.featured_partner ? 1 : 0) - (a.plan.featured_partner ? 1 : 0)) || (b.ev.saveRenew - a.ev.saveRenew));
+
+      // Single focused Primary CTA under simulator result (transparent first/renewal, model coverage & affiliate disclosure)
       if (primaryRecEl) {{
+        const isEn = state.lang === "en";
         const gwTotal = 68 + paygRmb * 0.65 + 15;
         if (state.usageMode === "automated_backend" && gwTotal + 20 < paygRmb) {{
           primaryRecEl.innerHTML = `
             <div class="primary-rec-head">
-              <span>当前工作负载主推荐：阿里云轻量/ECS 自建缓存网关</span>
-              <span class="badge badge-save">预计月省 ¥${{(paygRmb - gwTotal).toFixed(0)}}</span>
+              <span>${{isEn ? "Primary Recommendation: Cloud Host + LiteLLM/Dify Cache Gateway" : "当前工作负载主推荐：阿里云轻量/ECS 自建缓存网关"}}</span>
+              <span class="badge badge-save">${{isEn ? `Save ¥${{(paygRmb - gwTotal).toFixed(0)}}/mo` : `预计月省 ¥${{(paygRmb - gwTotal).toFixed(0)}}`}}</span>
             </div>
             <div class="primary-rec-desc">
-              适用人群：非交互式后端高重复请求（按 35% 语义缓存拦截率测算，主机 ¥68 + 未命中 API ¥${{(paygRmb * 0.65).toFixed(0)}} + 存储流量 ¥15 ≈ ¥${{gwTotal.toFixed(0)}}/月）。<br>
-              推广说明：含阿里云云大使推广参数（vlxk7knp，云主机属常规返佣核对品类），价格与官网一致。
+              ${{isEn
+                ? `Best for automated backends with repetitive queries (35% cache hit assumption: ¥68 host + ¥${{(paygRmb * 0.65).toFixed(0)}} uncached API + ¥15 egress ≈ ¥${{gwTotal.toFixed(0)}}/mo). Includes Aliyun Ambassador code (vlxk7knp) at official catalog prices.`
+                : `适用人群：非交互式后端高重复请求（按 35% 语义缓存拦截率测算，主机 ¥68 + 未命中 API ¥${{(paygRmb * 0.65).toFixed(0)}} + 存储流量 ¥15 ≈ ¥${{gwTotal.toFixed(0)}}/月）。<br>推广说明：含阿里云云大使推广参数（vlxk7knp，云主机属常规返佣核对品类），价格与官网一致。`}}
             </div>
             <a class="cta-primary cn-cta" href="${{esc(AFF.aliyun_ambassador_url)}}" target="_blank" rel="noopener sponsored" data-offer-id="aliyun-ecs-agent-host" data-card-slot="primary_result">
-              查看阿里云 ECS / 轻量云官方活动机型
+              ${{isEn ? "View Aliyun ECS / Cloud Server Deals" : "查看阿里云 ECS / 轻量云官方活动机型"}}
             </a>
           `;
-        }} else if (state.usageMode === "interactive_ide" && monthlyCalls <= PRO_MONTHLY_CAP && (state.peak5h === null || state.peak5h <= 6000) && paygRmb > 200) {{
+        }} else if (sameFamilyWins.length > 0) {{
+          const bestSub = sameFamilyWins[0];
+          const p = bestSub.plan;
+          const t = bestSub.ev.matched;
+          const firstStr = t.first_month_rmb !== null && t.first_month_rmb !== undefined
+            ? (isEn ? `¥${{Number(t.first_month_rmb).toFixed(2)}} 1st mo, ¥${{Number(t.renewal_rmb).toFixed(0)}}/mo renewal` : `新客首月 ¥${{Number(t.first_month_rmb).toFixed(2)}}，次月续费 ¥${{Number(t.renewal_rmb).toFixed(0)}}/月`)
+            : (isEn ? `¥${{Number(t.renewal_rmb).toFixed(0)}}/mo catalog price` : `目录原价 ¥${{Number(t.renewal_rmb).toFixed(0)}}/月`);
           primaryRecEl.innerHTML = `
             <div class="primary-rec-head">
-              <span>当前工作负载主推荐：阿里云百炼 Coding Plan Pro</span>
-              <span class="badge badge-save">续费月仍省 ¥${{(paygRmb - 200).toFixed(0)}}</span>
+              <span>${{isEn ? `Primary Recommendation: ${{esc(p.cta_en ? p.cta_en.replace(/^View\\s+/i, "") : p.name)}} (${{esc(t.tier_id.toUpperCase())}})` : `当前工作负载主推荐：${{esc(p.name)}} · ${{esc(t.name)}}`}}</span>
+              <span class="badge badge-save">${{isEn ? `Covers Same Family · Save ¥${{bestSub.ev.saveRenew.toFixed(0)}}/mo` : `套餐含同系模型 · 续费月仍省 ¥${{bestSub.ev.saveRenew.toFixed(0)}}`}}</span>
             </div>
             <div class="primary-rec-desc">
-              首月/续费：新客首月 ¥39.90，次月续费 ¥200/月（上限 6,000/5h · 90,000/月；仅限交互式 IDE）。<br>
-              依据与推广说明：<a href="https://help.aliyun.com/zh/model-studio/coding-plan" target="_blank" rel="noopener" style="color:var(--emerald-text);text-decoration:underline;">百炼官方规则</a> · 含云大使参数（套餐返佣资格待后台对账核实）。
+              ${{isEn
+                ? `Price & Caps: ${{firstStr}} (${{fmtNum(t.quota_5h)}}/5h · ${{fmtNum(t.quota_weekly)}}/wk · ${{fmtNum(t.quota_monthly)}}/mo; interactive IDE only). <a href="${{esc(p.official_source_url)}}" target="_blank" rel="noopener" style="color:var(--emerald-text);text-decoration:underline;">Official Rules</a>.`
+                : `价格与额度：${{firstStr}}（上限 ${{fmtNum(t.quota_5h)}}/5h · ${{fmtNum(t.quota_weekly)}}/周 · ${{fmtNum(t.quota_monthly)}}/月；仅限交互式 IDE）。<br>依据与推广说明：<a href="${{esc(p.official_source_url)}}" target="_blank" rel="noopener" style="color:var(--emerald-text);text-decoration:underline;">官方套餐规则</a> · ${{esc(p.commission_note_zh || "官方直达入口")}}。`}}
             </div>
-            <a class="cta-primary cn-cta" href="${{esc(AFF.aliyun_bailian_url)}}" target="_blank" rel="noopener sponsored" data-offer-id="aliyun-coding-plan" data-card-slot="primary_result">
-              前往阿里云百炼核对 Pro 套餐与专属端点
+            <a class="cta-primary ${{p.featured_partner ? "cn-cta" : ""}}" href="${{esc(p.url)}}" target="_blank" rel="${{p.featured_partner ? "noopener sponsored" : "noopener"}}" data-offer-id="${{esc(p.id)}}" data-card-slot="primary_result">
+              ${{esc(isEn ? (p.cta_en || "View Official Coding Plan") : (p.cta_zh || "前往官网核对套餐与专属端点"))}}
+            </a>
+          `;
+        }} else if (crossFamilyWins.length > 0) {{
+          const mCta = getModelCtaInfo(baselineModel);
+          primaryRecEl.innerHTML = `
+            <div class="primary-rec-head">
+              <span>${{isEn ? `No Same-Model Plan: Keep "${{esc(baseShort)}}" PayG or Switch to CN Plan` : `同模型无包月套餐：保留「${{esc(baseShort)}}」按量，或评估跨模型国产套餐平替`}}</span>
+              <span class="badge badge-warn">${{isEn ? "Cross-Model Switch Notice" : "跨模型替换提示"}}</span>
+            </div>
+            <div class="primary-rec-desc">
+              ${{isEn
+                ? `Domestic CN Coding Plans do NOT include "${{esc(baseShort)}}". Keep Pay-As-You-Go / 80-20 routing (≈ ¥${{paygRmb.toFixed(0)}}/mo) for identical model quality, or switch to Qwen3.5 / Kimi-K2.5 / GLM-5 / Hunyuan in Aliyun/Tencent plans (¥40–¥200/mo) below.`
+                : `核对结论：国内个人 Coding Plan 均不含「${{esc(baseShort)}}」原模型。若需保持同模型质量，请使用上方 80/20 混合路由或按量付费（约 ¥${{paygRmb.toFixed(0)}}/月）；若接受在 IDE 中改用国产 Qwen3.5 / Kimi-K2.5 / GLM-5 / 混元平替，可向下查看百炼或腾讯云套餐（¥40～¥200/月）。`}}
+            </div>
+            <a class="cta-primary ${{mCta.isCn ? "cn-cta" : ""}}" href="${{esc(mCta.url)}}" target="_blank" rel="noopener sponsored" data-offer-id="${{esc(mCta.offerId)}}" data-card-slot="primary_result">
+              ${{esc(mCta.label)}}${{isEn ? " (Same-Model PayG)" : "（同模型按量开通）"}}
             </a>
           `;
         }} else {{
           const mCta = getModelCtaInfo(baselineModel);
+          const enReason = state.usageMode === "interactive_ide" && state.peak5h > 6000
+            ? "5-hour peak exceeds the 6,000-call Pro window"
+            : monthlyCalls > PRO_MONTHLY_CAP
+              ? `${{fmtNum(monthlyCalls)}} calls/mo exceeds the 90,000/mo personal Pro cap`
+              : `Current Pay-As-You-Go bill (¥${{paygRmb.toFixed(2)}}/mo) is already cheaper than monthly plans or self-hosting`;
           primaryRecEl.innerHTML = `
             <div class="primary-rec-head">
-              <span>当前工作负载主推荐：直接使用按量付费 API（无需硬凑包月或买主机）</span>
-              <span class="badge badge-neutral">透明对账结论</span>
+              <span>${{isEn ? "Primary Recommendation: Stay on Pay-As-You-Go API" : "当前工作负载主推荐：直接使用按量付费 API（无需硬凑包月或买主机）"}}</span>
+              <span class="badge badge-neutral">${{isEn ? "Verified Verdict" : "透明对账结论"}}</span>
             </div>
             <div class="primary-rec-desc">
-              原因：${{state.usageMode === "interactive_ide" && state.peak5h > 6000 ? "5 小时峰值超出 Pro 窗口" : monthlyCalls > PRO_MONTHLY_CAP ? `月调用 ${{fmtWanCalls(monthlyCalls)}} 已超出个人 Pro 套餐 9 万次月上限` : `当前基准按量仅约 ¥${{paygRmb.toFixed(2)}}/月，低于 ¥200 续费包月或云主机自建总成本`}}，按实际 Token 结算更划算。<br>
-              推广说明：直达官方控制台（部分含合作伙伴推广码，无任何加价）。
+              ${{isEn
+                ? `Why: ${{enReason}}. Direct official console link (selected partner links carry referral codes with zero markup).`
+                : `原因：${{state.usageMode === "interactive_ide" && state.peak5h > 6000 ? "5 小时峰值超出 Pro 窗口" : monthlyCalls > PRO_MONTHLY_CAP ? `月调用 ${{fmtWanCalls(monthlyCalls)}} 已超出个人 Pro 套餐 9 万次月上限` : `当前基准按量仅约 ¥${{paygRmb.toFixed(2)}}/月，低于包月续费或云主机自建总成本`}}，按实际 Token 结算更划算。<br>推广说明：直达官方控制台（部分含合作伙伴推广码，无任何加价）。`}}
             </div>
             <a class="cta-primary ${{mCta.isCn ? "cn-cta" : ""}}" href="${{esc(mCta.url)}}" target="_blank" rel="noopener sponsored" data-offer-id="${{esc(mCta.offerId)}}" data-card-slot="primary_result">
-              ${{esc(mCta.label)}}（按量开通）
+              ${{esc(mCta.label)}}${{isEn ? " (Pay-As-You-Go)" : "（按量开通）"}}
             </a>
           `;
         }}
@@ -2299,13 +2384,13 @@ def render_html_template(
         let cardCls = "plan-card";
 
         if (otype === "subscription") {{
-          const ev = evaluateSingleSubscription(plan, monthlyCalls, paygRmb);
+          const ev = evaluateSingleSubscription(plan, monthlyCalls, paygRmb, baselineModel);
           badgeHtml = ev.badgeHtml;
           priceMain = ev.priceMain;
           tierSummary = ev.tierSummary;
           detailText = ev.detailText;
           if (ev.excluded) cardCls += " excluded";
-          else if (ev.saveRenew && ev.saveRenew > 0) cardCls += " featured";
+          else if (ev.saveRenew && ev.saveRenew > 0 && ev.coversModel) cardCls += " featured";
         }} else if (otype === "cloud_host") {{
           const uncached = paygRmb * 0.65;
           const totalHost = 68 + uncached + 15;
@@ -2656,6 +2741,7 @@ def render_html_template(
       if (state.outputIncludesReasoning) params.set("inc_cot", "1");
       params.set("region", state.region);
       params.set("filter", state.activeFilter);
+      if (state.lang === "en") params.set("lang", "en");
       if (state.baselineId) params.set("baseline", state.baselineId);
       params.set("qv", QUOTE_VERIFIED_DATE);
       const base = window.location.origin + window.location.pathname;
@@ -2720,10 +2806,20 @@ def render_html_template(
         if (Number.isFinite(c) && c > 0 && c <= 1) {{
           state.cacheEnabled = true;
           state.cacheHitRate = c;
+        }} else if (Number.isFinite(c) && c > 1 && c <= 100) {{
+          state.cacheEnabled = true;
+          state.cacheHitRate = c / 100;
         }} else if (c === 0) {{
           state.cacheEnabled = false;
         }}
         hasShareParams = true;
+      }}
+      if (params.has("lang")) {{
+        const l = params.get("lang");
+        if (l === "en" || l === "zh") {{
+          state.lang = l;
+          hasShareParams = true;
+        }}
       }}
       if (params.has("reason")) {{
         const r = Number(params.get("reason"));
@@ -2800,17 +2896,20 @@ def render_html_template(
 
     function updateAll(userTriggered) {{
       const cur = state.currency;
+      const isEn = state.lang === "en";
       const monthlyCalls = state.dailyCalls * 30;
       const inM = (monthlyCalls * state.inputTokens) / 1000000;
       const outM = (monthlyCalls * state.outputTokens) / 1000000;
 
-      document.getElementById("monthlyCallsMeta").textContent = `30天预计: ${{fmtNum(monthlyCalls)}} 次模型调用`;
+      document.getElementById("monthlyCallsMeta").textContent = isEn
+        ? `30-Day Est: ${{fmtNum(monthlyCalls)}} API calls`
+        : `30天预计: ${{fmtNum(monthlyCalls)}} 次模型调用`;
       document.getElementById("monthlyInputMeta").textContent = state.cacheEnabled
-        ? `月输入: ${{inM.toFixed(1)}}M (缓存命中 ${{Math.round(state.cacheHitRate * 100)}}%)`
-        : `月输入: ${{inM.toFixed(1)}}M Tokens`;
+        ? (isEn ? `Input/mo: ${{inM.toFixed(1)}}M (${{Math.round(state.cacheHitRate * 100)}}% cached)` : `月输入: ${{inM.toFixed(1)}}M (缓存命中 ${{Math.round(state.cacheHitRate * 100)}}%)`)
+        : (isEn ? `Input/mo: ${{inM.toFixed(1)}}M Tokens` : `月输入: ${{inM.toFixed(1)}}M Tokens`);
       document.getElementById("monthlyOutputMeta").textContent = (state.reasoningEnabled && !state.outputIncludesReasoning)
-        ? `月输出: ${{outM.toFixed(1)}}M (推理模型按 ${{state.reasoningMultiplier}}x 计)`
-        : `月输出: ${{outM.toFixed(1)}}M Tokens`;
+        ? (isEn ? `Output/mo: ${{outM.toFixed(1)}}M (${{state.reasoningMultiplier}}x reasoning)` : `月输出: ${{outM.toFixed(1)}}M (推理模型按 ${{state.reasoningMultiplier}}x 计)`)
+        : (isEn ? `Output/mo: ${{outM.toFixed(1)}}M Tokens` : `月输出: ${{outM.toFixed(1)}}M Tokens`);
 
       if (userTriggered && !resultTrackedOnce) {{
         resultTrackedOnce = true;
@@ -2847,8 +2946,10 @@ def render_html_template(
         const saveRmb = Math.max(0, baseCost.rmb - bestEntry.c.rmb);
         const pct = baseCost.usd > 0 ? Math.max(0, ((baseCost.usd - bestEntry.c.usd) / baseCost.usd) * 100) : 0;
 
-        document.getElementById("kpiSavePct").textContent = `省 ${{pct.toFixed(1)}}%`;
-        document.getElementById("kpiSaveAnnual").textContent = `年差额 ${{fmtMoney(saveUsd * 12, saveRmb * 12, cur)}}`;
+        document.getElementById("kpiSavePct").textContent = isEn ? `Save ${{pct.toFixed(1)}}%` : `省 ${{pct.toFixed(1)}}%`;
+        document.getElementById("kpiSaveAnnual").textContent = isEn
+          ? `Annual delta ${{fmtMoney(saveUsd * 12, saveRmb * 12, cur)}}`
+          : `年差额 ${{fmtMoney(saveUsd * 12, saveRmb * 12, cur)}}`;
 
         const hybridUsd = 0.8 * bestEntry.c.usd + 0.2 * baseCost.usd;
         const hybridRmb = 0.8 * bestEntry.c.rmb + 0.2 * baseCost.rmb;
@@ -2856,9 +2957,13 @@ def render_html_template(
         const bestShort = bestEntry.m.name.replace(/^[^:]+:\\s*/, "");
         const baseShort = baselineModel.name.replace(/^[^:]+:\\s*/, "");
 
-        document.getElementById("hybridSaveBadge").textContent = `省 ${{hybridPct.toFixed(0)}}%`;
-        document.getElementById("hybridDescText").innerHTML =
-          `80% 常规任务走 <strong>${{esc(bestShort)}}</strong> ＋ 20% 复杂推理保留 <strong>${{esc(baseShort)}}</strong>，混合按量月账单约 <strong>${{fmtMoney(hybridUsd, hybridRmb, cur)}}</strong>。`;
+        document.getElementById("hybridTitleText").textContent = isEn
+          ? "80/20 Tiered Model Routing Estimate"
+          : "80/20 混合模型分层路由测算";
+        document.getElementById("hybridSaveBadge").textContent = isEn ? `Save ${{hybridPct.toFixed(0)}}%` : `省 ${{hybridPct.toFixed(0)}}%`;
+        document.getElementById("hybridDescText").innerHTML = isEn
+          ? `Route 80% routine calls to <strong>${{esc(bestShort)}}</strong> + keep 20% hard reasoning on <strong>${{esc(baseShort)}}</strong> → blended pay-as-you-go ≈ <strong>${{fmtMoney(hybridUsd, hybridRmb, cur)}}/mo</strong>.`
+          : `80% 常规任务走 <strong>${{esc(bestShort)}}</strong> ＋ 20% 复杂推理保留 <strong>${{esc(baseShort)}}</strong>，混合按量月账单约 <strong>${{fmtMoney(hybridUsd, hybridRmb, cur)}}</strong>。`;
       }}
 
       renderCodingPlans(baseCost, baselineModel);
@@ -2990,11 +3095,101 @@ def render_html_template(
       observeOfferCards();
     }}
 
+    const ORIG_ZH_I18N = {{}};
+    document.querySelectorAll("[data-i18n]").forEach(el => {{
+      const k = el.getAttribute("data-i18n");
+      if (k && !(k in ORIG_ZH_I18N)) ORIG_ZH_I18N[k] = el.textContent;
+    }});
+
+    const I18N_EN = {{
+      brandTitle: "AI Cost Radar · LLM & Coding Plan Verifier",
+      brandSub: "Official Quota Windows · Same-Model Pay-As-You-Go Baseline · Dedicated Endpoint Guard",
+      heroTitleMain: "Verify Real LLM API & Coding Plan Bills, ",
+      heroTitleAccent: "Avoid Quota Overruns & Wrong Endpoints",
+      heroSubtitle: "Verified against official Aliyun Bailian, Tencent Cloud, Volcengine & OpenRouter rules: split prompt-cache hit rates, reasoning multipliers, and Claude Code sk-sp- endpoints.",
+      jumpCodingPlan: "Coding Plan Audit",
+      jumpModels: `Model Directory (${{MODELS.length}})`,
+      jumpSelfHost: "Cache Gateway & GPU",
+      jumpFaq: "Billing & Quota FAQ",
+      simTitle: "Workload & Billing Inputs",
+      usageModeLabel: "Scenario:",
+      optModeIde: "Interactive Coding IDE (Claude Code / Cursor / Cline)",
+      optModeBackend: "Automated Backend / Batch API (Excludes Personal Plans)",
+      presetIndie: "Indie Dev (800/day · 24k/mo)",
+      presetPro: "Heavy IDE (2,500/day · 75k/mo)",
+      presetOver: "Over-Cap Case (5,000/day · 150k/mo)",
+      presetBackend: "Backend API (15,000/day · PayG/Host)",
+      labelDailyCalls: "Daily Model API Calls (30-Day Monthly Basis)",
+      unitHintCalls: "Unit is underlying Model API Calls (not user prompts): 1 agent prompt in Claude Code / Cline / Cursor typically triggers 5–30 model calls.",
+      promptCalcLabel: "Prompts → Calls:",
+      promptChipLight: "Light 40×12 = 480/day",
+      promptChipMid: "Heavy 100×20 = 2,000/day",
+      promptChipHeavy: "Power 200×25 = 5,000/day [Over Pro]",
+      labelPeak5h: "Peak Calls in Busiest Rolling 5 Hours (Optional)",
+      labelInputTokens: "Avg Input Tokens per Call",
+      labelOutputTokens: "Avg Output Tokens per Call",
+      cacheLabel: "Split Prompt Cache Hit Rate (Uncached Regular + Cached Discount)",
+      reasoningLabel: "Apply Hidden Reasoning Token Multiplier",
+      batchLabel: "Include Async Batch Half-Price Models",
+      routingTitle: "Same-Model Pay-As-You-Go Baseline & Recommendation",
+      baselineLabel: "Current Baseline Model:",
+      kpiFlagship: "Baseline Pay-As-You-Go / mo",
+      kpiBestRoute: "Lowest Filtered Pay-As-You-Go",
+      kpiSavings: "Same-Workload Delta",
+      codingPlanTitle: "2026 CN Coding Plan Subscriptions vs Same-Model Pay-As-You-Go",
+      codingPlanDesc: "Aliyun Bailian Pro & Tencent Pro share 6,000/5h · 45,000/wk · 90,000/mo call caps; Tencent Lite is 1,200 / 9,000 / 18,000; Aliyun Lite is closed to new buyers.",
+      pillAll: "All",
+      pillCoding: "Coding / Agent",
+      pillReasoning: "Reasoning",
+      pillCnDirect: "CN Direct",
+      pillFree: "Free Tier",
+      matrixTitle: "Official Console & Cloud Host Directory (Transparent Partner Disclosure)",
+      matrixDesc: "Clearly separates monthly subscriptions, pay-as-you-go pools, and cloud hosts with direct official links.",
+      faqTitle: "LLM Billing Verification, Dedicated Endpoints & Self-Host Break-Even FAQ",
+      faqDesc: "Covers common quota, prompt-cache, and endpoint pitfalls across domestic CN and global LLM APIs.",
+      footerDisclosure: "Disclosure: Selected official links carry Aliyun Ambassador (vlxk7knp), Tencent CPS (EGH3k1cs), or SiliconFlow referral codes at identical official catalog prices. First-party daily rotating tokens estimate daily UV and card CTR with zero third-party SDKs."
+    }};
+
     function applyTheme(theme) {{
       state.theme = theme;
       document.documentElement.setAttribute("data-theme", theme);
       safeSetStorage("ai_cost_theme", theme);
-      document.getElementById("themeLabel").textContent = theme === "dark" ? "浅色" : "深色";
+      const isEn = state.lang === "en";
+      document.getElementById("themeLabel").textContent = theme === "dark"
+        ? (isEn ? "Light" : "浅色")
+        : (isEn ? "Dark" : "深色");
+    }}
+
+    function applyLang(lang) {{
+      state.lang = lang === "en" ? "en" : "zh";
+      const isEn = state.lang === "en";
+      document.documentElement.setAttribute("lang", isEn ? "en" : "zh-CN");
+      safeSetStorage("ai_cost_lang", state.lang);
+      document.getElementById("langLabel").textContent = isEn ? "中文" : "EN";
+
+      document.querySelectorAll("[data-i18n]").forEach(el => {{
+        const k = el.getAttribute("data-i18n");
+        if (isEn && I18N_EN[k]) el.textContent = I18N_EN[k];
+        else if (!isEn && k in ORIG_ZH_I18N) el.textContent = ORIG_ZH_I18N[k];
+      }});
+
+      document.getElementById("regionBtnAll").textContent = isEn ? "All Regions" : "全部对比 (All)";
+      document.getElementById("regionBtnCn").textContent = isEn ? "CN Direct · RMB (¥)" : "国内直连 · 人民币 (¥)";
+      document.getElementById("regionBtnGlobal").textContent = isEn ? "Global · USD ($)" : "Global · USD ($)";
+      document.getElementById("shareCalcBtn").textContent = isEn ? "Copy Shareable Link" : "复制可复算链接";
+      document.getElementById("peak5h").placeholder = isEn ? "Unknown" : "未知";
+      document.getElementById("searchInput").placeholder = isEn
+        ? "Search DeepSeek / Qwen / Hunyuan / Claude..."
+        : "搜索 DeepSeek / Qwen / Hunyuan / Claude...";
+      document.getElementById("optSortCostAsc").textContent = isEn ? "Monthly Cost: Low to High" : "月成本：从低到高";
+      document.getElementById("optSortValue").textContent = isEn ? "Best Value Score First" : "综合性价比评分优先";
+      document.getElementById("optSortCostDesc").textContent = isEn ? "Unit Price: High to Low" : "单价：从高到低";
+      document.getElementById("optSortCtx").textContent = isEn ? "Context Window: Largest" : "上下文窗口：从大到小";
+      document.getElementById("cfgModalTitle").textContent = isEn
+        ? "Dedicated Endpoint Generator (Client × Billing Mode)"
+        : "按客户端与计费模式生成专属接入配置";
+      applyTheme(state.theme);
+      updateAll(false);
     }}
 
     function applyWorkload(calls, inTok, outTok, mode) {{
@@ -3044,11 +3239,22 @@ def render_html_template(
         }});
       }});
 
-      document.querySelectorAll(".preset-btn").forEach(btn => {{
+      document.querySelectorAll("#presetBar .preset-btn").forEach(btn => {{
         btn.addEventListener("click", () => {{
-          document.querySelectorAll(".preset-btn").forEach(b => b.classList.remove("active"));
+          document.querySelectorAll("#presetBar .preset-btn, [data-prompt-calls]").forEach(b => b.classList.remove("active"));
           btn.classList.add("active");
           applyWorkload(btn.dataset.calls, btn.dataset.in, btn.dataset.out, btn.dataset.mode);
+        }});
+      }});
+
+      document.querySelectorAll("[data-prompt-calls]").forEach(btn => {{
+        btn.addEventListener("click", () => {{
+          document.querySelectorAll("#presetBar .preset-btn, [data-prompt-calls]").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          state.dailyCalls = Math.max(1, Number(btn.getAttribute("data-prompt-calls")) || 1000);
+          document.getElementById("dailyCallsNum").value = String(state.dailyCalls);
+          document.getElementById("dailyCallsRange").value = String(callsToSlider(state.dailyCalls));
+          updateAll(true);
         }});
       }});
 
@@ -3166,15 +3372,14 @@ def render_html_template(
         try {{
           window.history.replaceState(null, "", shareUrl);
         }} catch (_) {{}}
-        copyTextWithFeedback(shareUrl, e.currentTarget, "已复制可复算链接");
+        copyTextWithFeedback(shareUrl, e.currentTarget, state.lang === "en" ? "Shareable Link Copied" : "已复制可复算链接");
       }});
 
       document.getElementById("themeToggleBtn").addEventListener("click", () => {{
         applyTheme(state.theme === "dark" ? "light" : "dark");
       }});
       document.getElementById("langToggleBtn").addEventListener("click", () => {{
-        state.lang = state.lang === "zh" ? "en" : "zh";
-        document.getElementById("langLabel").textContent = state.lang === "zh" ? "EN" : "中文";
+        applyLang(state.lang === "zh" ? "en" : "zh");
       }});
 
       document.getElementById("cfgClientSelect").addEventListener("change", refreshConfigModalSnippets);
@@ -3220,10 +3425,9 @@ def render_html_template(
 
     initBaselines();
     bindEvents();
-    applyTheme(state.theme);
     renderPartnerMatrix();
     restoreFromPresetAndQuery();
-    updateAll(false);
+    applyLang(state.lang);
     observeOfferCards();
     trackEvent("page_view", {{ slot_id: "page" }});
   }})();
