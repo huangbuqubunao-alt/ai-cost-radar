@@ -877,6 +877,50 @@ def render_html_template(
       content: "−";
     }}
 
+    .usage-drilldown-toolbar {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+      padding: 7px 10px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }}
+
+    .usage-drilldown-status {{
+      line-height: 1.4;
+    }}
+
+    .file-include-label {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+      font-weight: 700;
+    }}
+
+    .file-include-toggle {{
+      accent-color: var(--emerald);
+      width: 14px;
+      height: 14px;
+      cursor: pointer;
+      margin: 0;
+    }}
+
+    tr.is-excluded-file td {{
+      opacity: 0.56;
+    }}
+
+    tr.is-excluded-file td .file-label-strong {{
+      text-decoration: line-through;
+    }}
+
     .control-group {{
       margin-bottom: 14px;
     }}
@@ -2315,12 +2359,12 @@ def render_html_template(
           </div>
 
           <details class="usage-import-drawer" id="usageImportDrawer">
-            <summary data-i18n="usageImportSummary">从真实日志或多模型 CSV/JSONL 账单导入（支持 OpenRouter/云账单 CSV、Claude Code .jsonl 会话与 /cost）</summary>
+            <summary data-i18n="usageImportSummary">从真实日志或多客户端账单导入（支持 Claude Code / Codex CLI .jsonl、Cline ui_messages.json 与云账单 CSV）</summary>
             <div class="usage-import-body">
               <div class="usage-import-fields">
                 <div class="usage-drop-zone" id="usageDropZone">
-                  <label class="usage-import-subhead" for="usageLogTextarea" data-i18n="usageLogLabel">方式一：上传或拖拽多份本地 CSV/TSV/JSON/JSONL 账单，或粘贴 Claude Code /cost 与 usage JSON</label>
-                  <div class="usage-drop-hint" data-i18n="usageDropHint">支持拖拽或一次多选多个 Claude Code .jsonl 会话与云账单 .csv 自动合并去重（最多 30 个文件）</div>
+                  <label class="usage-import-subhead" for="usageLogTextarea" data-i18n="usageLogLabel">方式一：上传或拖拽多份本地 CSV/TSV/JSON/JSONL 账单，或粘贴 Claude Code / Codex / Cline 日志</label>
+                  <div class="usage-drop-hint" data-i18n="usageDropHint">支持拖拽或一次多选最多 30 份 Claude Code (~/.claude)、Codex CLI (~/.codex)、Cline 会话与云账单 .csv 自动合并去重，并可按会话剔除单次峰值</div>
                   <textarea id="usageLogTextarea" class="usage-import-textarea" rows="3" placeholder="示例：Input: 1.6M tokens / Cache read: 2.4M tokens / Output: 600k tokens / Requests: 1,200"></textarea>
                   <div class="usage-import-actions">
                     <label for="usageDaysSelect" style="font-size:0.76rem;color:var(--text-secondary);font-weight:600;" data-i18n="usageDaysLabel">日志统计周期:</label>
@@ -2340,7 +2384,7 @@ def render_html_template(
                   <div class="unit-hint" style="margin-top:6px;" data-i18n="usagePrivacyNote">隐私承诺：账单与日志文件 100% 在本地浏览器内存解析，绝不上传至任何服务器。</div>
                   <div class="usage-cli-bar" id="localCliAuditBar">
                     <div class="usage-cli-copy">
-                      <span class="usage-cli-hint" data-i18n="localCliHint">不想手动翻找隐藏目录？终端只读扫描 ~/.claude/projects（零上传）：</span>
+                      <span class="usage-cli-hint" data-i18n="localCliHint">不想手动翻找隐藏目录？终端一行只读扫描 ~/.claude、~/.codex 与 Cline 本地会话（零上传）：</span>
                       <code class="usage-cli-code" id="localCliCmdCode">curl -fsSL https://ai-cost-radar-nlu.pages.dev/audit_local_claude.py | python3 - --days 30</code>
                     </div>
                     <button type="button" class="usage-import-btn" id="copyLocalCliCmdBtn" data-i18n="copyLocalCliCmdBtn">复制本地扫描命令</button>
@@ -2873,6 +2917,8 @@ def render_html_template(
       semanticCacheHitRate: 0.35,
       gpuMonthlyHours: 240,
       billRowOverrides: {{}},
+      excludedBillFiles: new Set(),
+      outlierToastMsg: "",
       lastUsageImport: null,
       savedBaselineSnapshot: loadSavedBaselineSnapshot()
     }};
@@ -3168,9 +3214,12 @@ def render_html_template(
             if (!rawRecords) {{
               const msgObj = single.message;
               const respObj = single.response;
+              const singleType = String(single.type || "").trim().toLowerCase();
               if (
-                (msgObj && typeof msgObj === "object" && ((msgObj.usage && typeof msgObj.usage === "object") || ["user", "assistant", "summary", "system"].includes(single.type))) ||
-                (respObj && typeof respObj === "object" && respObj.body && typeof respObj.body === "object")
+                (msgObj && typeof msgObj === "object" && ((msgObj.usage && typeof msgObj.usage === "object") || ["user", "assistant", "summary", "system"].includes(singleType))) ||
+                (respObj && typeof respObj === "object" && respObj.body && typeof respObj.body === "object") ||
+                (singleType === "token_usage_record") ||
+                (String(single.say || "").trim() === "api_req_started" && typeof single.text === "string")
               ) {{
                 rawRecords = [single];
                 sourceFormat = "jsonl_multimodel";
@@ -3227,14 +3276,147 @@ def render_html_template(
         return null;
       }};
 
-      const skipTypes = new Set(["user", "summary", "system", "file-history-snapshot", "queue-operation"]);
+      const skipTypes = new Set(["user", "summary", "system", "file-history-snapshot", "queue-operation", "session_meta", "response_item", "compacted"]);
       const summaryLabels = new Set(["total", "totals", "sum", "summary", "合计", "总计", "汇总", "小计"]);
       const dedupedEntries = new Map();
       const anonEntries = [];
       let deduplicatedChunks = 0;
 
+      const filesWithCodexTur = new Set();
+      for (const r of rawRecords) {{
+        if (r && typeof r === "object" && String(r.type || "").trim().toLowerCase() === "token_usage_record") {{
+          filesWithCodexTur.add(r._src_file_idx ?? null);
+        }}
+      }}
+      const stickyCodexModel = new Map();
+      const lastCodexCumTotal = new Map();
+
+      const pushEntry = (entry, dedupeId) => {{
+        if (dedupeId) {{
+          if (dedupedEntries.has(dedupeId)) {{
+            deduplicatedChunks += 1;
+            const prev = dedupedEntries.get(dedupeId);
+            for (const k of ["requests", "input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "reported_cost_rmb"]) {{
+              prev[k] = Math.max(prev[k], entry[k]);
+            }}
+            if (prev.model === "unknown" && entry.model !== "unknown") prev.model = entry.model;
+          }} else {{
+            dedupedEntries.set(dedupeId, entry);
+          }}
+        }} else {{
+          anonEntries.push(entry);
+        }}
+      }};
+
       for (const rec of rawRecords) {{
-        if (skipTypes.has(String(rec.type || "").trim().toLowerCase())) continue;
+        const fKey = rec._src_file_idx ?? null;
+        const recTypeLow = String(rec.type || "").trim().toLowerCase();
+        if (skipTypes.has(recTypeLow)) continue;
+
+        if (recTypeLow === "turn_context") {{
+          const payload = rec.payload && typeof rec.payload === "object" ? rec.payload : {{}};
+          const tcModel = firstVal(payload, ["model", "model_id", "model_name"]) || firstVal(rec, ["model"]);
+          if (tcModel) stickyCodexModel.set(fKey, String(tcModel).trim());
+          continue;
+        }}
+
+        if (recTypeLow === "token_usage_record") {{
+          const payload = rec.payload && typeof rec.payload === "object" ? rec.payload : {{}};
+          const uNested = payload.usage && typeof payload.usage === "object" ? payload.usage : (rec.usage && typeof rec.usage === "object" ? rec.usage : {{}});
+          const uCodex = {{ ...rec, ...payload, ...uNested }};
+          const mCodex = String(firstVal(uCodex, ["model", "model_id"]) || stickyCodexModel.get(fKey) || "gpt-5-codex").trim() || "gpt-5-codex";
+          const inV = safeNum(uCodex.input_tokens);
+          const cV = safeNum(uCodex.cached_input_tokens);
+          const rowIn = Math.max(inV, cV);
+          const rowCached = Math.min(rowIn, cV);
+          const outVal = safeNum(uCodex.output_tokens);
+          const reasonVal = safeNum(firstVal(uCodex, ["reasoning_output_tokens", "reasoning_tokens"]));
+          if (rowIn <= 0 && outVal <= 0) continue;
+          const respId = firstVal(uCodex, ["response_id", "id"]);
+          pushEntry({{
+            model: mCodex,
+            requests: 1,
+            input_tokens: rowIn,
+            cached_input_tokens: rowCached,
+            output_tokens: outVal,
+            reasoning_tokens: reasonVal,
+            reported_cost_rmb: 0,
+            source_file_idx: fKey
+          }}, respId ? `codex_resp:${{respId}}` : null);
+          continue;
+        }}
+
+        if (recTypeLow === "event_msg") {{
+          if (filesWithCodexTur.has(fKey)) continue;
+          const payload = rec.payload && typeof rec.payload === "object" ? rec.payload : {{}};
+          if (String(payload.type || "").trim().toLowerCase() !== "token_count") continue;
+          const info = payload.info && typeof payload.info === "object" ? payload.info : {{}};
+          const lastU = info.last_token_usage && typeof info.last_token_usage === "object" ? info.last_token_usage : null;
+          const totU = info.total_token_usage && typeof info.total_token_usage === "object" ? info.total_token_usage : {{}};
+          if (!lastU) continue;
+          const cumTot = safeNum(totU.total_tokens);
+          if (cumTot > 0) {{
+            if (lastCodexCumTotal.get(fKey) === cumTot) {{
+              deduplicatedChunks += 1;
+              continue;
+            }}
+            lastCodexCumTotal.set(fKey, cumTot);
+          }}
+          const mCodex = String(firstVal(info, ["model", "model_id"]) || firstVal(payload, ["model"]) || stickyCodexModel.get(fKey) || "gpt-5-codex").trim() || "gpt-5-codex";
+          const inV = safeNum(lastU.input_tokens);
+          const cV = safeNum(lastU.cached_input_tokens);
+          const rowIn = Math.max(inV, cV);
+          const rowCached = Math.min(rowIn, cV);
+          const outVal = safeNum(lastU.output_tokens);
+          const reasonVal = safeNum(firstVal(lastU, ["reasoning_output_tokens", "reasoning_tokens"]));
+          if (rowIn <= 0 && outVal <= 0) continue;
+          pushEntry({{
+            model: mCodex,
+            requests: 1,
+            input_tokens: rowIn,
+            cached_input_tokens: rowCached,
+            output_tokens: outVal,
+            reasoning_tokens: reasonVal,
+            reported_cost_rmb: 0,
+            source_file_idx: fKey
+          }}, null);
+          continue;
+        }}
+
+        if (String(rec.say || "").trim() === "api_req_started" && typeof rec.text === "string") {{
+          let cInfo = null;
+          try {{
+            cInfo = JSON.parse(rec.text);
+          }} catch (_) {{
+            cInfo = null;
+          }}
+          if (!cInfo || typeof cInfo !== "object" || Array.isArray(cInfo)) continue;
+          const tIn = safeNum(cInfo.tokensIn);
+          const tOut = safeNum(cInfo.tokensOut);
+          const cReads = safeNum(cInfo.cacheReads);
+          const cWrites = safeNum(cInfo.cacheWrites);
+          const rowIn = tIn + cReads + cWrites;
+          const rowCached = cReads;
+          const outVal = tOut;
+          const reasonVal = safeNum(firstVal(cInfo, ["reasoningTokens", "thinkingTokens"]));
+          if (rowIn <= 0 && outVal <= 0) continue;
+          const mCline = String(firstVal(cInfo, ["model", "modelId", "apiModelId"]) || firstVal(rec, ["model", "modelId"]) || "anthropic/claude-sonnet-5.5").trim() || "anthropic/claude-sonnet-5.5";
+          const costUsd = firstVal(cInfo, ["cost", "totalCost"]);
+          const rowCostRmb = costUsd !== null ? parseCurrencyRmb(costUsd, "costusd", fxRate) : 0;
+          const tsVal = firstVal(rec, ["ts", "id"]);
+          pushEntry({{
+            model: mCline,
+            requests: 1,
+            input_tokens: rowIn,
+            cached_input_tokens: rowCached,
+            output_tokens: outVal,
+            reasoning_tokens: reasonVal,
+            reported_cost_rmb: rowCostRmb,
+            source_file_idx: fKey
+          }}, tsVal !== null ? `cline:${{fKey}}:${{tsVal}}` : null);
+          continue;
+        }}
+
         const msg = rec.message && typeof rec.message === "object" ? rec.message : {{}};
         const resp = rec.response && typeof rec.response === "object" ? rec.response : {{}};
         const body = resp.body && typeof resp.body === "object" ? resp.body : {{}};
@@ -3274,7 +3456,7 @@ def render_html_template(
         const outVal = safeNum(firstVal(merged, ["completion_tokens", "native_tokens_completion", "tokens_completion", "output_tokens", "total_output_tokens"]));
         const cDet = merged.completion_tokens_details && typeof merged.completion_tokens_details === "object" ? merged.completion_tokens_details : {{}};
         const oDet = merged.output_tokens_details && typeof merged.output_tokens_details === "object" ? merged.output_tokens_details : {{}};
-        const rRaw = cDet.reasoning_tokens ?? oDet.reasoning_tokens ?? firstVal(merged, ["native_tokens_reasoning", "reasoning_tokens", "thinking_tokens"]);
+        const rRaw = cDet.reasoning_tokens ?? oDet.reasoning_tokens ?? firstVal(merged, ["native_tokens_reasoning", "reasoning_tokens", "reasoning_output_tokens", "thinking_tokens"]);
         const reasonVal = safeNum(rRaw);
 
         if (rowIn <= 0 && outVal <= 0) continue;
@@ -3300,7 +3482,7 @@ def render_html_template(
           else if (rec.id) dedupeId = `id:${{rec.id}}`;
         }}
 
-        const entry = {{
+        pushEntry({{
           model: modelLabel,
           requests: rowReqs,
           input_tokens: rowIn,
@@ -3308,23 +3490,8 @@ def render_html_template(
           output_tokens: outVal,
           reasoning_tokens: reasonVal,
           reported_cost_rmb: rowCostRmb,
-          source_file_idx: rec._src_file_idx
-        }};
-
-        if (dedupeId) {{
-          if (dedupedEntries.has(dedupeId)) {{
-            deduplicatedChunks += 1;
-            const prev = dedupedEntries.get(dedupeId);
-            for (const k of ["requests", "input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "reported_cost_rmb"]) {{
-              prev[k] = Math.max(prev[k], entry[k]);
-            }}
-            if (prev.model === "unknown" && entry.model !== "unknown") prev.model = entry.model;
-          }} else {{
-            dedupedEntries.set(dedupeId, entry);
-          }}
-        }} else {{
-          anonEntries.push(entry);
-        }}
+          source_file_idx: fKey
+        }}, dedupeId);
       }}
       return {{ entries: [...dedupedEntries.values(), ...anonEntries], deduplicatedChunks }};
     }}
@@ -3436,10 +3603,18 @@ def render_html_template(
         .filter(p => p && p !== "." && p !== ".." && !/^[A-Za-z]:$/.test(p));
       if (parts.length === 0) return `file_${{fallbackIdx}}`;
       for (let i = 0; i < parts.length - 1; i++) {{
-        if (parts[i].toLowerCase() === ".claude" && parts[i + 1].toLowerCase() === "projects" && i + 2 < parts.length) {{
+        const pLow = parts[i].toLowerCase();
+        const pNext = parts[i + 1].toLowerCase();
+        if (pLow === ".claude" && pNext === "projects" && i + 2 < parts.length) {{
           const tail = parts.slice(i + 2);
           const lbl = tail.length >= 2 ? tail.slice(-2).join("/") : tail[tail.length - 1];
           return lbl.slice(0, 80) || `file_${{fallbackIdx}}`;
+        }}
+        if (pLow === ".codex" && pNext === "sessions" && i + 2 < parts.length) {{
+          return `codex/${{parts[parts.length - 1]}}`.slice(0, 80);
+        }}
+        if (pLow === "tasks" && i + 2 < parts.length && ["ui_messages.json", "api_conversation_history.json"].includes(parts[parts.length - 1].toLowerCase())) {{
+          return `cline/${{parts[i + 1]}}/${{parts[parts.length - 1]}}`.slice(0, 80);
         }}
       }}
       const hostRoots = new Set(["users", "home", "var", "tmp", "private", "mnt", "opt", "etc", "root", "downloads", "documents", "desktop"]);
@@ -3542,7 +3717,7 @@ def render_html_template(
       return breakdown;
     }}
 
-    function mergeUsageFilesWeb(rawTexts, daysObserved = 30, fileNames = null) {{
+    function prepareRawUsageFilesWeb(rawTexts, fileNames = null) {{
       const rawArr = Array.isArray(rawTexts) ? rawTexts : [];
       const namesArr = Array.isArray(fileNames) ? fileNames : [];
       const cleanedItems = [];
@@ -3561,12 +3736,22 @@ def render_html_template(
         const uniqLbl = cnt > 1 ? `${{baseLbl}} (#${{cnt}})` : baseLbl;
         cleanedItems.push({{ text: sTrim, label: uniqLbl }});
       }}
+      return cleanedItems;
+    }}
+
+    function mergeUsageFilesWeb(rawTexts, daysObserved = 30, fileNames = null, opts = {{}}) {{
+      const cleanedItems = opts && opts.preserveLabels
+        ? (Array.isArray(rawTexts) ? rawTexts : []).map((txt, idx) => ({{
+            text: String(txt ?? "").trim(),
+            label: String((Array.isArray(fileNames) ? fileNames[idx] : "") || `file_${{idx + 1}}`)
+          }})).filter(x => x.text)
+        : prepareRawUsageFilesWeb(rawTexts, fileNames);
       if (cleanedItems.length === 0) throw new Error("empty_snippet");
       let days = Number(daysObserved ?? 30);
       if (!Number.isFinite(days) || days <= 0 || days > 365) days = 30;
       const effFx = typeof FX === "number" && FX > 0 ? FX : 7.2;
 
-      if (cleanedItems.length === 1) {{
+      if (cleanedItems.length === 1 && !(opts && opts.forcePortfolio)) {{
         const single = parseUsageSnippet(cleanedItems[0].text, days);
         return {{ ...single, merged_files_count: 1 }};
       }}
@@ -3841,15 +4026,21 @@ def render_html_template(
         ? `, deduped ${{p.deduplicated_chunks}} streaming ${{p.deduplicated_chunks === 1 ? "chunk" : "chunks"}}`
         : "";
       const dedupeZh = p.deduplicated_chunks > 0 ? `，已去重 ${{p.deduplicated_chunks}} 条流式分片` : "";
+      const exclSize = state.excludedBillFiles instanceof Set ? state.excludedBillFiles.size : 0;
+      const totalFilesLen = Array.isArray(info.allFileBreakdown) && info.allFileBreakdown.length > 0 ? info.allFileBreakdown.length : (p.merged_files_count || 2);
       const billLabelEn = p.source_format === "multifile_merged"
-        ? `multi-file merged bill (${{p.merged_files_count || 2}} files · ${{p.distinct_models_count || 1}} models${{dedupeEn}})`
+        ? (exclSize > 0
+            ? `multi-file steady-state bill (${{p.merged_files_count || 1}}/${{totalFilesLen}} active files · ${{exclSize}} outlier excluded · ${{p.distinct_models_count || 1}} models${{dedupeEn}})`
+            : `multi-file merged bill (${{p.merged_files_count || 2}} files · ${{p.distinct_models_count || 1}} models${{dedupeEn}})`)
         : (p.source_format === "jsonl_multimodel"
             ? `Multi-model JSONL log (${{p.distinct_models_count || 1}} models${{dedupeEn}})`
             : (p.source_format === "json_array_multimodel"
                 ? `Multi-model JSON array (${{p.distinct_models_count || 1}} models)`
                 : `Multi-model CSV bill (${{p.distinct_models_count || 1}} models)`));
       const billLabelZh = p.source_format === "multifile_merged"
-        ? `多文件合并账单（${{p.merged_files_count || 2}} 份文件 · 共 ${{p.distinct_models_count || 1}} 款模型${{dedupeZh}}）`
+        ? (exclSize > 0
+            ? `多文件稳态账单（${{p.merged_files_count || 1}}/${{totalFilesLen}} 份纳入核算 · 已剔除 ${{exclSize}} 份峰值会话 · 共 ${{p.distinct_models_count || 1}} 款模型${{dedupeZh}}）`
+            : `多文件合并账单（${{p.merged_files_count || 2}} 份文件 · 共 ${{p.distinct_models_count || 1}} 款模型${{dedupeZh}}）`)
         : (p.source_format === "jsonl_multimodel"
             ? `多模型 JSONL 日志（共 ${{p.distinct_models_count || 1}} 款模型${{dedupeZh}}）`
             : (p.source_format === "json_array_multimodel"
@@ -3921,9 +4112,16 @@ def render_html_template(
       if (stripped !== q) aliasCands.push(stripped, slugBase);
       if (slugBase === "deepseek-reasoner" || slugBase === "r1") aliasCands.push("deepseek-r1");
       else if (slugBase === "deepseek-chat" || slugBase === "v3") aliasCands.push("deepseek-v3");
-      else if (["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1-nano", "o1-mini", "o3-mini", "o4-mini"].includes(slugBase)) {{
+      else if (slugBase.includes("codex") && (slugBase.includes("mini") || slugBase.includes("nano"))) {{
+        aliasCands.push("openai/gpt-5.1-codex-mini", "openai/gpt-5.4-mini", "openai/gpt-5-mini");
+      }} else if (slugBase.includes("codex")) {{
+        aliasCands.push("openai/gpt-5.3-codex", "openai/gpt-5.2-codex", "openai/gpt-5.4");
+      }} else if (
+        ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1-nano", "o1-mini", "o3-mini", "o4-mini"].includes(slugBase) ||
+        ((slugBase.startsWith("gpt-6") || slugBase.startsWith("gpt-5") || slugBase.startsWith("gpt-4")) && (slugBase.includes("mini") || slugBase.includes("nano")))
+      ) {{
         aliasCands.push("openai/gpt-5.4-mini", "openai/gpt-5-mini");
-      }} else if (slugBase.startsWith("gpt-4") || slugBase.startsWith("chatgpt-4o") || ["o1", "o3", "o3-pro"].includes(slugBase)) {{
+      }} else if (slugBase.startsWith("gpt-6") || slugBase.startsWith("gpt-5") || slugBase.startsWith("gpt-4") || slugBase.startsWith("chatgpt-4o") || ["o1", "o3", "o3-pro"].includes(slugBase)) {{
         aliasCands.push("openai/gpt-5.4", "openai/gpt-5.5");
       }} else if (slugBase.includes("claude") && slugBase.includes("sonnet")) {{
         aliasCands.push("anthropic/claude-sonnet-5.5", "anthropic/claude-sonnet-5");
@@ -4249,12 +4447,23 @@ def render_html_template(
         }}
       }}
 
+      const activeImp = state.lastUsageImport;
+      const isCurrentImp = Boolean(activeImp && activeImp.parsed === parsedSummary);
+      const allFb = isCurrentImp && Array.isArray(activeImp.allFileBreakdown) && activeImp.allFileBreakdown.length > 0
+        ? activeImp.allFileBreakdown
+        : (Array.isArray(parsedSummary.file_breakdown) ? parsedSummary.file_breakdown : []);
+      const excludedFiles = isCurrentImp && state.excludedBillFiles instanceof Set
+        ? Array.from(state.excludedBillFiles)
+        : [];
+
       return {{
         days_observed: days,
         usage_mode: state.usageMode,
         team_size: seats,
         line_items: lineItems,
         file_breakdown: Array.isArray(parsedSummary.file_breakdown) ? parsedSummary.file_breakdown : [],
+        all_file_breakdown: allFb,
+        excluded_files: excludedFiles,
         totals: {{
           distinct_models_count: lineItems.length,
           monthly_requests: totalMReqs,
@@ -4410,6 +4619,9 @@ def render_html_template(
       const cp = audit.coding_plan_option;
       const snapDiff = getSavedBaselineDiffInfo(getBaselineModel());
       const fb = Array.isArray(audit.file_breakdown) ? audit.file_breakdown : [];
+      const excl = Array.isArray(audit.excluded_files) ? audit.excluded_files : [];
+      const exclSet = new Set(excl);
+      const allFb = Array.isArray(audit.all_file_breakdown) && audit.all_file_breakdown.length > 0 ? audit.all_file_breakdown : fb;
 
       if (isEn) {{
         const rows = audit.line_items.map(it => {{
@@ -4418,8 +4630,12 @@ def render_html_template(
             : formatModelTitle(it.recommended_model, true);
           return `| ${{it.raw_model}} | ${{fmtNum(it.monthly_requests)}} / ${{it.monthly_input_m.toFixed(1)}}M in / ${{it.monthly_output_m.toFixed(1)}}M out (${{Math.round(it.cache_hit_rate * 100)}}% cached) | ${{fmtVal(it.baseline_monthly_rmb)}} | ${{recTitle}} | ${{fmtVal(it.optimized_payg_rmb)}} (Save ${{it.savings_pct.toFixed(1)}}%) |`;
         }});
-        const fileLinesEn = fb.length >= 2
-          ? [`- **Top Spend by Session / File Source**: ${{fb.slice(0, 5).map((f, idx) => `${{idx + 1}}. \\`${{f.file_name}}\\` (${{fmtVal(f.estimated_monthly_rmb)}}/mo · ${{fmtNum(f.requests)}} calls)`).join(" · ")}}`]
+        const outlierLinesEn = excl.length > 0
+          ? [`- **Steady-State Outlier Filter**: Excluded ${{excl.length}} spike ${{excl.length === 1 ? "session" : "sessions"}} (${{excl.map(x => "\\`" + x + "\\`").join(", ")}}) — showing ${{Math.max(1, allFb.length - excl.length)}}/${{allFb.length}} active files.`]
+          : [];
+        const fileSrcEn = excl.length > 0 ? allFb : fb;
+        const fileLinesEn = fileSrcEn.length >= 2
+          ? [`- **Top Spend by Session / File Source**: ${{fileSrcEn.slice(0, 5).map((f, idx) => `${{idx + 1}}. \\`${{f.file_name}}\\`${{exclSet.has(f.file_name) ? " [Excluded]" : ""}} (${{fmtVal(f.estimated_monthly_rmb)}}/mo · ${{fmtNum(f.requests)}} calls)`).join(" · ")}}`]
           : [];
         let cpLine = "- **Coding Plan Portfolio Check**: Excluded for automated backend workloads.";
         if (cp) {{
@@ -4434,6 +4650,7 @@ def render_html_template(
         return [
           `### AI Cost Radar · Multi-Model Bill Slim-Down Audit (${{QUOTE_VERIFIED_DATE}})`,
           `- **Observed Window**: ${{audit.days_observed}}d extrapolated to 30d · ${{audit.totals.distinct_models_count}} models · ${{fmtNum(audit.totals.monthly_requests)}} calls/mo · ${{audit.team_size}} IDE ${{audit.team_size === 1 ? "seat" : "seats"}}`,
+          ...outlierLinesEn,
           ...snapLinesEn,
           ``,
           `| Original Bill Model | 30d Calls & Tokens | Current Bill / mo | Recommended CN Direct Route | Optimized PayG / mo |`,
@@ -4453,9 +4670,13 @@ def render_html_template(
           : it.recommended_model_name;
         return `| ${{it.raw_model}} | ${{fmtNum(it.monthly_requests)}}次 / 输入${{it.monthly_input_m.toFixed(1)}}M / 输出${{it.monthly_output_m.toFixed(1)}}M (缓存${{Math.round(it.cache_hit_rate * 100)}}%) | ${{fmtVal(it.baseline_monthly_rmb)}} | ${{recTitle}} | ${{fmtVal(it.optimized_payg_rmb)}} (省 ${{it.savings_pct.toFixed(1)}}%) |`;
       }});
-      const topFbZh = fb.slice(0, 5);
-      const fileLinesZh = fb.length >= 2
-        ? [`- **高消耗文件 / 会话来源 Top ${{topFbZh.length}}**：${{topFbZh.map((f, idx) => `${{idx + 1}}. \\`${{f.file_name}}\\`（${{fmtVal(f.estimated_monthly_rmb)}}/月 · ${{fmtNum(f.requests)}} 次）`).join(" · ")}}`]
+      const outlierLinesZh = excl.length > 0
+        ? [`- **稳态去噪口径**：已剔除 ${{excl.length}} 份峰值会话（${{excl.map(x => "\\`" + x + "\\`").join("、")}}），按其余 ${{Math.max(1, allFb.length - excl.length)}}/${{allFb.length}} 份常规会话核算稳态月费。`]
+        : [];
+      const fileSrcZh = excl.length > 0 ? allFb : fb;
+      const topFbZh = fileSrcZh.slice(0, 5);
+      const fileLinesZh = fileSrcZh.length >= 2
+        ? [`- **高消耗文件 / 会话来源 Top ${{topFbZh.length}}**：${{topFbZh.map((f, idx) => `${{idx + 1}}. \\`${{f.file_name}}\\`${{exclSet.has(f.file_name) ? " [已剔除]" : ""}}（${{fmtVal(f.estimated_monthly_rmb)}}/月 · ${{fmtNum(f.requests)}} 次）`).join(" · ")}}`]
         : [];
       let cpLineZh = "- **Coding Plan 组合核对**：非交互式后端场景已自动排除个人包月套餐。";
       if (cp) {{
@@ -4469,6 +4690,7 @@ def render_html_template(
       return [
         `### AI Cost Radar · 多模型账单瘦身审计表（核验日 ${{QUOTE_VERIFIED_DATE}}）`,
         `- **审计口径**：按 ${{audit.days_observed}} 天真实账单折算 30 天整月 · 共 ${{audit.totals.distinct_models_count}} 款模型 · 月总 ${{fmtNum(audit.totals.monthly_requests)}} 次调用 · ${{audit.team_size}} 个 IDE 席位`,
+        ...outlierLinesZh,
         ...snapLinesZh,
         ``,
         `| 原账单模型 | 30天调用与 Token | 原月账单 | 推荐国产直连方案 | 优化后按量月费 |`,
@@ -4563,16 +4785,21 @@ def render_html_template(
       }}
 
       const prevDrillOpen = Boolean(document.getElementById("usageFileDrilldown")?.open);
-      const fbRows = Array.isArray(info.parsed.file_breakdown) ? info.parsed.file_breakdown : [];
+      const allFbRows = Array.isArray(info.allFileBreakdown) && info.allFileBreakdown.length > 0
+        ? info.allFileBreakdown
+        : (Array.isArray(info.parsed.file_breakdown) ? info.parsed.file_breakdown : []);
       let fileDrilldownHtml = "";
-      if (fbRows.length >= 2) {{
+      if (allFbRows.length >= 2) {{
+        const exclCount = state.excludedBillFiles instanceof Set ? state.excludedBillFiles.size : 0;
+        const activeCount = Math.max(1, allFbRows.length - exclCount);
         const fmtTokShort = n => {{
           const v = Number(n || 0);
           if (v >= 1e6) return (v / 1e6).toFixed(2) + "M";
           if (v >= 1e3) return (v / 1e3).toFixed(1) + "K";
           return fmtNum(v);
         }};
-        const fileTrs = fbRows.map((f, idx) => {{
+        const fileTrs = allFbRows.map((f, idx) => {{
+          const isExcl = state.excludedBillFiles instanceof Set && state.excludedBillFiles.has(f.file_name);
           const hitPct = Math.round(Number(f.cache_hit_rate || 0) * 100);
           const subMeta = isEn
             ? `${{f.top_model || "-"}} · ${{hitPct}}% cached`
@@ -4580,21 +4807,46 @@ def render_html_template(
           const callTokTxt = isEn
             ? `${{fmtNum(f.requests)}} calls · In ${{fmtTokShort(f.input_tokens)}} / Out ${{fmtTokShort(f.output_tokens)}}`
             : `${{fmtNum(f.requests)}} 次 · 输入 ${{fmtTokShort(f.input_tokens)}} / 输出 ${{fmtTokShort(f.output_tokens)}}`;
+          const exclBadgeHtml = isExcl
+            ? ` <span class="badge badge-warn">${{isEn ? "Excluded" : "已剔除峰值"}}</span>`
+            : "";
           return `
-            <tr>
-              <td class="mono-cell">${{idx + 1}}</td>
-              <td class="mono-cell"><strong>${{esc(f.file_name)}}</strong><br><span class="table-sub">${{esc(subMeta)}}</span></td>
+            <tr${{isExcl ? ' class="is-excluded-file"' : ""}}>
+              <td class="mono-cell"><label class="file-include-label"><input type="checkbox" class="file-include-toggle" data-file-label="${{esc(f.file_name)}}"${{isExcl ? "" : " checked"}} aria-label="${{esc((isEn ? "Include " : "纳入 ") + f.file_name)}}" /><span>${{idx + 1}}</span></label></td>
+              <td class="mono-cell"><strong class="file-label-strong">${{esc(f.file_name)}}</strong>${{exclBadgeHtml}}<br><span class="table-sub">${{esc(subMeta)}}</span></td>
               <td class="mono-cell">${{esc(callTokTxt)}}</td>
               <td class="mono-cell"><strong>${{fmtVal(f.estimated_monthly_rmb)}}</strong></td>
             </tr>
           `;
         }}).join("");
-        const summaryTxt = isEn
-          ? `Spend by Session / File Source (${{fbRows.length}} files · ranked by 30d est. spend)`
-          : `按文件 / 会话来源消耗排行（共 ${{fbRows.length}} 份文件 · 按 30 天折算月费降序）`;
+        const summaryTxt = exclCount > 0
+          ? (isEn
+              ? `Spend by Session / File Source (${{activeCount}}/${{allFbRows.length}} active · ${{exclCount}} outlier excluded)`
+              : `按文件 / 会话来源消耗排行（已纳入 ${{activeCount}}/${{allFbRows.length}} 份会话 · 已剔除 ${{exclCount}} 份峰值）`)
+          : (isEn
+              ? `Spend by Session / File Source (${{allFbRows.length}} files · ranked by 30d est. spend)`
+              : `按文件 / 会话来源消耗排行（共 ${{allFbRows.length}} 份文件 · 按 30 天折算月费降序）`);
+        const statusTxt = exclCount > 0
+          ? (isEn
+              ? `Steady-state mode: ${{activeCount}}/${{allFbRows.length}} sessions included (${{exclCount}} spike excluded).`
+              : `稳态去噪模式：当前按 ${{activeCount}}/${{allFbRows.length}} 份常规会话核算（已剔除 ${{exclCount}} 份峰值会话）。`)
+          : (isEn
+              ? `All ${{allFbRows.length}} sessions active — uncheck a migration spike to audit steady-state monthly spend.`
+              : `全部 ${{allFbRows.length}} 份会话均参与核算 — 取消勾选或一键剔除峰值会话即可查看日常稳态月费。`);
+        const toastHtml = state.outlierToastMsg === "empty_active"
+          ? ` <strong style="color:var(--amber-text);">${{isEn ? "Keep at least 1 active file in the audit." : "至少需保留 1 份会话参与核算。"}}</strong>`
+          : "";
+        const toggleBtnTxt = exclCount > 0
+          ? (isEn ? `Include All ${{allFbRows.length}} Files` : `恢复全部 ${{allFbRows.length}} 份会话`)
+          : (isEn ? "Exclude #1 Spike Session" : "一键剔除 Top 1 峰值会话看稳态");
+        const canFilterRaw = Array.isArray(info.rawFiles) && info.rawFiles.length >= 2;
+        const toolbarHtml = canFilterRaw
+          ? `<div class="usage-drilldown-toolbar"><div class="usage-drilldown-status">${{esc(statusTxt)}}${{toastHtml}}</div><button type="button" class="usage-import-btn" id="toggleOutlierTop1Btn">${{esc(toggleBtnTxt)}}</button></div>`
+          : "";
         fileDrilldownHtml = `
           <details class="usage-file-drilldown" id="usageFileDrilldown"${{prevDrillOpen ? " open" : ""}}>
             <summary>${{esc(summaryTxt)}}</summary>
+            ${{toolbarHtml}}
             <div class="table-scroll" style="padding:0;background:var(--bg-elevated);">
               <table class="ssr-table" aria-label="${{isEn ? "Spend by Session or File Source" : "按文件或会话来源消耗排行"}}">
                 <thead>
@@ -4649,6 +4901,149 @@ def render_html_template(
         <div class="usage-bill-note">${{esc(cpNote)}}</div>
         ${{fileDrilldownHtml}}
       `;
+    }}
+
+    function applyParsedUsageStateCoreWeb(parsed, extraImportFields = {{}}, resetOverrides = true) {{
+      if (resetOverrides) {{
+        state.billRowOverrides = {{}};
+      }}
+      state.dailyCalls = Math.min(2000000, Math.max(1, parsed.daily_requests));
+      state.inputTokens = Math.min(500000, Math.max(1, parsed.avg_input_tokens));
+      state.outputTokens = Math.min(128000, Math.max(1, parsed.avg_output_tokens));
+      state.cacheEnabled = parsed.cache_hit_rate > 0;
+      syncCacheHitSelectOption(parsed.cache_hit_rate > 0 ? parsed.cache_hit_rate : 0.5);
+      if (parsed.output_includes_reasoning) {{
+        state.outputIncludesReasoning = true;
+        document.getElementById("outputIncludesReasoningToggle").checked = true;
+      }}
+      state.lastUsageImport = {{ mode: "log_snippet", parsed, ...extraImportFields }};
+      if (parsed.detected_format === "csv_multimodel_bill") {{
+        const audit = auditCsvBillWeb(parsed);
+        if (audit && audit.line_items && audit.line_items.length > 0) {{
+          const primaryMatch = audit.line_items[0].matched_model_id;
+          if (primaryMatch && MODELS.some(m => m.id === primaryMatch)) {{
+            state.baselineId = primaryMatch;
+            const baseSel = document.getElementById("baselineSelect");
+            if (baseSel) baseSel.value = primaryMatch;
+          }}
+          const autoCmp = [];
+          for (const li of audit.line_items) {{
+            for (const cid of [li.matched_model_id, li.recommended_model_id]) {{
+              if (cid && MODELS.some(m => m.id === cid) && !autoCmp.includes(cid) && autoCmp.length < 3) {{
+                autoCmp.push(cid);
+              }}
+            }}
+          }}
+          if (autoCmp.length >= 2) {{
+            state.compareIds = autoCmp.slice(0, 3);
+          }}
+        }}
+      }}
+      document.getElementById("dailyCallsNum").value = String(state.dailyCalls);
+      document.getElementById("dailyCallsRange").value = String(callsToSlider(state.dailyCalls));
+      document.getElementById("inputTokensNum").value = String(state.inputTokens);
+      document.getElementById("inputTokensRange").value = String(Math.min(32000, state.inputTokens));
+      document.getElementById("outputTokensNum").value = String(state.outputTokens);
+      document.getElementById("outputTokensRange").value = String(Math.min(8000, state.outputTokens));
+      document.getElementById("cacheToggle").checked = state.cacheEnabled;
+      document.querySelectorAll("#presetBar .preset-btn, [data-prompt-calls]").forEach(b => b.classList.remove("active"));
+      const drawerEl = document.getElementById("usageImportDrawer");
+      if (drawerEl && parsed.detected_format === "csv_multimodel_bill") {{
+        drawerEl.open = true;
+      }}
+      renderUsageImportStatus();
+      renderUsageBillBreakdown();
+      updateAll(true);
+    }}
+
+    function importUsageBatchWeb(rawTexts, daysObserved = 30, fileNames = null, slotOverride = null) {{
+      state.excludedBillFiles = new Set();
+      state.outlierToastMsg = "";
+      let days = Number(daysObserved ?? 30);
+      if (!Number.isFinite(days) || days <= 0 || days > 365) days = 30;
+      const arr = Array.isArray(rawTexts) ? rawTexts : [rawTexts];
+      const rawFiles = prepareRawUsageFilesWeb(arr, fileNames);
+      if (rawFiles.length > 1) {{
+        const parsed = mergeUsageFilesWeb(
+          rawFiles.map(x => x.text),
+          days,
+          rawFiles.map(x => x.label),
+          {{ preserveLabels: true, forcePortfolio: true }}
+        );
+        const allFb = Array.isArray(parsed.file_breakdown) ? parsed.file_breakdown : [];
+        applyParsedUsageStateCoreWeb(parsed, {{ rawFiles, allFileBreakdown: allFb, daysObserved: days }}, true);
+        trackEvent("usage_import", {{ slot_id: slotOverride || parsed.source_format || parsed.detected_format }});
+        return parsed;
+      }}
+      const singleText = rawFiles.length === 1 ? rawFiles[0].text : String(arr[0] ?? "");
+      const parsed = parseUsageSnippet(singleText, days);
+      applyParsedUsageStateCoreWeb(parsed, {{ daysObserved: days }}, true);
+      trackEvent("usage_import", {{ slot_id: slotOverride || parsed.source_format || parsed.detected_format }});
+      return parsed;
+    }}
+
+    function recomputeActiveBillFromRawFiles(nextExcludedLabels = null) {{
+      const imp = state.lastUsageImport;
+      if (!imp || !Array.isArray(imp.rawFiles) || imp.rawFiles.length < 2) {{
+        return {{ ok: false, reason: "no_multifile" }};
+      }}
+      const validLabels = new Set(imp.rawFiles.map(f => f.label));
+      const candSet = new Set();
+      const srcIter = nextExcludedLabels instanceof Set || Array.isArray(nextExcludedLabels)
+        ? nextExcludedLabels
+        : state.excludedBillFiles;
+      for (const lbl of srcIter || []) {{
+        if (validLabels.has(lbl)) candSet.add(lbl);
+      }}
+      const activeFiles = imp.rawFiles.filter(f => !candSet.has(f.label));
+      if (activeFiles.length === 0) {{
+        state.outlierToastMsg = "empty_active";
+        renderUsageBillBreakdown();
+        return {{ ok: false, reason: "empty_active" }};
+      }}
+      const days = Number(imp.daysObserved || 30) || 30;
+      let activeParsed = null;
+      try {{
+        activeParsed = mergeUsageFilesWeb(
+          activeFiles.map(x => x.text),
+          days,
+          activeFiles.map(x => x.label),
+          {{ preserveLabels: true, forcePortfolio: true }}
+        );
+      }} catch (_) {{
+        state.outlierToastMsg = "empty_active";
+        renderUsageBillBreakdown();
+        return {{ ok: false, reason: "empty_active" }};
+      }}
+      state.excludedBillFiles = candSet;
+      state.outlierToastMsg = "";
+      applyParsedUsageStateCoreWeb(
+        activeParsed,
+        {{ rawFiles: imp.rawFiles, allFileBreakdown: imp.allFileBreakdown, daysObserved: days }},
+        false
+      );
+      return {{
+        ok: true,
+        parsed: activeParsed,
+        excludedCount: candSet.size,
+        activeCount: activeFiles.length
+      }};
+    }}
+
+    function toggleTopOutlierSessionWeb() {{
+      const imp = state.lastUsageImport;
+      const allFb = Array.isArray(imp?.allFileBreakdown) ? imp.allFileBreakdown : [];
+      if (allFb.length < 2) {{
+        return {{ ok: false, reason: "no_multifile" }};
+      }}
+      if (state.excludedBillFiles instanceof Set && state.excludedBillFiles.size > 0) {{
+        return recomputeActiveBillFromRawFiles(new Set());
+      }}
+      const topLabel = allFb[0]?.file_name;
+      if (!topLabel) {{
+        return {{ ok: false, reason: "no_top_label" }};
+      }}
+      return recomputeActiveBillFromRawFiles(new Set([topLabel]));
     }}
 
     function esc(s) {{
@@ -7020,9 +7415,9 @@ def render_html_template(
       presetPro: "Heavy IDE (2,500/day · 75k/mo)",
       presetOver: "Over-Cap Case (5,000/day · 150k/mo)",
       presetBackend: "Backend API (15,000/day · PayG/Host)",
-      usageImportSummary: "Import from Real Logs or Multi-Model CSV/JSONL Bill (OpenRouter/Cloud CSV, Claude Code .jsonl & /cost)",
-      usageLogLabel: "Option 1: Upload or drag & drop multiple CSV/TSV/JSON/JSONL bills, or paste Claude Code /cost & usage JSON",
-      usageDropHint: "Drag & drop or multi-select multiple Claude Code .jsonl transcripts & cloud .csv bills to auto-merge & deduplicate (up to 30 files)",
+      usageImportSummary: "Import from Real Logs or Multi-Model CSV/JSONL Bill (OpenRouter/Cloud CSV, Claude Code / Codex .jsonl & Cline)",
+      usageLogLabel: "Option 1: Upload or drag & drop multiple CSV/TSV/JSON/JSONL bills (~/.claude, ~/.codex, Cline ui_messages.json), or paste /cost",
+      usageDropHint: "Drag & drop or multi-select multiple Claude Code / Codex .jsonl, Cline ui_messages.json & cloud .csv bills to auto-merge & deduplicate (up to 30 files)",
       usageDaysLabel: "Log Window:",
       applyUsageLogBtn: "Parse & Apply to Calculator",
       usageFileBtn: "Choose Local Bills (.csv/.tsv/.json/.jsonl · Multi-Select)",
@@ -7030,7 +7425,7 @@ def render_html_template(
       fillSampleJsonlBtn: "Fill Claude Code JSONL Sample",
       fillSampleLogBtn: "Fill Claude Code Sample",
       usagePrivacyNote: "Privacy: Bills & logs are parsed 100% locally in browser memory and never uploaded to any server.",
-      localCliHint: "Skip hunting hidden folders — read-only local ~/.claude/projects terminal audit (zero upload):",
+      localCliHint: "Skip hunting hidden folders — read-only local ~/.claude, ~/.codex & Cline terminal audit (zero upload):",
       copyLocalCliCmdBtn: "Copy Local CLI Command",
       copiedLocalCliToast: "Local CLI Command Copied",
       usageMonthlyQuickLabel: "Option 2: Convert Monthly Bill Totals (auto-computes daily calls, per-call avg & cache hit %)",
@@ -7394,54 +7789,9 @@ def render_html_template(
       }}
 
       const applyParsedUsageSnippet = (parsed, slotOverride) => {{
-        state.billRowOverrides = {{}};
-        state.dailyCalls = Math.min(2000000, Math.max(1, parsed.daily_requests));
-        state.inputTokens = Math.min(500000, Math.max(1, parsed.avg_input_tokens));
-        state.outputTokens = Math.min(128000, Math.max(1, parsed.avg_output_tokens));
-        state.cacheEnabled = parsed.cache_hit_rate > 0;
-        syncCacheHitSelectOption(parsed.cache_hit_rate > 0 ? parsed.cache_hit_rate : 0.5);
-        if (parsed.output_includes_reasoning) {{
-          state.outputIncludesReasoning = true;
-          document.getElementById("outputIncludesReasoningToggle").checked = true;
-        }}
-        if (parsed.detected_format === "csv_multimodel_bill") {{
-          const audit = auditCsvBillWeb(parsed);
-          if (audit && audit.line_items && audit.line_items.length > 0) {{
-            const primaryMatch = audit.line_items[0].matched_model_id;
-            if (primaryMatch && MODELS.some(m => m.id === primaryMatch)) {{
-              state.baselineId = primaryMatch;
-              const baseSel = document.getElementById("baselineSelect");
-              if (baseSel) baseSel.value = primaryMatch;
-            }}
-            const autoCmp = [];
-            for (const li of audit.line_items) {{
-              for (const cid of [li.matched_model_id, li.recommended_model_id]) {{
-                if (cid && MODELS.some(m => m.id === cid) && !autoCmp.includes(cid) && autoCmp.length < 3) {{
-                  autoCmp.push(cid);
-                }}
-              }}
-            }}
-            if (autoCmp.length >= 2) {{
-              state.compareIds = autoCmp.slice(0, 3);
-            }}
-          }}
-        }}
-        document.getElementById("dailyCallsNum").value = String(state.dailyCalls);
-        document.getElementById("dailyCallsRange").value = String(callsToSlider(state.dailyCalls));
-        document.getElementById("inputTokensNum").value = String(state.inputTokens);
-        document.getElementById("inputTokensRange").value = String(Math.min(32000, state.inputTokens));
-        document.getElementById("outputTokensNum").value = String(state.outputTokens);
-        document.getElementById("outputTokensRange").value = String(Math.min(8000, state.outputTokens));
-        document.getElementById("cacheToggle").checked = state.cacheEnabled;
-        document.querySelectorAll("#presetBar .preset-btn, [data-prompt-calls]").forEach(b => b.classList.remove("active"));
-        const drawerEl = document.getElementById("usageImportDrawer");
-        if (drawerEl && parsed.detected_format === "csv_multimodel_bill") {{
-          drawerEl.open = true;
-        }}
-        state.lastUsageImport = {{ mode: "log_snippet", parsed }};
-        renderUsageImportStatus();
-        renderUsageBillBreakdown();
-        updateAll(true);
+        state.excludedBillFiles = new Set();
+        state.outlierToastMsg = "";
+        applyParsedUsageStateCoreWeb(parsed, {{}}, true);
         trackEvent("usage_import", {{ slot_id: slotOverride || parsed.source_format || parsed.detected_format }});
       }};
 
@@ -7488,13 +7838,10 @@ def render_html_template(
                 : files.map((f, idx) => `# --- File ${{idx + 1}}: ${{fileNames[idx]}} ---\\n${{String(texts[idx] || "").trim()}}`).join("\\n\\n");
             }}
             const daysVal = Number(document.getElementById("usageDaysSelect")?.value || 30) || 30;
-            const parsed = files.length > 1
-              ? mergeUsageFilesWeb(texts, daysVal, fileNames)
-              : parseUsageSnippet(String(texts[0] || ""), daysVal);
             const slotId = files.length > 1
               ? (sourceSlot === "drop" ? "multifile_drop" : "multifile_upload")
               : (sourceSlot === "drop" ? "file_drop" : "file_upload");
-            applyParsedUsageSnippet(parsed, slotId);
+            importUsageBatchWeb(texts, daysVal, fileNames, slotId);
           }})
           .catch(() => {{
             state.lastUsageImport = {{ error: "parse_failed" }};
@@ -7568,10 +7915,11 @@ def render_html_template(
                 }}
               }}
             }}
-            const parsed = fileBlocks.length > 1
-              ? mergeUsageFilesWeb(fileBlocks, daysVal, blockNames)
-              : parseUsageSnippet(rawText, daysVal);
-            applyParsedUsageSnippet(parsed);
+            if (fileBlocks.length > 1) {{
+              importUsageBatchWeb(fileBlocks, daysVal, blockNames);
+            }} else {{
+              importUsageBatchWeb([rawText], daysVal, null);
+            }}
           }} catch (_) {{
             state.lastUsageImport = {{ error: "parse_failed" }};
             renderUsageImportStatus();
@@ -7609,6 +7957,8 @@ def render_html_template(
           document.getElementById("outputTokensRange").value = String(Math.min(8000, state.outputTokens));
           document.getElementById("cacheToggle").checked = state.cacheEnabled;
           document.querySelectorAll("#presetBar .preset-btn, [data-prompt-calls]").forEach(b => b.classList.remove("active"));
+          state.excludedBillFiles = new Set();
+          state.outlierToastMsg = "";
           state.lastUsageImport = {{
             mode: "monthly_totals",
             parsed: {{
@@ -7620,6 +7970,7 @@ def render_html_template(
             }}
           }};
           renderUsageImportStatus();
+          renderUsageBillBreakdown();
           updateAll(true);
           trackEvent("usage_import", {{ slot_id: "monthly_totals" }});
         }});
@@ -7865,6 +8216,24 @@ def render_html_template(
       document.getElementById("cfgBillingModeSelect").addEventListener("change", refreshConfigModalSnippets);
 
       document.addEventListener("change", e => {{
+        if (e.target && e.target.classList && e.target.classList.contains("file-include-toggle")) {{
+          const fileLbl = e.target.getAttribute("data-file-label");
+          if (fileLbl) {{
+            const nextExcl = new Set(state.excludedBillFiles instanceof Set ? state.excludedBillFiles : []);
+            if (e.target.checked) {{
+              nextExcl.delete(fileLbl);
+            }} else {{
+              nextExcl.add(fileLbl);
+            }}
+            const res = recomputeActiveBillFromRawFiles(nextExcl);
+            if (!res.ok) {{
+              e.target.checked = true;
+            }} else {{
+              trackEvent("calc_interact", {{ slot_id: "exclude_outlier_session" }});
+            }}
+          }}
+          return;
+        }}
         if (e.target && e.target.classList && e.target.classList.contains("bill-route-select")) {{
           const modelKey = e.target.getAttribute("data-bill-model");
           if (modelKey) {{
@@ -7897,6 +8266,14 @@ def render_html_template(
       }});
 
       document.addEventListener("click", e => {{
+        const toggleOutlierBtn = e.target.closest("#toggleOutlierTop1Btn");
+        if (toggleOutlierBtn) {{
+          const res = toggleTopOutlierSessionWeb();
+          if (res && res.ok) {{
+            trackEvent("calc_interact", {{ slot_id: "exclude_outlier_session" }});
+          }}
+          return;
+        }}
         const clearInlineSnapBtn = e.target.closest("[data-clear-snapshot]");
         if (clearInlineSnapBtn) {{
           clearSavedBaselineSnapshot();

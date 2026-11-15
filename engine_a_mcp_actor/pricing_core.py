@@ -406,9 +406,15 @@ def resolve_model_query(models: list[dict[str, Any]], raw_query: str | None) -> 
         alias_candidates.append("deepseek-r1")
     elif slug_base in ("deepseek-chat", "v3"):
         alias_candidates.append("deepseek-v3")
-    elif slug_base in ("gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1-nano", "o1-mini", "o3-mini", "o4-mini"):
+    elif "codex" in slug_base and ("mini" in slug_base or "nano" in slug_base):
+        alias_candidates.extend(["openai/gpt-5.1-codex-mini", "openai/gpt-5.4-mini", "openai/gpt-5-mini"])
+    elif "codex" in slug_base:
+        alias_candidates.extend(["openai/gpt-5.3-codex", "openai/gpt-5.2-codex", "openai/gpt-5.4"])
+    elif slug_base in ("gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1-nano", "o1-mini", "o3-mini", "o4-mini") or (
+        slug_base.startswith(("gpt-6", "gpt-5", "gpt-4")) and ("mini" in slug_base or "nano" in slug_base)
+    ):
         alias_candidates.extend(["openai/gpt-5.4-mini", "openai/gpt-5-mini"])
-    elif slug_base.startswith(("gpt-4", "chatgpt-4o")) or slug_base in ("o1", "o3", "o3-pro"):
+    elif slug_base.startswith(("gpt-6", "gpt-5", "gpt-4", "chatgpt-4o")) or slug_base in ("o1", "o3", "o3-pro"):
         alias_candidates.extend(["openai/gpt-5.4", "openai/gpt-5.5"])
     elif "claude" in slug_base and "sonnet" in slug_base:
         alias_candidates.extend(["anthropic/claude-sonnet-5.5", "anthropic/claude-sonnet-5"])
@@ -1550,8 +1556,12 @@ def _extract_json_records_raw(text: str) -> tuple[list[dict[str, Any]], str] | N
                 if raw_records is None:
                     msg_obj = parsed_single.get("message")
                     resp_obj = parsed_single.get("response")
-                    if (isinstance(msg_obj, dict) and (isinstance(msg_obj.get("usage"), dict) or parsed_single.get("type") in ("user", "assistant", "summary", "system"))) or (
-                        isinstance(resp_obj, dict) and isinstance(resp_obj.get("body"), dict)
+                    single_type = str(parsed_single.get("type") or "").strip().lower()
+                    if (
+                        (isinstance(msg_obj, dict) and (isinstance(msg_obj.get("usage"), dict) or single_type in ("user", "assistant", "summary", "system")))
+                        or (isinstance(resp_obj, dict) and isinstance(resp_obj.get("body"), dict))
+                        or (single_type == "token_usage_record")
+                        or (str(parsed_single.get("say") or "").strip() == "api_req_started" and isinstance(parsed_single.get("text"), str))
                     ):
                         raw_records = [parsed_single]
                         source_format = "jsonl_multimodel"
@@ -1590,6 +1600,8 @@ def _collect_json_record_entries(
     *,
     fx_rate: float = DEFAULT_FX_USD_TO_RMB,
 ) -> tuple[list[dict[str, Any]], int]:
+    import json
+
     def _safe_num(val: Any) -> float:
         if val is None or isinstance(val, (dict, list, bool)):
             return 0.0
@@ -1604,15 +1616,165 @@ def _collect_json_record_entries(
                 return d.get(k)
         return None
 
-    skip_types = {"user", "summary", "system", "file-history-snapshot", "queue-operation"}
+    skip_types = {"user", "summary", "system", "file-history-snapshot", "queue-operation", "session_meta", "response_item", "compacted"}
     summary_labels = {"total", "totals", "sum", "summary", "合计", "总计", "汇总", "小计"}
     deduped_entries: dict[str, dict[str, Any]] = {}
     anon_entries: list[dict[str, Any]] = []
     deduplicated_chunks = 0
 
+    files_with_codex_tur = {
+        rec.get("_src_file_idx")
+        for rec in raw_records
+        if isinstance(rec, dict) and str(rec.get("type") or "").strip().lower() == "token_usage_record"
+    }
+    sticky_codex_model: dict[Any, str] = {}
+    last_codex_cum_total: dict[Any, float] = {}
+
+    def _push_entry(entry: dict[str, Any], dedupe_id: str | None) -> None:
+        nonlocal deduplicated_chunks
+        if dedupe_id is not None:
+            if dedupe_id in deduped_entries:
+                deduplicated_chunks += 1
+                prev = deduped_entries[dedupe_id]
+                for num_k in ("requests", "input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "reported_cost_rmb"):
+                    prev[num_k] = max(prev[num_k], entry[num_k])
+                if prev["model"] == "unknown" and entry["model"] != "unknown":
+                    prev["model"] = entry["model"]
+            else:
+                deduped_entries[dedupe_id] = entry
+        else:
+            anon_entries.append(entry)
+
     for rec in raw_records:
-        if str(rec.get("type") or "").strip().lower() in skip_types:
+        f_key = rec.get("_src_file_idx")
+        rec_type_low = str(rec.get("type") or "").strip().lower()
+        if rec_type_low in skip_types:
             continue
+
+        # 1. OpenAI Codex CLI (~/.codex/sessions/*.jsonl): sticky turn_context + token_usage_record / legacy event_msg(token_count)
+        if rec_type_low == "turn_context":
+            payload = rec.get("payload") if isinstance(rec.get("payload"), dict) else {}
+            tc_model = _first_val(payload, ("model", "model_id", "model_name")) or _first_val(rec, ("model",))
+            if tc_model:
+                sticky_codex_model[f_key] = str(tc_model).strip()
+            continue
+
+        if rec_type_low == "token_usage_record":
+            payload = rec.get("payload") if isinstance(rec.get("payload"), dict) else {}
+            u_nested = payload.get("usage") if isinstance(payload.get("usage"), dict) else (rec.get("usage") if isinstance(rec.get("usage"), dict) else {})
+            u_codex = {**rec, **payload, **u_nested}
+            m_codex = str(_first_val(u_codex, ("model", "model_id")) or sticky_codex_model.get(f_key) or "gpt-5-codex").strip() or "gpt-5-codex"
+            in_v = _safe_num(u_codex.get("input_tokens"))
+            c_v = _safe_num(u_codex.get("cached_input_tokens"))
+            row_in = max(in_v, c_v)
+            row_cached = min(row_in, c_v)
+            out_val = _safe_num(u_codex.get("output_tokens"))
+            reason_val = _safe_num(_first_val(u_codex, ("reasoning_output_tokens", "reasoning_tokens")))
+            if row_in <= 0 and out_val <= 0:
+                continue
+            resp_id = _first_val(u_codex, ("response_id", "id"))
+            _push_entry(
+                {
+                    "model": m_codex,
+                    "requests": 1.0,
+                    "input_tokens": row_in,
+                    "cached_input_tokens": row_cached,
+                    "output_tokens": out_val,
+                    "reasoning_tokens": reason_val,
+                    "reported_cost_rmb": 0.0,
+                    "source_file_idx": f_key,
+                },
+                f"codex_resp:{resp_id}" if resp_id else None,
+            )
+            continue
+
+        if rec_type_low == "event_msg":
+            if f_key in files_with_codex_tur:
+                continue
+            payload = rec.get("payload") if isinstance(rec.get("payload"), dict) else {}
+            if str(payload.get("type") or "").strip().lower() != "token_count":
+                continue
+            info = payload.get("info") if isinstance(payload.get("info"), dict) else {}
+            last_u = info.get("last_token_usage") if isinstance(info.get("last_token_usage"), dict) else None
+            tot_u = info.get("total_token_usage") if isinstance(info.get("total_token_usage"), dict) else {}
+            if not isinstance(last_u, dict):
+                continue
+            cum_tot = _safe_num(tot_u.get("total_tokens"))
+            if cum_tot > 0:
+                if last_codex_cum_total.get(f_key) == cum_tot:
+                    deduplicated_chunks += 1
+                    continue
+                last_codex_cum_total[f_key] = cum_tot
+            m_codex = str(
+                _first_val(info, ("model", "model_id"))
+                or _first_val(payload, ("model",))
+                or sticky_codex_model.get(f_key)
+                or "gpt-5-codex"
+            ).strip() or "gpt-5-codex"
+            in_v = _safe_num(last_u.get("input_tokens"))
+            c_v = _safe_num(last_u.get("cached_input_tokens"))
+            row_in = max(in_v, c_v)
+            row_cached = min(row_in, c_v)
+            out_val = _safe_num(last_u.get("output_tokens"))
+            reason_val = _safe_num(_first_val(last_u, ("reasoning_output_tokens", "reasoning_tokens")))
+            if row_in <= 0 and out_val <= 0:
+                continue
+            _push_entry(
+                {
+                    "model": m_codex,
+                    "requests": 1.0,
+                    "input_tokens": row_in,
+                    "cached_input_tokens": row_cached,
+                    "output_tokens": out_val,
+                    "reasoning_tokens": reason_val,
+                    "reported_cost_rmb": 0.0,
+                    "source_file_idx": f_key,
+                },
+                None,
+            )
+            continue
+
+        # 2. VS Code Cline / Roo Code tasks/<id>/ui_messages.json (`say == "api_req_started"`)
+        if str(rec.get("say") or "").strip() == "api_req_started" and isinstance(rec.get("text"), str):
+            try:
+                c_info = json.loads(rec["text"])
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(c_info, dict):
+                continue
+            t_in = _safe_num(c_info.get("tokensIn"))
+            t_out = _safe_num(c_info.get("tokensOut"))
+            c_reads = _safe_num(c_info.get("cacheReads"))
+            c_writes = _safe_num(c_info.get("cacheWrites"))
+            row_in = t_in + c_reads + c_writes
+            row_cached = c_reads
+            out_val = t_out
+            reason_val = _safe_num(_first_val(c_info, ("reasoningTokens", "thinkingTokens")))
+            if row_in <= 0 and out_val <= 0:
+                continue
+            m_cline = str(
+                _first_val(c_info, ("model", "modelId", "apiModelId"))
+                or _first_val(rec, ("model", "modelId"))
+                or "anthropic/claude-sonnet-5.5"
+            ).strip() or "anthropic/claude-sonnet-5.5"
+            cost_usd = _first_val(c_info, ("cost", "totalCost"))
+            row_cost_rmb = _parse_currency_rmb(cost_usd, "costusd", fx_rate=fx_rate) if cost_usd is not None else 0.0
+            ts_val = _first_val(rec, ("ts", "id"))
+            _push_entry(
+                {
+                    "model": m_cline,
+                    "requests": 1.0,
+                    "input_tokens": row_in,
+                    "cached_input_tokens": row_cached,
+                    "output_tokens": out_val,
+                    "reasoning_tokens": reason_val,
+                    "reported_cost_rmb": row_cost_rmb,
+                    "source_file_idx": f_key,
+                },
+                f"cline:{f_key}:{ts_val}" if ts_val is not None else None,
+            )
+            continue
+
         msg = rec.get("message") if isinstance(rec.get("message"), dict) else {}
         resp = rec.get("response") if isinstance(rec.get("response"), dict) else {}
         body = resp.get("body") if isinstance(resp.get("body"), dict) else {}
@@ -1669,7 +1831,7 @@ def _collect_json_record_entries(
             else (
                 o_det.get("reasoning_tokens")
                 if o_det.get("reasoning_tokens") is not None
-                else _first_val(merged, ("native_tokens_reasoning", "reasoning_tokens", "thinking_tokens"))
+                else _first_val(merged, ("native_tokens_reasoning", "reasoning_tokens", "reasoning_output_tokens", "thinking_tokens"))
             )
         )
         reason_val = _safe_num(r_raw)
@@ -1704,28 +1866,19 @@ def _collect_json_record_entries(
             elif rec.get("id"):
                 dedupe_id = f"id:{rec['id']}"
 
-        entry = {
-            "model": model_label,
-            "requests": row_reqs,
-            "input_tokens": row_in,
-            "cached_input_tokens": row_cached,
-            "output_tokens": out_val,
-            "reasoning_tokens": reason_val,
-            "reported_cost_rmb": row_cost_rmb,
-            "source_file_idx": rec.get("_src_file_idx"),
-        }
-        if dedupe_id is not None:
-            if dedupe_id in deduped_entries:
-                deduplicated_chunks += 1
-                prev = deduped_entries[dedupe_id]
-                for num_k in ("requests", "input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "reported_cost_rmb"):
-                    prev[num_k] = max(prev[num_k], entry[num_k])
-                if prev["model"] == "unknown" and entry["model"] != "unknown":
-                    prev["model"] = entry["model"]
-            else:
-                deduped_entries[dedupe_id] = entry
-        else:
-            anon_entries.append(entry)
+        _push_entry(
+            {
+                "model": model_label,
+                "requests": row_reqs,
+                "input_tokens": row_in,
+                "cached_input_tokens": row_cached,
+                "output_tokens": out_val,
+                "reasoning_tokens": reason_val,
+                "reported_cost_rmb": row_cost_rmb,
+                "source_file_idx": f_key,
+            },
+            dedupe_id,
+        )
 
     return list(deduped_entries.values()) + anon_entries, deduplicated_chunks
 
@@ -2570,10 +2723,16 @@ def sanitize_usage_file_label(raw_name: Any, fallback_idx: int = 1) -> str:
         return f"file_{fallback_idx}"
 
     for idx in range(len(parts) - 1):
-        if parts[idx].lower() == ".claude" and parts[idx + 1].lower() == "projects" and (idx + 2) < len(parts):
+        p_low = parts[idx].lower()
+        p_next = parts[idx + 1].lower()
+        if p_low == ".claude" and p_next == "projects" and (idx + 2) < len(parts):
             tail = parts[idx + 2 :]
             label = "/".join(tail[-2:]) if len(tail) >= 2 else tail[-1]
             return label[:80] or f"file_{fallback_idx}"
+        if p_low == ".codex" and p_next == "sessions" and (idx + 2) < len(parts):
+            return f"codex/{parts[-1]}"[:80]
+        if p_low == "tasks" and (idx + 2) < len(parts) and parts[-1].lower() in ("ui_messages.json", "api_conversation_history.json"):
+            return f"cline/{parts[idx + 1]}/{parts[-1]}"[:80]
 
     host_roots = {"users", "home", "var", "tmp", "private", "mnt", "opt", "etc", "root", "downloads", "documents", "desktop"}
     if is_abs_or_home or any(seg.lower() in host_roots for seg in parts[:-1]):

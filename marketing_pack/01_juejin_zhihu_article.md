@@ -108,11 +108,11 @@
 
 ## 五、在线自查与多文件 CSV / JSONL 批量账单瘦身审计工具（纯本地解析 · 支持月度基线快照对比与零改代码 `config.yaml` 迁移）
 
-我把上面这套公式、三层额度核验、场景排除（交互式 IDE vs 自动化后端）、OpenRouter / 云控制台多模型 CSV 账单与多个 Claude Code `~/.claude/projects/*.jsonl` 会话文件批量拖拽合并去重与按会话消耗排行钻取（纯浏览器内存解析，零上传）、本地月度基线快照留存与前后省钱差额对比、一键生成保持原模型别名的 LiteLLM 零改代码迁移网关 `config.yaml`、`settings.json` 专属端点生成器以及一页式 PDF 立项对账单打印功能做成了静态页面：
+我把上面这套公式、三层额度核验、场景排除（交互式 IDE vs 自动化后端）、OpenRouter / 云控制台多模型 CSV 账单与多个 Claude Code `~/.claude/projects/*.jsonl`、OpenAI Codex CLI `~/.codex/sessions/**/*.jsonl`、VS Code Cline `ui_messages.json` 会话文件批量拖拽合并去重与一键剔除峰值会话看日常稳态月费（纯浏览器内存解析，零上传）、本地月度基线快照留存与前后省钱差额对比、一键生成保持原模型别名的 LiteLLM 零改代码迁移网关 `config.yaml`、`settings.json` 专属端点生成器以及一页式 PDF 立项对账单打印功能做成了静态页面：
 
 👉 **https://ai-cost-radar-nlu.pages.dev/coding-plan-2026/**
 
-如果你不想手动打开隐藏文件夹翻找 `.jsonl` 会话，也可以直接在终端运行开源只读单文件扫描器（100% 本地统计 `~/.claude/projects`，零原始日志上传，直出高消耗会话排行与脱敏复算深链）：
+如果你不想手动打开隐藏文件夹翻找会话日志，也可以直接在终端运行开源只读单文件扫描器（100% 本地聚合统计 `~/.claude/projects`、`~/.codex/sessions` 与 Cline 任务目录，零原始日志上传，直出高消耗会话排行与脱敏复算深链）：
 
 ```bash
 curl -fsSL https://ai-cost-radar-nlu.pages.dev/audit_local_claude.py | python3 - --days 30

@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """
-AI Cost Radar — Zero-Dependency Local `~/.claude/projects` Session Scanner (v3.10).
+AI Cost Radar — Zero-Dependency Local Multi-Client AI Coding Session Scanner (v3.11).
 
-100% local, read-only CLI auditor for Claude Code / Cursor / Codex `.jsonl` session logs.
-Zero raw prompts, zero file paths, and zero session contents are ever uploaded anywhere.
+100% local, read-only CLI auditor for:
+  - Claude Code (`~/.claude/projects/**/*.jsonl`)
+  - OpenAI Codex CLI (`~/.codex/sessions/**/*.jsonl`)
+  - VS Code / Cursor Cline & Roo Code (`globalStorage/{saoudrizwan.claude-dev,rooveterinaryinc.roo-cline}/tasks/*/ui_messages.json`)
 
-Quick one-liner usage:
+Zero raw prompts, zero OS usernames, and zero session contents are ever uploaded anywhere.
+
+Quick one-liner usage (auto-scans Claude Code + Codex CLI + Cline):
   curl -fsSL https://ai-cost-radar-nlu.pages.dev/audit_local_claude.py | python3 - --days 30
 
 Local options:
-  python3 audit_local_claude.py --dir ~/.claude/projects --days 30 --seats 1
-  python3 audit_local_claude.py --days 14 --offline --export-csv claude_30d_summary.csv
-  python3 audit_local_claude.py --days 30 --json
+  python3 audit_local_claude.py --client all --days 30 --seats 1
+  python3 audit_local_claude.py --client codex --days 14 --offline --json
+  python3 audit_local_claude.py --dir ~/.claude/projects --days 30 --export-csv coding_30d_summary.csv
 """
 
 from __future__ import annotations
@@ -83,6 +87,20 @@ EMBEDDED_FALLBACK_MODELS: list[dict[str, Any]] = [
         "tags": ["coding", "reasoning", "cheap", "global"],
     },
     {
+        "id": "openai/gpt-6-astra",
+        "api_model_id": "openai/gpt-6-astra",
+        "name": "OpenAI: GPT-6 Astra",
+        "provider": "OpenRouter",
+        "region": "global",
+        "input_rmb_per_1m": 72.00,
+        "output_rmb_per_1m": 360.00,
+        "cache_hit_factor": 0.50,
+        "context_length": 1_050_000,
+        "is_free": False,
+        "value_score": 80.0,
+        "tags": ["coding", "reasoning", "global"],
+    },
+    {
         "id": "openai/gpt-5.4",
         "api_model_id": "openai/gpt-5.4",
         "name": "OpenAI: GPT-5.4",
@@ -95,6 +113,34 @@ EMBEDDED_FALLBACK_MODELS: list[dict[str, Any]] = [
         "is_free": False,
         "value_score": 85.0,
         "tags": ["coding", "reasoning", "global"],
+    },
+    {
+        "id": "openai/gpt-5.3-codex",
+        "api_model_id": "openai/gpt-5.3-codex",
+        "name": "OpenAI: GPT-5.3 Codex",
+        "provider": "OpenRouter",
+        "region": "global",
+        "input_rmb_per_1m": 12.60,
+        "output_rmb_per_1m": 100.80,
+        "cache_hit_factor": 0.50,
+        "context_length": 400_000,
+        "is_free": False,
+        "value_score": 87.0,
+        "tags": ["coding", "reasoning", "global"],
+    },
+    {
+        "id": "openai/gpt-5.1-codex-mini",
+        "api_model_id": "openai/gpt-5.1-codex-mini",
+        "name": "OpenAI: GPT-5.1 Codex Mini",
+        "provider": "OpenRouter",
+        "region": "global",
+        "input_rmb_per_1m": 1.80,
+        "output_rmb_per_1m": 14.40,
+        "cache_hit_factor": 0.50,
+        "context_length": 400_000,
+        "is_free": False,
+        "value_score": 90.0,
+        "tags": ["coding", "reasoning", "cheap", "global"],
     },
     {
         "id": "openai/gpt-5.4-mini",
@@ -279,7 +325,7 @@ def _load_catalog(*, offline: bool = False) -> dict[str, Any]:
             ctx = ssl.create_default_context()
             req = urllib.request.Request(
                 LIVE_CATALOG_URL,
-                headers={"User-Agent": "ai-cost-radar-local-cli/3.10", "Accept": "application/json"},
+                headers={"User-Agent": "ai-cost-radar-local-cli/3.11", "Accept": "application/json"},
             )
             with urllib.request.urlopen(req, timeout=4.0, context=ctx) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
@@ -346,9 +392,15 @@ def resolve_catalog_model(models: list[dict[str, Any]], raw_query: str) -> dict[
         alias_cands.append("deepseek-r1")
     elif slug_base in ("deepseek-chat", "v3"):
         alias_cands.append("deepseek-v3")
-    elif slug_base in ("gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1-nano", "o1-mini", "o3-mini", "o4-mini"):
+    elif "codex" in slug_base and ("mini" in slug_base or "nano" in slug_base):
+        alias_cands.extend(["openai/gpt-5.1-codex-mini", "openai/gpt-5.4-mini", "openai/gpt-5-mini"])
+    elif "codex" in slug_base:
+        alias_cands.extend(["openai/gpt-5.3-codex", "openai/gpt-5.2-codex", "openai/gpt-5.4"])
+    elif slug_base in ("gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1-nano", "o1-mini", "o3-mini", "o4-mini") or (
+        slug_base.startswith(("gpt-6", "gpt-5", "gpt-4")) and ("mini" in slug_base or "nano" in slug_base)
+    ):
         alias_cands.extend(["openai/gpt-5.4-mini", "openai/gpt-5-mini"])
-    elif slug_base.startswith(("gpt-4", "chatgpt-4o")) or slug_base in ("o1", "o3", "o3-pro"):
+    elif slug_base.startswith(("gpt-6", "gpt-5", "gpt-4", "chatgpt-4o")) or slug_base in ("o1", "o3", "o3-pro"):
         alias_cands.extend(["openai/gpt-5.4", "openai/gpt-5.5"])
     elif "claude" in slug_base and "sonnet" in slug_base:
         alias_cands.extend(["anthropic/claude-sonnet-5.5", "anthropic/claude-sonnet-5"])
@@ -425,38 +477,115 @@ def _calc_monthly_rmb(
     return round(in_cost + out_cost, 4)
 
 
-def _safe_rel_session_label(file_path: Path, root_dir: Path) -> str:
+def _safe_rel_session_label(file_path: Path, root_dir: Path, client_prefix: str | None = None) -> str:
     try:
         rel = file_path.resolve().relative_to(root_dir.resolve()).as_posix()
     except ValueError:
         rel = file_path.name
     parts = [p for p in rel.split("/") if p and p not in (".", "..")]
+    if client_prefix == "codex":
+        return f"codex/{parts[-1] if parts else file_path.name}"
+    if client_prefix == "cline":
+        tail = "/".join(parts[-2:]) if len(parts) >= 2 else (parts[-1] if parts else file_path.name)
+        return f"cline/{tail}"
     if len(parts) > 2:
         parts = parts[-2:]
-    return "/".join(parts) if parts else file_path.name
+    base = "/".join(parts) if parts else file_path.name
+    if client_prefix == "claude":
+        return f"claude/{base}"
+    return base
 
 
-def scan_claude_projects_dir(
-    root_dir: str | Path = "~/.claude/projects",
+def discover_client_roots(
+    client: str = "all",
+    *,
+    home_dir: str | Path | None = None,
+) -> list[tuple[str, Path]]:
+    """
+    Auto-discover existing local log directories for Claude Code, OpenAI Codex CLI,
+    and VS Code / Cursor Cline & Roo Code without reading any file contents yet.
+    """
+    norm_client = str(client or "all").strip().lower()
+    if norm_client not in ("all", "claude", "codex", "cline"):
+        raise ValueError(f"Unsupported client '{client}' (must be all, claude, codex, or cline)")
+
+    base_home = Path(home_dir).expanduser() if home_dir is not None else Path.home()
+    candidates: list[tuple[str, Path]] = []
+
+    if norm_client in ("all", "claude"):
+        candidates.append(("claude", base_home / ".claude" / "projects"))
+    if norm_client in ("all", "codex"):
+        candidates.append(("codex", base_home / ".codex" / "sessions"))
+    if norm_client in ("all", "cline"):
+        for ide_dir in ("Code", "Cursor"):
+            for ext_id in ("saoudrizwan.claude-dev", "rooveterinaryinc.roo-cline"):
+                candidates.append(
+                    ("cline", base_home / "Library" / "Application Support" / ide_dir / "User" / "globalStorage" / ext_id / "tasks")
+                )
+                candidates.append(
+                    ("cline", base_home / ".config" / ide_dir / "User" / "globalStorage" / ext_id / "tasks")
+                )
+                candidates.append(
+                    ("cline", base_home / "AppData" / "Roaming" / ide_dir / "User" / "globalStorage" / ext_id / "tasks")
+                )
+                if home_dir is None and os.environ.get("APPDATA"):
+                    candidates.append(
+                        ("cline", Path(os.environ["APPDATA"]) / ide_dir / "User" / "globalStorage" / ext_id / "tasks")
+                    )
+
+    discovered: list[tuple[str, Path]] = []
+    seen_resolved: set[Path] = set()
+    for c_name, c_path in candidates:
+        try:
+            if c_path.is_dir():
+                resolved = c_path.resolve()
+                if resolved not in seen_resolved:
+                    seen_resolved.add(resolved)
+                    discovered.append((c_name, c_path))
+        except OSError:
+            continue
+    return discovered
+
+
+def _load_records_from_session_file(fpath: Path) -> list[dict[str, Any]]:
+    fname_low = fpath.name.lower()
+    if fname_low == "ui_messages.json":
+        raw_txt = fpath.read_text(encoding="utf-8", errors="replace").strip()
+        if not raw_txt:
+            return []
+        try:
+            parsed = json.loads(raw_txt)
+        except json.JSONDecodeError:
+            return []
+        return [x for x in parsed if isinstance(x, dict)] if isinstance(parsed, list) else []
+
+    out: list[dict[str, Any]] = []
+    with fpath.open("r", encoding="utf-8", errors="replace") as fh:
+        for raw_line in fh:
+            ln = raw_line.strip()
+            if not ln or not ln.startswith("{"):
+                continue
+            try:
+                rec = json.loads(ln)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(rec, dict):
+                out.append(rec)
+    return out
+
+
+def _scan_roots_internal(
+    roots: list[tuple[str | None, Path]],
     *,
     days: float = 30.0,
     seats: int = 1,
     offline: bool = False,
     catalog: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """
-    Scan local `.jsonl` session transcripts modified within the last `days` days (100% read-only).
-    Deduplicates streaming chunks globally by `message.id` / `request_id` and computes both
-    per-model and per-session-file 30-day RMB spend.
-    """
     obs_days = float(days if days is not None else 30.0)
     if not math.isfinite(obs_days) or obs_days <= 0 or obs_days > 365:
         raise ValueError("days must be between 0.1 and 365")
     team_seats = max(1, min(50, int(round(float(seats or 1)))))
-
-    root = Path(root_dir).expanduser()
-    if not root.exists():
-        raise FileNotFoundError(f"Directory does not exist: {root}")
 
     cat = catalog if isinstance(catalog, dict) else _load_catalog(offline=offline)
     models = cat.get("models") if isinstance(cat.get("models"), list) and cat.get("models") else EMBEDDED_FALLBACK_MODELS
@@ -464,134 +593,180 @@ def scan_claude_projects_dir(
     quote_date = str(cat.get("quote_verified_date") or "2026-11-13")
 
     cutoff_ts = time.time() - (obs_days * 86400.0)
-    candidate_files: list[Path] = []
-    for p in sorted(root.rglob("*.jsonl")):
-        if not p.is_file():
-            continue
-        try:
-            if p.stat().st_mtime >= cutoff_ts:
-                candidate_files.append(p)
-        except OSError:
-            continue
+    candidate_files: list[tuple[str | None, Path, Path]] = []
+    seen_files: set[Path] = set()
 
-    skip_types = {"user", "summary", "system", "file-history-snapshot", "queue-operation"}
+    for client_prefix, root in roots:
+        patterns = ("ui_messages.json",) if client_prefix == "cline" else ("*.jsonl", "ui_messages.json")
+        for pat in patterns:
+            for p in sorted(root.rglob(pat)):
+                if not p.is_file():
+                    continue
+                try:
+                    rp = p.resolve()
+                    if rp in seen_files:
+                        continue
+                    if p.stat().st_mtime >= cutoff_ts:
+                        seen_files.add(rp)
+                        candidate_files.append((client_prefix, root, p))
+                except OSError:
+                    continue
+
+    skip_types = {"user", "summary", "system", "file-history-snapshot", "queue-operation", "session_meta", "response_item", "compacted"}
     summary_labels = {"total", "totals", "sum", "summary", "合计", "总计", "汇总", "小计"}
     deduped_entries: dict[str, dict[str, Any]] = {}
     anon_entries: list[dict[str, Any]] = []
     deduplicated_chunks = 0
 
-    for fpath in candidate_files:
-        rel_label = _safe_rel_session_label(fpath, root)
+    def _push_entry(entry: dict[str, Any], dedupe_id: str | None) -> None:
+        nonlocal deduplicated_chunks
+        if dedupe_id is not None:
+            if dedupe_id in deduped_entries:
+                deduplicated_chunks += 1
+                prev = deduped_entries[dedupe_id]
+                for nk in ("requests", "input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "reported_cost_rmb"):
+                    prev[nk] = max(prev[nk], entry[nk])
+                if prev["model"] == "unknown" and entry["model"] != "unknown":
+                    prev["model"] = entry["model"]
+            else:
+                deduped_entries[dedupe_id] = entry
+        else:
+            anon_entries.append(entry)
+
+    for client_prefix, root, fpath in candidate_files:
+        rel_label = _safe_rel_session_label(fpath, root, client_prefix=client_prefix)
         proj_name = rel_label.split("/")[0] if "/" in rel_label else root.name
         try:
-            with fpath.open("r", encoding="utf-8", errors="replace") as fh:
-                for raw_line in fh:
-                    ln = raw_line.strip()
-                    if not ln or not ln.startswith("{"):
+            records = _load_records_from_session_file(fpath)
+        except OSError:
+            continue
+        if not records:
+            continue
+
+        has_codex_tur = any(str(r.get("type") or "").strip().lower() == "token_usage_record" for r in records)
+        sticky_codex_model: str | None = None
+        last_codex_cum_total: float | None = None
+
+        for rec in records:
+            rec_type_low = str(rec.get("type") or "").strip().lower()
+            if rec_type_low in skip_types:
+                continue
+
+            if rec_type_low == "turn_context":
+                payload = rec.get("payload") if isinstance(rec.get("payload"), dict) else {}
+                tc_model = _first_scalar(payload, ("model", "model_id", "model_name")) or _first_scalar(rec, ("model",))
+                if tc_model:
+                    sticky_codex_model = str(tc_model).strip()
+                continue
+
+            if rec_type_low == "token_usage_record":
+                payload = rec.get("payload") if isinstance(rec.get("payload"), dict) else {}
+                u_codex = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+                m_codex = str(_first_scalar(payload, ("model", "model_id")) or sticky_codex_model or "gpt-5-codex").strip() or "gpt-5-codex"
+                in_v = _safe_float(u_codex.get("input_tokens"))
+                c_v = _safe_float(u_codex.get("cached_input_tokens"))
+                row_in = max(in_v, c_v)
+                row_cached = min(row_in, c_v)
+                out_val = _safe_float(u_codex.get("output_tokens"))
+                reason_val = _safe_float(_first_scalar(u_codex, ("reasoning_output_tokens", "reasoning_tokens")))
+                if row_in <= 0 and out_val <= 0:
+                    continue
+                resp_id = _first_scalar(payload, ("response_id", "id"))
+                _push_entry(
+                    {
+                        "client": client_prefix or "codex",
+                        "model": m_codex,
+                        "requests": 1.0,
+                        "input_tokens": row_in,
+                        "cached_input_tokens": row_cached,
+                        "output_tokens": out_val,
+                        "reasoning_tokens": reason_val,
+                        "reported_cost_rmb": 0.0,
+                        "session_relpath": rel_label,
+                        "project_name": proj_name,
+                    },
+                    f"codex_resp:{resp_id}" if resp_id else None,
+                )
+                continue
+
+            if rec_type_low == "event_msg":
+                if has_codex_tur:
+                    continue
+                payload = rec.get("payload") if isinstance(rec.get("payload"), dict) else {}
+                if str(payload.get("type") or "").strip().lower() != "token_count":
+                    continue
+                info = payload.get("info") if isinstance(payload.get("info"), dict) else {}
+                last_u = info.get("last_token_usage") if isinstance(info.get("last_token_usage"), dict) else None
+                tot_u = info.get("total_token_usage") if isinstance(info.get("total_token_usage"), dict) else {}
+                if not isinstance(last_u, dict):
+                    continue
+                cum_tot = _safe_float(tot_u.get("total_tokens"))
+                if cum_tot > 0:
+                    if last_codex_cum_total == cum_tot:
+                        deduplicated_chunks += 1
                         continue
-                    try:
-                        rec = json.loads(ln)
-                    except json.JSONDecodeError:
-                        continue
-                    if not isinstance(rec, dict):
-                        continue
-                    if str(rec.get("type") or "").strip().lower() in skip_types:
-                        continue
+                    last_codex_cum_total = cum_tot
+                m_codex = str(
+                    _first_scalar(info, ("model", "model_id"))
+                    or _first_scalar(payload, ("model",))
+                    or sticky_codex_model
+                    or "gpt-5-codex"
+                ).strip() or "gpt-5-codex"
+                in_v = _safe_float(last_u.get("input_tokens"))
+                c_v = _safe_float(last_u.get("cached_input_tokens"))
+                row_in = max(in_v, c_v)
+                row_cached = min(row_in, c_v)
+                out_val = _safe_float(last_u.get("output_tokens"))
+                reason_val = _safe_float(_first_scalar(last_u, ("reasoning_output_tokens", "reasoning_tokens")))
+                if row_in <= 0 and out_val <= 0:
+                    continue
+                _push_entry(
+                    {
+                        "client": client_prefix or "codex",
+                        "model": m_codex,
+                        "requests": 1.0,
+                        "input_tokens": row_in,
+                        "cached_input_tokens": row_cached,
+                        "output_tokens": out_val,
+                        "reasoning_tokens": reason_val,
+                        "reported_cost_rmb": 0.0,
+                        "session_relpath": rel_label,
+                        "project_name": proj_name,
+                    },
+                    None,
+                )
+                continue
 
-                    msg = rec.get("message") if isinstance(rec.get("message"), dict) else {}
-                    resp = rec.get("response") if isinstance(rec.get("response"), dict) else {}
-                    body = resp.get("body") if isinstance(resp.get("body"), dict) else {}
-                    u = (
-                        (msg.get("usage") if isinstance(msg.get("usage"), dict) else None)
-                        or (body.get("usage") if isinstance(body.get("usage"), dict) else None)
-                        or (rec.get("usage") if isinstance(rec.get("usage"), dict) else None)
-                        or {}
-                    )
-
-                    model_raw = (
-                        _first_scalar(rec, ("model_permaslug", "model", "model_id", "model_name", "api_model_id"))
-                        or _first_scalar(msg, ("model", "model_id"))
-                        or _first_scalar(body, ("model", "model_id"))
-                        or "unknown"
-                    )
-                    model_label = str(model_raw).strip() or "unknown"
-                    if model_label.lower() in summary_labels:
-                        continue
-
-                    merged: dict[str, Any] = {**rec, **body, **msg, **u}
-                    if "cache_read_input_tokens" in merged or "cache_creation_input_tokens" in merged:
-                        uncached = _safe_float(merged.get("input_tokens"))
-                        c_read = _safe_float(merged.get("cache_read_input_tokens"))
-                        c_write = _safe_float(merged.get("cache_creation_input_tokens"))
-                        row_in = uncached + c_read + c_write
-                        row_cached = c_read
-                    else:
-                        p_det = merged.get("prompt_tokens_details") if isinstance(merged.get("prompt_tokens_details"), dict) else {}
-                        in_det = merged.get("input_tokens_details") if isinstance(merged.get("input_tokens_details"), dict) else {}
-                        in_val = _safe_float(
-                            _first_scalar(merged, ("prompt_tokens", "native_tokens_prompt", "tokens_prompt", "input_tokens", "total_input_tokens"))
-                        )
-                        c_raw = (
-                            p_det.get("cached_tokens")
-                            if p_det.get("cached_tokens") is not None
-                            else (
-                                in_det.get("cached_tokens")
-                                if in_det.get("cached_tokens") is not None
-                                else _first_scalar(merged, ("native_tokens_cached", "cached_tokens", "cached_input_tokens", "cache_hit_tokens"))
-                            )
-                        )
-                        c_val = _safe_float(c_raw)
-                        row_in = max(in_val, c_val)
-                        row_cached = min(row_in, c_val)
-
-                    out_val = _safe_float(
-                        _first_scalar(merged, ("completion_tokens", "native_tokens_completion", "tokens_completion", "output_tokens", "total_output_tokens"))
-                    )
-                    c_det = merged.get("completion_tokens_details") if isinstance(merged.get("completion_tokens_details"), dict) else {}
-                    o_det = merged.get("output_tokens_details") if isinstance(merged.get("output_tokens_details"), dict) else {}
-                    r_raw = (
-                        c_det.get("reasoning_tokens")
-                        if c_det.get("reasoning_tokens") is not None
-                        else (
-                            o_det.get("reasoning_tokens")
-                            if o_det.get("reasoning_tokens") is not None
-                            else _first_scalar(merged, ("native_tokens_reasoning", "reasoning_tokens", "thinking_tokens"))
-                        )
-                    )
-                    reason_val = _safe_float(r_raw)
-                    if row_in <= 0 and out_val <= 0:
-                        continue
-
-                    req_raw = _first_scalar(rec, ("requests", "total_requests", "calls", "api_calls", "num_requests", "request_count"))
-                    row_reqs = max(1.0, _safe_float(req_raw)) if req_raw is not None else 1.0
-
-                    rmb_raw = _first_scalar(rec, ("cost_rmb", "spend_rmb", "cost_cny", "应付金额", "账单金额"))
-                    usd_raw = _first_scalar(rec, ("spend", "response_cost", "cost_usd", "costUSD", "total_cost", "cost"))
-                    if usd_raw is None and rec.get("usage") is not None and not isinstance(rec.get("usage"), (dict, list, bool)):
-                        usd_raw = rec.get("usage")
-                    if rmb_raw is not None:
-                        row_cost_rmb = _parse_currency_rmb(rmb_raw, is_usd=False, fx_rate=fx_rate)
-                    elif usd_raw is not None:
-                        row_cost_rmb = _parse_currency_rmb(usd_raw, is_usd=True, fx_rate=fx_rate)
-                    else:
-                        row_cost_rmb = 0.0
-
-                    dedupe_id: str | None = None
-                    if req_raw is None:
-                        if msg.get("id"):
-                            dedupe_id = f"msg:{msg['id']}"
-                        elif body.get("id"):
-                            dedupe_id = f"body:{body['id']}"
-                        elif rec.get("generation_id"):
-                            dedupe_id = f"gen:{rec['generation_id']}"
-                        elif rec.get("request_id"):
-                            dedupe_id = f"req:{rec['request_id']}"
-                        elif rec.get("id"):
-                            dedupe_id = f"id:{rec['id']}"
-
-                    entry = {
-                        "model": model_label,
-                        "requests": row_reqs,
+            if str(rec.get("say") or "").strip() == "api_req_started" and isinstance(rec.get("text"), str):
+                try:
+                    c_info = json.loads(rec["text"])
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(c_info, dict):
+                    continue
+                t_in = _safe_float(c_info.get("tokensIn"))
+                t_out = _safe_float(c_info.get("tokensOut"))
+                c_reads = _safe_float(c_info.get("cacheReads"))
+                c_writes = _safe_float(c_info.get("cacheWrites"))
+                row_in = t_in + c_reads + c_writes
+                row_cached = c_reads
+                out_val = t_out
+                reason_val = _safe_float(_first_scalar(c_info, ("reasoningTokens", "thinkingTokens")))
+                if row_in <= 0 and out_val <= 0:
+                    continue
+                m_cline = str(
+                    _first_scalar(c_info, ("model", "modelId", "apiModelId"))
+                    or _first_scalar(rec, ("model", "modelId"))
+                    or "anthropic/claude-sonnet-5.5"
+                ).strip() or "anthropic/claude-sonnet-5.5"
+                cost_usd = _first_scalar(c_info, ("cost", "totalCost"))
+                row_cost_rmb = _parse_currency_rmb(cost_usd, is_usd=True, fx_rate=fx_rate) if cost_usd is not None else 0.0
+                ts_val = _first_scalar(rec, ("ts", "id"))
+                _push_entry(
+                    {
+                        "client": client_prefix or "cline",
+                        "model": m_cline,
+                        "requests": 1.0,
                         "input_tokens": row_in,
                         "cached_input_tokens": row_cached,
                         "output_tokens": out_val,
@@ -599,21 +774,117 @@ def scan_claude_projects_dir(
                         "reported_cost_rmb": row_cost_rmb,
                         "session_relpath": rel_label,
                         "project_name": proj_name,
-                    }
-                    if dedupe_id is not None:
-                        if dedupe_id in deduped_entries:
-                            deduplicated_chunks += 1
-                            prev = deduped_entries[dedupe_id]
-                            for nk in ("requests", "input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "reported_cost_rmb"):
-                                prev[nk] = max(prev[nk], entry[nk])
-                            if prev["model"] == "unknown" and entry["model"] != "unknown":
-                                prev["model"] = entry["model"]
-                        else:
-                            deduped_entries[dedupe_id] = entry
-                    else:
-                        anon_entries.append(entry)
-        except OSError:
-            continue
+                    },
+                    f"cline:{rel_label}:{ts_val}" if ts_val is not None else None,
+                )
+                continue
+
+            msg = rec.get("message") if isinstance(rec.get("message"), dict) else {}
+            resp = rec.get("response") if isinstance(rec.get("response"), dict) else {}
+            body = resp.get("body") if isinstance(resp.get("body"), dict) else {}
+            u = (
+                (msg.get("usage") if isinstance(msg.get("usage"), dict) else None)
+                or (body.get("usage") if isinstance(body.get("usage"), dict) else None)
+                or (rec.get("usage") if isinstance(rec.get("usage"), dict) else None)
+                or {}
+            )
+
+            model_raw = (
+                _first_scalar(rec, ("model_permaslug", "model", "model_id", "model_name", "api_model_id"))
+                or _first_scalar(msg, ("model", "model_id"))
+                or _first_scalar(body, ("model", "model_id"))
+                or "unknown"
+            )
+            model_label = str(model_raw).strip() or "unknown"
+            if model_label.lower() in summary_labels:
+                continue
+
+            merged: dict[str, Any] = {**rec, **body, **msg, **u}
+            if "cache_read_input_tokens" in merged or "cache_creation_input_tokens" in merged:
+                uncached = _safe_float(merged.get("input_tokens"))
+                c_read = _safe_float(merged.get("cache_read_input_tokens"))
+                c_write = _safe_float(merged.get("cache_creation_input_tokens"))
+                row_in = uncached + c_read + c_write
+                row_cached = c_read
+            else:
+                p_det = merged.get("prompt_tokens_details") if isinstance(merged.get("prompt_tokens_details"), dict) else {}
+                in_det = merged.get("input_tokens_details") if isinstance(merged.get("input_tokens_details"), dict) else {}
+                in_val = _safe_float(
+                    _first_scalar(merged, ("prompt_tokens", "native_tokens_prompt", "tokens_prompt", "input_tokens", "total_input_tokens"))
+                )
+                c_raw = (
+                    p_det.get("cached_tokens")
+                    if p_det.get("cached_tokens") is not None
+                    else (
+                        in_det.get("cached_tokens")
+                        if in_det.get("cached_tokens") is not None
+                        else _first_scalar(merged, ("native_tokens_cached", "cached_tokens", "cached_input_tokens", "cache_hit_tokens"))
+                    )
+                )
+                c_val = _safe_float(c_raw)
+                row_in = max(in_val, c_val)
+                row_cached = min(row_in, c_val)
+
+            out_val = _safe_float(
+                _first_scalar(merged, ("completion_tokens", "native_tokens_completion", "tokens_completion", "output_tokens", "total_output_tokens"))
+            )
+            c_det = merged.get("completion_tokens_details") if isinstance(merged.get("completion_tokens_details"), dict) else {}
+            o_det = merged.get("output_tokens_details") if isinstance(merged.get("output_tokens_details"), dict) else {}
+            r_raw = (
+                c_det.get("reasoning_tokens")
+                if c_det.get("reasoning_tokens") is not None
+                else (
+                    o_det.get("reasoning_tokens")
+                    if o_det.get("reasoning_tokens") is not None
+                    else _first_scalar(merged, ("native_tokens_reasoning", "reasoning_tokens", "reasoning_output_tokens", "thinking_tokens"))
+                )
+            )
+            reason_val = _safe_float(r_raw)
+            if row_in <= 0 and out_val <= 0:
+                continue
+
+            req_raw = _first_scalar(rec, ("requests", "total_requests", "calls", "api_calls", "num_requests", "request_count"))
+            row_reqs = max(1.0, _safe_float(req_raw)) if req_raw is not None else 1.0
+
+            rmb_raw = _first_scalar(rec, ("cost_rmb", "spend_rmb", "cost_cny", "应付金额", "账单金额"))
+            usd_raw = _first_scalar(rec, ("spend", "response_cost", "cost_usd", "costUSD", "total_cost", "cost"))
+            if usd_raw is None and rec.get("usage") is not None and not isinstance(rec.get("usage"), (dict, list, bool)):
+                usd_raw = rec.get("usage")
+            if rmb_raw is not None:
+                row_cost_rmb = _parse_currency_rmb(rmb_raw, is_usd=False, fx_rate=fx_rate)
+            elif usd_raw is not None:
+                row_cost_rmb = _parse_currency_rmb(usd_raw, is_usd=True, fx_rate=fx_rate)
+            else:
+                row_cost_rmb = 0.0
+
+            dedupe_id: str | None = None
+            if req_raw is None:
+                if msg.get("id"):
+                    dedupe_id = f"msg:{msg['id']}"
+                elif body.get("id"):
+                    dedupe_id = f"body:{body['id']}"
+                elif rec.get("generation_id"):
+                    dedupe_id = f"gen:{rec['generation_id']}"
+                elif rec.get("request_id"):
+                    dedupe_id = f"req:{rec['request_id']}"
+                elif rec.get("id"):
+                    dedupe_id = f"id:{rec['id']}"
+
+            _push_entry(
+                {
+                    "client": client_prefix or "claude",
+                    "model": model_label,
+                    "requests": row_reqs,
+                    "input_tokens": row_in,
+                    "cached_input_tokens": row_cached,
+                    "output_tokens": out_val,
+                    "reasoning_tokens": reason_val,
+                    "reported_cost_rmb": row_cost_rmb,
+                    "session_relpath": rel_label,
+                    "project_name": proj_name,
+                },
+                dedupe_id,
+            )
 
     all_entries = list(deduped_entries.values()) + anon_entries
     scale_30d = 30.0 / obs_days
@@ -629,6 +900,7 @@ def scan_claude_projects_dir(
 
     model_groups: dict[str, dict[str, Any]] = {}
     session_groups: dict[str, dict[str, Any]] = {}
+    client_groups: dict[str, dict[str, Any]] = {}
 
     for ent in all_entries:
         mk = str(ent["model"]).lower()
@@ -651,8 +923,10 @@ def scan_claude_projects_dir(
         mg["reported_cost_rmb"] += float(ent["reported_cost_rmb"])
 
         sk = str(ent["session_relpath"])
+        c_tag = str(ent.get("client") or "claude")
         if sk not in session_groups:
             session_groups[sk] = {
+                "client": c_tag,
                 "session_relpath": sk,
                 "project_name": str(ent["project_name"]),
                 "requests": 0.0,
@@ -683,6 +957,23 @@ def scan_claude_projects_dir(
         sbm["cached_input_tokens"] += float(ent["cached_input_tokens"])
         sbm["output_tokens"] += float(ent["output_tokens"])
         sbm["reported_cost_rmb"] += float(ent["reported_cost_rmb"])
+
+        if c_tag not in client_groups:
+            client_groups[c_tag] = {
+                "client": c_tag,
+                "sessions": set(),
+                "requests": 0.0,
+                "input_tokens": 0.0,
+                "cached_input_tokens": 0.0,
+                "output_tokens": 0.0,
+                "estimated_monthly_rmb": 0.0,
+            }
+        cg = client_groups[c_tag]
+        cg["sessions"].add(sk)
+        cg["requests"] += float(ent["requests"])
+        cg["input_tokens"] += float(ent["input_tokens"])
+        cg["cached_input_tokens"] += float(ent["cached_input_tokens"])
+        cg["output_tokens"] += float(ent["output_tokens"])
 
     model_breakdown: list[dict[str, Any]] = []
     total_reqs = total_in = total_cached = total_out = total_reason = 0.0
@@ -784,8 +1075,13 @@ def scan_claude_projects_dir(
                 top_model = sub["model"]
 
         est_monthly_rounded = round(est_monthly, 2)
+        c_tag = sg["client"]
+        if c_tag in client_groups:
+            client_groups[c_tag]["estimated_monthly_rmb"] += est_monthly
+
         session_breakdown.append(
             {
+                "client": c_tag,
                 "session_relpath": sg["session_relpath"],
                 "project_name": sg["project_name"],
                 "requests": int(round(sg["requests"])),
@@ -800,6 +1096,27 @@ def scan_claude_projects_dir(
         )
 
     session_breakdown.sort(
+        key=lambda x: (x["estimated_monthly_rmb"], x["input_tokens"] + x["output_tokens"]),
+        reverse=True,
+    )
+
+    client_breakdown: list[dict[str, Any]] = []
+    for cg in client_groups.values():
+        c_in = cg["input_tokens"]
+        c_cached = min(c_in, max(0.0, cg["cached_input_tokens"]))
+        client_breakdown.append(
+            {
+                "client": cg["client"],
+                "sessions_count": len(cg["sessions"]),
+                "requests": int(round(cg["requests"])),
+                "input_tokens": int(round(c_in)),
+                "cached_input_tokens": int(round(c_cached)),
+                "output_tokens": int(round(cg["output_tokens"])),
+                "cache_hit_rate": round(c_cached / c_in, 4) if c_in > 0 else 0.0,
+                "estimated_monthly_rmb": round(cg["estimated_monthly_rmb"], 2),
+            }
+        )
+    client_breakdown.sort(
         key=lambda x: (x["estimated_monthly_rmb"], x["input_tokens"] + x["output_tokens"]),
         reverse=True,
     )
@@ -873,10 +1190,68 @@ def scan_claude_projects_dir(
             "payg_savings_pct": sav_pct,
             "coding_plan_verdict": plan_verdict,
         },
+        "client_breakdown": client_breakdown,
         "model_breakdown": model_breakdown,
         "session_breakdown": session_breakdown,
         "web_deep_link": web_deep_link,
     }
+
+
+def scan_claude_projects_dir(
+    root_dir: str | Path = "~/.claude/projects",
+    *,
+    days: float = 30.0,
+    seats: int = 1,
+    offline: bool = False,
+    catalog: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Scan a specific local session directory (Claude Code `.jsonl`, Codex CLI `.jsonl`,
+    or Cline `ui_messages.json`) modified within the last `days` days (100% read-only).
+    """
+    root = Path(root_dir).expanduser()
+    if not root.exists():
+        raise FileNotFoundError(f"Directory does not exist: {root}")
+    return _scan_roots_internal(
+        [(None, root)],
+        days=days,
+        seats=seats,
+        offline=offline,
+        catalog=catalog,
+    )
+
+
+def scan_local_coding_logs(
+    *,
+    client: str = "all",
+    explicit_dir: str | Path | None = None,
+    home_dir: str | Path | None = None,
+    days: float = 30.0,
+    seats: int = 1,
+    offline: bool = False,
+    catalog: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Auto-discover and scan local Claude Code + OpenAI Codex CLI + VS Code/Cursor Cline
+    session transcripts in a single unified, read-only pass.
+    """
+    if explicit_dir is not None:
+        return scan_claude_projects_dir(
+            explicit_dir,
+            days=days,
+            seats=seats,
+            offline=offline,
+            catalog=catalog,
+        )
+    discovered = discover_client_roots(client, home_dir=home_dir)
+    roots: list[tuple[str | None, Path]] = [(c_name, c_path) for c_name, c_path in discovered]
+    return _scan_roots_internal(
+        roots,
+        days=days,
+        seats=seats,
+        offline=offline,
+        catalog=catalog,
+    )
 
 
 def export_privacy_safe_csv(report: dict[str, Any], out_path: str | Path) -> Path:
@@ -918,7 +1293,7 @@ def _format_human_report(report: dict[str, Any], csv_exported: Path | None = Non
     totals = report["totals"]
     lines = [
         "========================================================================",
-        f" AI Cost Radar · 本地 Claude Code 会话只读体检报告（近 {report['days_observed']:g} 天）",
+        f" AI Cost Radar · 本地 AI 编程会话只读体检报告（近 {report['days_observed']:g} 天 · Claude / Codex / Cline）",
         " 隐私承诺：100% 本地扫描 · 零对话内容上传 · 零本地路径外发",
         "========================================================================",
         (
@@ -937,6 +1312,14 @@ def _format_human_report(report: dict[str, Any], csv_exported: Path | None = Non
         f" 国内直连按量平替月费 ：¥{totals['optimized_payg_monthly_rmb']:,.2f} / 月（预计可省 ¥{totals['payg_savings_rmb']:,.2f}/月 · -{totals['payg_savings_pct']:.1f}%）",
         f" 包月套餐配额核验     ：{totals['coding_plan_verdict']}",
     ]
+
+    cb = report.get("client_breakdown") or []
+    if cb:
+        cb_parts = [
+            f"{c['client']} ({c['sessions_count']} 会话 / {c['requests']:,} 次 / ¥{c['estimated_monthly_rmb']:,.2f}/月)"
+            for c in cb
+        ]
+        lines.append(f" 按客户端消耗分布     ：{' · '.join(cb_parts)}")
 
     mb = report.get("model_breakdown") or []
     if mb:
@@ -975,18 +1358,24 @@ def _format_human_report(report: dict[str, Any], csv_exported: Path | None = Non
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="100% local read-only Claude Code (~/.claude/projects) token & RMB spend auditor."
+        description="100% local read-only Claude Code / Codex CLI / Cline token & RMB spend auditor."
+    )
+    parser.add_argument(
+        "--client",
+        choices=("all", "claude", "codex", "cline"),
+        default="all",
+        help="Auto-discover logs for 'all' (default), 'claude' (~/.claude/projects), 'codex' (~/.codex/sessions), or 'cline' (VS Code/Cursor tasks).",
     )
     parser.add_argument(
         "--dir",
-        default="~/.claude/projects",
-        help="Path to Claude Code projects directory (default: ~/.claude/projects).",
+        default=None,
+        help="Explicit directory override to scan instead of auto-discovering client directories.",
     )
     parser.add_argument(
         "--days",
         type=float,
         default=30.0,
-        help="Scan `.jsonl` files modified within the last N days (default: 30).",
+        help="Scan session files modified within the last N days (default: 30).",
     )
     parser.add_argument(
         "--seats",
@@ -1017,21 +1406,40 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    target_dir = Path(args.dir).expanduser()
-    if not target_dir.exists():
-        msg = f"未找到目录 {target_dir}（若你的日志在其他路径，请使用 --dir <路径> 指定）。"
-        if args.json:
-            print(json.dumps({"error": msg, "active_files_count": 0}, ensure_ascii=False, indent=2))
-        else:
-            print(msg, file=sys.stderr)
-        return 1
+    if args.dir is not None:
+        target_dir = Path(args.dir).expanduser()
+        if not target_dir.exists():
+            msg = f"未找到目录 {target_dir}（若你的日志在其他路径，请检查 --dir <路径>）。"
+            if args.json:
+                print(json.dumps({"error": msg, "active_files_count": 0}, ensure_ascii=False, indent=2))
+            else:
+                print(msg, file=sys.stderr)
+            return 1
+        report = scan_claude_projects_dir(
+            target_dir,
+            days=args.days,
+            seats=args.seats,
+            offline=args.offline,
+        )
+    else:
+        discovered = discover_client_roots(args.client)
+        if not discovered:
+            msg = (
+                f"未检出本地 {args.client} 会话目录（默认扫描 ~/.claude/projects、~/.codex/sessions 与 VS Code/Cursor Cline tasks；"
+                "若你的日志在其他路径，请使用 --dir <路径> 指定）。"
+            )
+            if args.json:
+                print(json.dumps({"error": msg, "active_files_count": 0}, ensure_ascii=False, indent=2))
+            else:
+                print(msg, file=sys.stderr)
+            return 1
+        report = scan_local_coding_logs(
+            client=args.client,
+            days=args.days,
+            seats=args.seats,
+            offline=args.offline,
+        )
 
-    report = scan_claude_projects_dir(
-        target_dir,
-        days=args.days,
-        seats=args.seats,
-        offline=args.offline,
-    )
     exported_path: Path | None = None
     if args.export_csv:
         exported_path = export_privacy_safe_csv(report, args.export_csv)

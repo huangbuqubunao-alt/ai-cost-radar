@@ -174,8 +174,24 @@ def main():
             assert len(fb_live) == 2 and all("alice" not in str(x.get("file_name", "")).lower() for x in fb_live), (
                 f"Unexpected multi-file file_breakdown: {multi_summary}"
             )
+            codex_sample = (
+                '{"type":"turn_context","payload":{"model":"gpt-6-astra"}}\n'
+                '{"type":"token_usage_record","response_id":"resp_v311","input_tokens":10000,"cached_input_tokens":5000,"output_tokens":400,"reasoning_output_tokens":100}\n'
+            )
+            st_codex, body_codex = request_remote(
+                f"api/budget?model_id=auto"
+                f"&usage_snippet={quote(codex_sample, safe='')}&usage_file={quote('/Users/alice/.codex/sessions/2026/11/rollout-verify.jsonl', safe='')}"
+                f"&usage_snippet={quote(csv_part, safe='')}&usage_file={quote('C:\\Users\\alice\\Downloads\\cloud.csv', safe='')}"
+                f"&days_observed=1&team_size=1"
+            )
+            assert st_codex == 200, f"/api/budget Codex CLI multi-file returned HTTP {st_codex}: {body_codex}"
+            codex_summary = json.loads(body_codex).get("parsed_usage_summary", {})
+            codex_fb = codex_summary.get("file_breakdown", [])
+            assert any(x.get("file_name") == "codex/rollout-verify.jsonl" for x in codex_fb) and all(
+                "alice" not in str(x.get("file_name", "")).lower() for x in codex_fb
+            ), f"Unexpected Codex CLI file_breakdown: {codex_summary}"
             st_cli, body_cli = request_remote("audit_local_claude.py")
-            assert st_cli == 200 and "scan_claude_projects_dir" in body_cli, (
+            assert st_cli == 200 and "scan_claude_projects_dir" in body_cli and "scan_local_coding_clients" in body_cli, (
                 f"/audit_local_claude.py returned HTTP {st_cli}"
             )
             st_feed, body_feed = request_remote("feeds/price-changes.xml")

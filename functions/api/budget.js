@@ -301,9 +301,12 @@ function extractJsonRecordsRaw(text) {
         if (!rawRecords) {
           const msgObj = single.message;
           const respObj = single.response;
+          const singleType = String(single.type || "").trim().toLowerCase();
           if (
-            (msgObj && typeof msgObj === "object" && ((msgObj.usage && typeof msgObj.usage === "object") || ["user", "assistant", "summary", "system"].includes(single.type))) ||
-            (respObj && typeof respObj === "object" && respObj.body && typeof respObj.body === "object")
+            (msgObj && typeof msgObj === "object" && ((msgObj.usage && typeof msgObj.usage === "object") || ["user", "assistant", "summary", "system"].includes(singleType))) ||
+            (respObj && typeof respObj === "object" && respObj.body && typeof respObj.body === "object") ||
+            (singleType === "token_usage_record") ||
+            (String(single.say || "").trim() === "api_req_started" && typeof single.text === "string")
           ) {
             rawRecords = [single];
             sourceFormat = "jsonl_multimodel";
@@ -360,14 +363,147 @@ function collectJsonRecordEntries(rawRecords, fxRate = 7.2) {
     return null;
   };
 
-  const skipTypes = new Set(["user", "summary", "system", "file-history-snapshot", "queue-operation"]);
+  const skipTypes = new Set(["user", "summary", "system", "file-history-snapshot", "queue-operation", "session_meta", "response_item", "compacted"]);
   const summaryLabels = new Set(["total", "totals", "sum", "summary", "合计", "总计", "汇总", "小计"]);
   const dedupedEntries = new Map();
   const anonEntries = [];
   let deduplicatedChunks = 0;
 
+  const filesWithCodexTur = new Set();
+  for (const r of rawRecords) {
+    if (r && typeof r === "object" && String(r.type || "").trim().toLowerCase() === "token_usage_record") {
+      filesWithCodexTur.add(r._src_file_idx ?? null);
+    }
+  }
+  const stickyCodexModel = new Map();
+  const lastCodexCumTotal = new Map();
+
+  const pushEntry = (entry, dedupeId) => {
+    if (dedupeId) {
+      if (dedupedEntries.has(dedupeId)) {
+        deduplicatedChunks += 1;
+        const prev = dedupedEntries.get(dedupeId);
+        for (const k of ["requests", "input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "reported_cost_rmb"]) {
+          prev[k] = Math.max(prev[k], entry[k]);
+        }
+        if (prev.model === "unknown" && entry.model !== "unknown") prev.model = entry.model;
+      } else {
+        dedupedEntries.set(dedupeId, entry);
+      }
+    } else {
+      anonEntries.push(entry);
+    }
+  };
+
   for (const rec of rawRecords) {
-    if (skipTypes.has(String(rec.type || "").trim().toLowerCase())) continue;
+    const fKey = rec._src_file_idx ?? null;
+    const recTypeLow = String(rec.type || "").trim().toLowerCase();
+    if (skipTypes.has(recTypeLow)) continue;
+
+    if (recTypeLow === "turn_context") {
+      const payload = rec.payload && typeof rec.payload === "object" ? rec.payload : {};
+      const tcModel = firstVal(payload, ["model", "model_id", "model_name"]) || firstVal(rec, ["model"]);
+      if (tcModel) stickyCodexModel.set(fKey, String(tcModel).trim());
+      continue;
+    }
+
+    if (recTypeLow === "token_usage_record") {
+      const payload = rec.payload && typeof rec.payload === "object" ? rec.payload : {};
+      const uNested = payload.usage && typeof payload.usage === "object" ? payload.usage : (rec.usage && typeof rec.usage === "object" ? rec.usage : {});
+      const uCodex = { ...rec, ...payload, ...uNested };
+      const mCodex = String(firstVal(uCodex, ["model", "model_id"]) || stickyCodexModel.get(fKey) || "gpt-5-codex").trim() || "gpt-5-codex";
+      const inV = safeNum(uCodex.input_tokens);
+      const cV = safeNum(uCodex.cached_input_tokens);
+      const rowIn = Math.max(inV, cV);
+      const rowCached = Math.min(rowIn, cV);
+      const outVal = safeNum(uCodex.output_tokens);
+      const reasonVal = safeNum(firstVal(uCodex, ["reasoning_output_tokens", "reasoning_tokens"]));
+      if (rowIn <= 0 && outVal <= 0) continue;
+      const respId = firstVal(uCodex, ["response_id", "id"]);
+      pushEntry({
+        model: mCodex,
+        requests: 1,
+        input_tokens: rowIn,
+        cached_input_tokens: rowCached,
+        output_tokens: outVal,
+        reasoning_tokens: reasonVal,
+        reported_cost_rmb: 0,
+        source_file_idx: fKey,
+      }, respId ? `codex_resp:${respId}` : null);
+      continue;
+    }
+
+    if (recTypeLow === "event_msg") {
+      if (filesWithCodexTur.has(fKey)) continue;
+      const payload = rec.payload && typeof rec.payload === "object" ? rec.payload : {};
+      if (String(payload.type || "").trim().toLowerCase() !== "token_count") continue;
+      const info = payload.info && typeof payload.info === "object" ? payload.info : {};
+      const lastU = info.last_token_usage && typeof info.last_token_usage === "object" ? info.last_token_usage : null;
+      const totU = info.total_token_usage && typeof info.total_token_usage === "object" ? info.total_token_usage : {};
+      if (!lastU) continue;
+      const cumTot = safeNum(totU.total_tokens);
+      if (cumTot > 0) {
+        if (lastCodexCumTotal.get(fKey) === cumTot) {
+          deduplicatedChunks += 1;
+          continue;
+        }
+        lastCodexCumTotal.set(fKey, cumTot);
+      }
+      const mCodex = String(firstVal(info, ["model", "model_id"]) || firstVal(payload, ["model"]) || stickyCodexModel.get(fKey) || "gpt-5-codex").trim() || "gpt-5-codex";
+      const inV = safeNum(lastU.input_tokens);
+      const cV = safeNum(lastU.cached_input_tokens);
+      const rowIn = Math.max(inV, cV);
+      const rowCached = Math.min(rowIn, cV);
+      const outVal = safeNum(lastU.output_tokens);
+      const reasonVal = safeNum(firstVal(lastU, ["reasoning_output_tokens", "reasoning_tokens"]));
+      if (rowIn <= 0 && outVal <= 0) continue;
+      pushEntry({
+        model: mCodex,
+        requests: 1,
+        input_tokens: rowIn,
+        cached_input_tokens: rowCached,
+        output_tokens: outVal,
+        reasoning_tokens: reasonVal,
+        reported_cost_rmb: 0,
+        source_file_idx: fKey,
+      }, null);
+      continue;
+    }
+
+    if (String(rec.say || "").trim() === "api_req_started" && typeof rec.text === "string") {
+      let cInfo = null;
+      try {
+        cInfo = JSON.parse(rec.text);
+      } catch {
+        cInfo = null;
+      }
+      if (!cInfo || typeof cInfo !== "object" || Array.isArray(cInfo)) continue;
+      const tIn = safeNum(cInfo.tokensIn);
+      const tOut = safeNum(cInfo.tokensOut);
+      const cReads = safeNum(cInfo.cacheReads);
+      const cWrites = safeNum(cInfo.cacheWrites);
+      const rowIn = tIn + cReads + cWrites;
+      const rowCached = cReads;
+      const outVal = tOut;
+      const reasonVal = safeNum(firstVal(cInfo, ["reasoningTokens", "thinkingTokens"]));
+      if (rowIn <= 0 && outVal <= 0) continue;
+      const mCline = String(firstVal(cInfo, ["model", "modelId", "apiModelId"]) || firstVal(rec, ["model", "modelId"]) || "anthropic/claude-sonnet-5.5").trim() || "anthropic/claude-sonnet-5.5";
+      const costUsd = firstVal(cInfo, ["cost", "totalCost"]);
+      const rowCostRmb = costUsd !== null ? parseCurrencyRmb(costUsd, "costusd", fxRate) : 0;
+      const tsVal = firstVal(rec, ["ts", "id"]);
+      pushEntry({
+        model: mCline,
+        requests: 1,
+        input_tokens: rowIn,
+        cached_input_tokens: rowCached,
+        output_tokens: outVal,
+        reasoning_tokens: reasonVal,
+        reported_cost_rmb: rowCostRmb,
+        source_file_idx: fKey,
+      }, tsVal !== null ? `cline:${fKey}:${tsVal}` : null);
+      continue;
+    }
+
     const msg = rec.message && typeof rec.message === "object" ? rec.message : {};
     const resp = rec.response && typeof rec.response === "object" ? rec.response : {};
     const body = resp.body && typeof resp.body === "object" ? resp.body : {};
@@ -407,7 +543,7 @@ function collectJsonRecordEntries(rawRecords, fxRate = 7.2) {
     const outVal = safeNum(firstVal(merged, ["completion_tokens", "native_tokens_completion", "tokens_completion", "output_tokens", "total_output_tokens"]));
     const cDet = merged.completion_tokens_details && typeof merged.completion_tokens_details === "object" ? merged.completion_tokens_details : {};
     const oDet = merged.output_tokens_details && typeof merged.output_tokens_details === "object" ? merged.output_tokens_details : {};
-    const rRaw = cDet.reasoning_tokens ?? oDet.reasoning_tokens ?? firstVal(merged, ["native_tokens_reasoning", "reasoning_tokens", "thinking_tokens"]);
+    const rRaw = cDet.reasoning_tokens ?? oDet.reasoning_tokens ?? firstVal(merged, ["native_tokens_reasoning", "reasoning_tokens", "reasoning_output_tokens", "thinking_tokens"]);
     const reasonVal = safeNum(rRaw);
 
     if (rowIn <= 0 && outVal <= 0) continue;
@@ -433,7 +569,7 @@ function collectJsonRecordEntries(rawRecords, fxRate = 7.2) {
       else if (rec.id) dedupeId = `id:${rec.id}`;
     }
 
-    const entry = {
+    pushEntry({
       model: modelLabel,
       requests: rowReqs,
       input_tokens: rowIn,
@@ -441,23 +577,8 @@ function collectJsonRecordEntries(rawRecords, fxRate = 7.2) {
       output_tokens: outVal,
       reasoning_tokens: reasonVal,
       reported_cost_rmb: rowCostRmb,
-      source_file_idx: rec._src_file_idx ?? null,
-    };
-
-    if (dedupeId) {
-      if (dedupedEntries.has(dedupeId)) {
-        deduplicatedChunks += 1;
-        const prev = dedupedEntries.get(dedupeId);
-        for (const k of ["requests", "input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "reported_cost_rmb"]) {
-          prev[k] = Math.max(prev[k], entry[k]);
-        }
-        if (prev.model === "unknown" && entry.model !== "unknown") prev.model = entry.model;
-      } else {
-        dedupedEntries.set(dedupeId, entry);
-      }
-    } else {
-      anonEntries.push(entry);
-    }
+      source_file_idx: fKey,
+    }, dedupeId);
   }
   return {entries: [...dedupedEntries.values(), ...anonEntries], deduplicatedChunks};
 }
@@ -567,10 +688,18 @@ export function sanitizeUsageFileLabel(rawName, fallbackIdx = 1) {
   if (parts.length === 0) return `file_${fallbackIdx}`;
 
   for (let i = 0; i < parts.length - 1; i += 1) {
-    if (parts[i].toLowerCase() === ".claude" && parts[i + 1].toLowerCase() === "projects" && i + 2 < parts.length) {
+    const pLow = parts[i].toLowerCase();
+    const pNext = parts[i + 1].toLowerCase();
+    if (pLow === ".claude" && pNext === "projects" && i + 2 < parts.length) {
       const tail = parts.slice(i + 2);
       const lbl = (tail.length >= 2 ? tail.slice(-2).join("/") : tail[tail.length - 1]).slice(0, 80);
       return lbl || `file_${fallbackIdx}`;
+    }
+    if (pLow === ".codex" && pNext === "sessions" && i + 2 < parts.length) {
+      return `codex/${parts[parts.length - 1]}`.slice(0, 80);
+    }
+    if (pLow === "tasks" && i + 2 < parts.length && ["ui_messages.json", "api_conversation_history.json"].includes(parts[parts.length - 1].toLowerCase())) {
+      return `cline/${parts[i + 1]}/${parts[parts.length - 1]}`.slice(0, 80);
     }
   }
 
@@ -988,9 +1117,16 @@ export function resolveModelFuzzy(models, rawId) {
   if (stripped !== raw) aliasCands.push(stripped, slugBase);
   if (slugBase === "deepseek-reasoner" || slugBase === "r1") aliasCands.push("deepseek-r1");
   else if (slugBase === "deepseek-chat" || slugBase === "v3") aliasCands.push("deepseek-v3");
-  else if (["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1-nano", "o1-mini", "o3-mini", "o4-mini"].includes(slugBase)) {
+  else if (slugBase.includes("codex") && (slugBase.includes("mini") || slugBase.includes("nano"))) {
+    aliasCands.push("openai/gpt-5.1-codex-mini", "openai/gpt-5.4-mini", "openai/gpt-5-mini");
+  } else if (slugBase.includes("codex")) {
+    aliasCands.push("openai/gpt-5.3-codex", "openai/gpt-5.2-codex", "openai/gpt-5.4");
+  } else if (
+    ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1-nano", "o1-mini", "o3-mini", "o4-mini"].includes(slugBase) ||
+    ((slugBase.startsWith("gpt-6") || slugBase.startsWith("gpt-5") || slugBase.startsWith("gpt-4")) && (slugBase.includes("mini") || slugBase.includes("nano")))
+  ) {
     aliasCands.push("openai/gpt-5.4-mini", "openai/gpt-5-mini");
-  } else if (slugBase.startsWith("gpt-4") || slugBase.startsWith("chatgpt-4o") || ["o1", "o3", "o3-pro"].includes(slugBase)) {
+  } else if (slugBase.startsWith("gpt-6") || slugBase.startsWith("gpt-5") || slugBase.startsWith("gpt-4") || slugBase.startsWith("chatgpt-4o") || ["o1", "o3", "o3-pro"].includes(slugBase)) {
     aliasCands.push("openai/gpt-5.4", "openai/gpt-5.5");
   } else if (slugBase.includes("claude") && slugBase.includes("sonnet")) {
     aliasCands.push("anthropic/claude-sonnet-5.5", "anthropic/claude-sonnet-5");
