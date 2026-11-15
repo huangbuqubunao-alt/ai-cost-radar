@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-15T05:29:13Z",
-  "last_live_verified_at": "2026-11-15T05:29:13Z",
+  "updated_at": "2026-11-15T06:05:45Z",
+  "last_live_verified_at": "2026-11-15T06:05:45Z",
   "quote_verified_date": "2026-11-13",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
@@ -10,7 +10,7 @@
     "global": 66
   },
   "official_rule_audit": {
-    "checked_at": "2026-11-15T05:29:13Z",
+    "checked_at": "2026-11-15T06:05:45Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -22,7 +22,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-15T05:29:13Z",
+        "last_verified_at": "2026-11-15T06:05:45Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -32,10 +32,15 @@
       {
         "plan_id": "tencent-coding-plan",
         "url": "https://cloud.tencent.com/document/product/1823/130092",
-        "status": "csr_shell_manual_check",
-        "matched_groups": [],
+        "status": "verified_markers",
+        "matched_groups": [
+          "lite_monthly_cap_18k",
+          "lite_renewal_40",
+          "pro_monthly_cap_90k",
+          "pro_renewal_200"
+        ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-15T01:47:06Z",
+        "last_verified_at": "2026-11-15T06:05:45Z",
         "last_verified_groups": [
           "lite_monthly_cap_18k",
           "lite_renewal_40",
@@ -54,7 +59,7 @@
           "interactive_ide_only"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-15T05:29:13Z",
+        "last_verified_at": "2026-11-15T06:05:45Z",
         "last_verified_groups": [
           "tiers_lite_pro",
           "quota_window_5h",
@@ -65,6 +70,14 @@
     ]
   },
   "price_changes": [
+    {
+      "detected_at": "2026-11-15T02:01:59Z",
+      "entity_type": "model",
+      "id": "qwen/qwen3.5-9b",
+      "name": "Qwen: Qwen3.5-9B",
+      "change_type": "price_update",
+      "summary_zh": "输入单价 $0.03 -> $0.035 / 1M，输出单价 $0.044 -> $0.051 / 1M"
+    },
     {
       "detected_at": "2026-11-15T01:50:55Z",
       "entity_type": "model",

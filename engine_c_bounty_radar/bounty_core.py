@@ -445,13 +445,37 @@ def classify_cn_payout(
             "UbiquityOS Crypto (pay.ubq.fi)",
             "UbiquityOS Crypto (USDC/WXDAI)",
         }
-        if crypto_set.intersection(matched_rails):
+        has_crypto_rail = bool(crypto_set.intersection(matched_rails))
+        has_ready_fiat_rail = (
+            ("PayPal" in matched_rails and bool(payout_readiness.get("has_paypal_cn")))
+            or ("Payoneer" in matched_rails and bool(payout_readiness.get("has_payoneer")))
+            or (
+                bool({"Wise", "Open Collective", "Opire"}.intersection(matched_rails))
+                and any(
+                    bool(payout_readiness.get(k))
+                    for k in ("has_hk_bank_or_stripe", "has_paypal_cn", "has_payoneer")
+                )
+            )
+        )
+        if not has_crypto_rail and not has_ready_fiat_rail:
+            return PayoutClassification(
+                tier=TIER_UNCONFIRMED,
+                rails=matched_rails,
+                is_algora_stripe_only=False,
+                note=(
+                    f"仅识别到 {', '.join(matched_rails)} 平台/法币信号"
+                    "（当前 config.json 未启用对应 PayPal/Payoneer/Stripe 通道，且未见明确加密货币直付声明）；"
+                    "动工前请先确认是否支持 USDC/USDT 打款。"
+                ),
+            )
+
+        if has_crypto_rail:
             if payout_readiness.get("has_usdc_wallet"):
                 readiness_hints.append("USDC钱包已就绪")
             else:
                 readiness_hints.append("建议配置免KYC钱包地址即可直收加密货币")
-        if "PayPal" in matched_rails and not payout_readiness.get("has_paypal_cn"):
-            readiness_hints.append("国区PayPal可直收")
+        if "PayPal" in matched_rails and bool(payout_readiness.get("has_paypal_cn")):
+            readiness_hints.append("国区PayPal已就绪")
         if ("Opire" in matched_rails or "Open Collective" in matched_rails) and not readiness_hints:
             readiness_hints.append("支持国际开源打款平台(PayPal/Wise/Payoneer/Crypto)")
 
@@ -623,11 +647,19 @@ _BOUNTY_LABEL_RE = re.compile(
     re.I,
 )
 _EXPLICIT_TITLE_BOUNTY_RE = re.compile(
-    r"(?:\[\s*(?:qa\s+|bug\s+)?bounty[^\]]*\]|^bounty\s*[:\-–—]|\bbounty\s*[:=\-]\s*(?:\$|\d)|\$\s*\d{2,5}\b|\b\d+\s*(?:USDC|USDT|SOL|ETH)\b)",
+    r"(?:\[\s*(?:qa\s+|bug\s+)?bounty[^\]]*\]"
+    r"|\[\s*\$\s*\d{1,5}(?:[kK]|\.\d{1,2})?\s*\]"
+    r"|^bounty\s*[:\-–—]"
+    r"|\bbounty\s*[:=\-]\s*(?:\$|\d)"
+    r"|(?:bounty|reward|prize)[^\n]{0,28}\$\s*\d+"
+    r"|\$\s*\d+[kK]?[^\n]{0,28}(?:bounty|reward|prize)"
+    r"|\b\d+\s*(?:USDC|USDT|SOL|ETH)\b)",
     re.I,
 )
 _EXPLICIT_PROSE_PLATFORM_RE = re.compile(
-    r"(?:(?:^|\s)/bounty\b|opire\.dev|@opire|algora\.io|@algora-pbc|open\s*collective|gitcoin|superteam|pay\.ubq\.fi"
+    r"(?:(?:^|\s)/bounty\b|opire\.dev|@opire|algora\.io|@algora-pbc|pay\.ubq\.fi"
+    r"|(?:open\s*collective|gitcoin|superteam)[^\n.]{0,40}\b(?:bounty|reward|prize|grant|payout)\b"
+    r"|\b(?:bounty|reward|prize|grant|payout)\b[^\n.]{0,40}(?:open\s*collective|gitcoin|superteam)"
     r"|(?:bounty|reward)\s*(?:amount|pool|of|is|:)\s*(?:\$\s*\d+|\d+\s*(?:USDC|USDT|USD|SOL|ETH)))",
     re.I,
 )
@@ -696,12 +728,35 @@ def is_honeypot_or_mirror(
             return True, "researcher_vuln_disclosure"
 
     # Zero-bounty ($0 credit-only repos like MisakaNet) & customer support payment tickets
-    if re.search(
-        r"zero-bounty|this\s+project\s+pays\s+no\s+money|pays\s+nothing\s+and\s+promises\s+nothing",
-        body or "",
-        re.I,
-    ) or (repo_low == "ikalus1988/misakanet" and not re.search(r"/reward\s+\$?\d+", body or "", re.I)):
+    if (
+        re.search(
+            r"zero-bounty|this\s+project\s+pays\s+no\s+money|pays\s+nothing\s+and\s+promises\s+nothing"
+            r"|\[\s*\$\s*0(?:\.0+)?\s*\]|\bbounty\s*[:=\-]\s*\$\s*0\b|/reward\s+\$?\s*0\b",
+            combined_check,
+            re.I,
+        )
+        or repo_low == "ikalus1988/misakanet"
+    ):
         return True, "zero_dollar_credit_only"
+
+    # Parody / troll mega-bounties (e.g. `[bounty: 74000 ETH]`, `offering trillions in bounties`)
+    if re.search(
+        r"\boffering\s+trillions\s+in\s+bounties\b"
+        r"|\[\s*bounty\s*[:=\-]?\s*(?:[1-9]\d{2,}\s*eth|[5-9]\d{3,}\s*sol|\$\s*[1-9]\d{5,})\s*\]",
+        combined_check,
+        re.I,
+    ):
+        return True, "parody_mega_bounty"
+
+    # SaaS customer-discovery / design-partner recruitment & autonomous AI agent outreach posts
+    if re.search(
+        r"\bseeking\s+\d+\s+design\s+partners\b"
+        r"|^data\s+exchange\s*:"
+        r"|\bi['’]?m\s+[^.\n]{1,60}\ban\s+autonomous\s+ai\s+agent\b",
+        f"{(title or '').strip()}\n{(body or '')[:1200]}",
+        re.I | re.M,
+    ):
+        return True, "outreach_or_feedback_post"
 
     if re.search(r"funding\s+(?:payment\s+)?not\s+credited|still\s+shows\s+payment\s+due", combined_check, re.I):
         return True, "support_ticket_not_bounty"

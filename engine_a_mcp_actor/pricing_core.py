@@ -1381,9 +1381,20 @@ def _try_parse_csv_bill(
         return _parse_scaled_number(v)
 
     cost_header_compact = compact_headers[col_cost] if col_cost is not None else ""
+    header_signature = tuple(compact_headers)
 
     for r in rows[1:]:
         if not r or all(not str(c or "").strip() for c in r):
+            continue
+        row_compact = tuple(
+            re.sub(r"[\s_\-()/（）]+", "", str(c or "").strip().lstrip("\ufeff").strip('"').strip("'").lower())
+            for c in r
+        )
+        if row_compact == header_signature:
+            continue
+        if (col_in is not None and col_in < len(row_compact) and row_compact[col_in] in in_aliases) or (
+            col_out is not None and col_out < len(row_compact) and row_compact[col_out] in out_aliases
+        ):
             continue
         first_clean = str(r[0] or "").strip().lower()
         model_raw = str(r[col_model] if (col_model is not None and col_model < len(r)) else "").strip()
@@ -1512,18 +1523,7 @@ def _try_parse_csv_bill(
     }
 
 
-def _try_parse_json_records_bill(
-    text: str,
-    days: float,
-    *,
-    fx_rate: float = DEFAULT_FX_USD_TO_RMB,
-) -> dict[str, Any] | None:
-    """
-    Parse multi-record JSON Array (`[...]`, `{"data": [...]}`) or multi-line JSONL (`{...}\\n{...}`)
-    logs/bills into the exact `csv_multimodel_bill` portfolio schema.
-    Supports Claude Code `~/.claude/projects/*.jsonl` (streaming `message.id` deduplication + additive cache),
-    OpenAI Batch `.jsonl` (`response.body`), LiteLLM spend logs, and OpenRouter JSON exports.
-    """
+def _extract_json_records_raw(text: str) -> tuple[list[dict[str, Any]], str] | None:
     import json
 
     raw_records: list[dict[str, Any]] | None = None
@@ -1582,7 +1582,14 @@ def _try_parse_json_records_bill(
 
     if raw_records is None or source_format is None:
         return None
+    return raw_records, source_format
 
+
+def _collect_json_record_entries(
+    raw_records: list[dict[str, Any]],
+    *,
+    fx_rate: float = DEFAULT_FX_USD_TO_RMB,
+) -> tuple[list[dict[str, Any]], int]:
     def _safe_num(val: Any) -> float:
         if val is None or isinstance(val, (dict, list, bool)):
             return 0.0
@@ -1719,16 +1726,23 @@ def _try_parse_json_records_bill(
         else:
             anon_entries.append(entry)
 
-    all_entries = list(deduped_entries.values()) + anon_entries
-    if not all_entries:
-        raise ValueError("JSON/JSONL bill contains zero positive token records")
+    return list(deduped_entries.values()) + anon_entries, deduplicated_chunks
 
+
+def _build_multimodel_portfolio_from_entries(
+    all_entries: list[dict[str, Any]],
+    *,
+    days: float,
+    source_format: str,
+    deduplicated_chunks: int = 0,
+    merged_files_count: int | None = None,
+) -> dict[str, Any]:
     groups: dict[str, dict[str, Any]] = {}
     for ent in all_entries:
-        g_key = ent["model"].lower()
+        g_key = str(ent["model"]).lower()
         if g_key not in groups:
             groups[g_key] = {
-                "model": ent["model"],
+                "model": str(ent["model"]),
                 "requests": 0.0,
                 "input_tokens": 0.0,
                 "cached_input_tokens": 0.0,
@@ -1737,12 +1751,12 @@ def _try_parse_json_records_bill(
                 "reported_cost_rmb": 0.0,
             }
         grp = groups[g_key]
-        grp["requests"] += ent["requests"]
-        grp["input_tokens"] += ent["input_tokens"]
-        grp["cached_input_tokens"] += ent["cached_input_tokens"]
-        grp["output_tokens"] += ent["output_tokens"]
-        grp["reasoning_tokens"] += ent["reasoning_tokens"]
-        grp["reported_cost_rmb"] += ent["reported_cost_rmb"]
+        grp["requests"] += float(ent["requests"])
+        grp["input_tokens"] += float(ent["input_tokens"])
+        grp["cached_input_tokens"] += float(ent["cached_input_tokens"])
+        grp["output_tokens"] += float(ent["output_tokens"])
+        grp["reasoning_tokens"] += float(ent.get("reasoning_tokens") or 0.0)
+        grp["reported_cost_rmb"] += float(ent.get("reported_cost_rmb") or 0.0)
 
     sorted_groups = sorted(
         groups.values(),
@@ -1776,7 +1790,7 @@ def _try_parse_json_records_bill(
 
     daily_requests = max(1, int(round(total_reqs / days)))
     monthly_requests = max(1, int(round((total_reqs / days) * 30.0)))
-    return {
+    out = {
         "detected_format": "csv_multimodel_bill",
         "source_format": source_format,
         "deduplicated_chunks": deduplicated_chunks,
@@ -1799,6 +1813,36 @@ def _try_parse_json_records_bill(
         "monthly_reported_cost_rmb": round((total_cost_rmb / days) * 30.0, 2),
         "model_breakdown": model_breakdown,
     }
+    if merged_files_count is not None:
+        out["merged_files_count"] = merged_files_count
+    return out
+
+
+def _try_parse_json_records_bill(
+    text: str,
+    days: float,
+    *,
+    fx_rate: float = DEFAULT_FX_USD_TO_RMB,
+) -> dict[str, Any] | None:
+    """
+    Parse multi-record JSON Array (`[...]`, `{"data": [...]}`) or multi-line JSONL (`{...}\\n{...}`)
+    logs/bills into the exact `csv_multimodel_bill` portfolio schema.
+    Supports Claude Code `~/.claude/projects/*.jsonl` (streaming `message.id` deduplication + additive cache),
+    OpenAI Batch `.jsonl` (`response.body`), LiteLLM spend logs, and OpenRouter JSON exports.
+    """
+    extracted = _extract_json_records_raw(text)
+    if extracted is None:
+        return None
+    raw_records, source_format = extracted
+    all_entries, deduplicated_chunks = _collect_json_record_entries(raw_records, fx_rate=fx_rate)
+    if not all_entries:
+        raise ValueError("JSON/JSONL bill contains zero positive token records")
+    return _build_multimodel_portfolio_from_entries(
+        all_entries,
+        days=days,
+        source_format=source_format,
+        deduplicated_chunks=deduplicated_chunks,
+    )
 
 
 def _resolve_model_env_key_var(model: dict[str, Any]) -> str:
@@ -2421,3 +2465,120 @@ def parse_usage_log_snippet(
         "output_includes_reasoning": output_includes_reasoning,
         "calls_estimated": calls_estimated,
     }
+
+
+def merge_usage_log_snippets(
+    snippets: list[str],
+    *,
+    days_observed: float = 30.0,
+    default_tokens_per_call: int = 4000,
+    fx_rate: float = DEFAULT_FX_USD_TO_RMB,
+) -> dict[str, Any]:
+    """
+    Merge 1..50 local session transcripts or billing files (Claude Code `~/.claude/projects/*.jsonl`,
+    OpenAI Batch `.jsonl`, OpenRouter/Cloud `.csv`/`.tsv` bills, or `/cost` summaries) into a single
+    unified `csv_multimodel_bill` portfolio with cross-file `message.id`/`request_id` deduplication.
+    """
+    if not isinstance(snippets, list):
+        raise ValueError("usage_snippets must be a list of strings")
+    cleaned = [str(s or "").strip() for s in snippets if str(s or "").strip()]
+    if not cleaned or len(cleaned) > 50:
+        raise ValueError("usage_snippets must contain between 1 and 50 non-empty items")
+
+    days = float(days_observed if days_observed is not None else 30.0)
+    if not math.isfinite(days) or days <= 0 or days > 365:
+        raise ValueError("Invalid days_observed (must be between 0.1 and 365)")
+
+    total_chars = sum(len(s) for s in cleaned)
+    if total_chars > 1_000_000 or any(len(s) > 250_000 for s in cleaned):
+        raise ValueError("Oversized usage_snippets payload")
+
+    if len(cleaned) == 1:
+        single = parse_usage_log_snippet(
+            cleaned[0],
+            days_observed=days,
+            default_tokens_per_call=default_tokens_per_call,
+        )
+        return {**single, "merged_files_count": 1}
+
+    combined_json_records: list[dict[str, Any]] = []
+    other_entries: list[dict[str, Any]] = []
+
+    for snippet in cleaned:
+        extracted = _extract_json_records_raw(snippet)
+        if extracted is not None:
+            recs, _fmt = extracted
+            combined_json_records.extend(recs)
+            continue
+
+        try:
+            csv_parsed = _try_parse_csv_bill(snippet, days, fx_rate=fx_rate)
+        except ValueError:
+            csv_parsed = None
+        if csv_parsed is not None:
+            for row in csv_parsed.get("model_breakdown", []):
+                other_entries.append(
+                    {
+                        "model": row["model"],
+                        "requests": float(row["requests"]),
+                        "input_tokens": float(row["input_tokens"]),
+                        "cached_input_tokens": float(row["cached_input_tokens"]),
+                        "output_tokens": float(row["output_tokens"]),
+                        "reasoning_tokens": float(row.get("reasoning_tokens") or 0),
+                        "reported_cost_rmb": float(row.get("reported_cost_rmb") or 0.0),
+                    }
+                )
+            continue
+
+        try:
+            single_parsed = parse_usage_log_snippet(
+                snippet,
+                days_observed=days,
+                default_tokens_per_call=default_tokens_per_call,
+            )
+        except ValueError:
+            continue
+
+        if single_parsed.get("detected_format") == "csv_multimodel_bill":
+            for row in single_parsed.get("model_breakdown", []):
+                other_entries.append(
+                    {
+                        "model": row["model"],
+                        "requests": float(row["requests"]),
+                        "input_tokens": float(row["input_tokens"]),
+                        "cached_input_tokens": float(row["cached_input_tokens"]),
+                        "output_tokens": float(row["output_tokens"]),
+                        "reasoning_tokens": float(row.get("reasoning_tokens") or 0),
+                        "reported_cost_rmb": float(row.get("reported_cost_rmb") or 0.0),
+                    }
+                )
+        else:
+            est_reqs = max(1.0, round(float(single_parsed.get("daily_requests") or 1) * days))
+            other_entries.append(
+                {
+                    "model": "claude-sonnet-4" if single_parsed.get("detected_format") in ("claude_code_cost", "anthropic_usage_json") else "deepseek-v3",
+                    "requests": est_reqs,
+                    "input_tokens": float(single_parsed.get("total_input_tokens") or 0),
+                    "cached_input_tokens": float(single_parsed.get("cached_input_tokens") or 0),
+                    "output_tokens": float(single_parsed.get("total_output_tokens") or 0),
+                    "reasoning_tokens": 1.0 if single_parsed.get("output_includes_reasoning") else 0.0,
+                    "reported_cost_rmb": 0.0,
+                }
+            )
+
+    json_entries, dedup_cnt = (
+        _collect_json_record_entries(combined_json_records, fx_rate=fx_rate)
+        if combined_json_records
+        else ([], 0)
+    )
+    all_entries = json_entries + other_entries
+    if not all_entries:
+        raise ValueError("Merged usage_snippets contain zero positive token records")
+
+    return _build_multimodel_portfolio_from_entries(
+        all_entries,
+        days=days,
+        source_format="multifile_merged",
+        deduplicated_chunks=dedup_cnt,
+        merged_files_count=len(cleaned),
+    )

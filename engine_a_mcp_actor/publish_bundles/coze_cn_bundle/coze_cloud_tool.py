@@ -912,9 +912,11 @@ def _try_parse_csv_bill(text: str, days: float, fx_rate: float = DEFAULT_FX_USD_
         return None
 
     col_model = _find_col({"model", "modelid", "modelname", "modelpermaslug", "modelslug", "permaslug", "endpoint", "模型", "模型名称", "模型id", "调用模型"})
+    in_aliases = {"tokensprompt", "nativetokensprompt", "prompttokens", "inputtokens", "totalinputtokens", "input", "prompt", "输入token", "输入tokens", "输入token数", "提问token", "入参token"}
+    out_aliases = {"tokenscompletion", "nativetokenscompletion", "completiontokens", "outputtokens", "totaloutputtokens", "output", "completion", "输出token", "输出tokens", "输出token数", "回答token", "出参token"}
     col_req = _find_col({"requests", "requestcount", "numrequests", "calls", "apicalls", "totalrequests", "totalcalls", "count", "调用次数", "请求次数", "请求数", "调用量"})
-    col_in = _find_col({"tokensprompt", "nativetokensprompt", "prompttokens", "inputtokens", "totalinputtokens", "input", "prompt", "输入token", "输入tokens", "输入token数", "提问token", "入参token"})
-    col_out = _find_col({"tokenscompletion", "nativetokenscompletion", "completiontokens", "outputtokens", "totaloutputtokens", "output", "completion", "输出token", "输出tokens", "输出token数", "回答token", "出参token"})
+    col_in = _find_col(in_aliases)
+    col_out = _find_col(out_aliases)
     col_cached = _find_col({"nativetokenscached", "cachedtokens", "cachedinputtokens", "prompttokenscached", "cachehit", "缓存命中token", "缓存命中tokens", "命中缓存token", "缓存token", "缓存输入token", "命中缓存"})
     col_cread = _find_col({"cachereadinputtokens", "cachereadtokens", "cacheread"})
     col_cwrite = _find_col({"cachecreationinputtokens", "cachewritetokens", "cachewrite", "缓存写入token"})
@@ -938,6 +940,16 @@ def _try_parse_csv_bill(text: str, days: float, fx_rate: float = DEFAULT_FX_USD_
 
     for r in rows[1:]:
         if not r or all(not str(c or "").strip() for c in r):
+            continue
+        row_compact = tuple(
+            re.sub(r"[\s_\-()/（）]+", "", str(c or "").strip().lstrip("\ufeff").strip('"').strip("'").lower())
+            for c in r
+        )
+        if row_compact == tuple(compact_headers):
+            continue
+        if (col_in is not None and col_in < len(row_compact) and row_compact[col_in] in in_aliases) or (
+            col_out is not None and col_out < len(row_compact) and row_compact[col_out] in out_aliases
+        ):
             continue
         first_clean = str(r[0] or "").strip().lower()
         model_raw = str(r[col_model] if (col_model is not None and col_model < len(r)) else "").strip()
@@ -1825,6 +1837,155 @@ def _parse_usage_snippet(raw_text: str, days_observed: float = 30.0) -> dict[str
     }
 
 
+def _merge_usage_snippets_coze(
+    snippets: list[Any],
+    *,
+    days_observed: float = 30.0,
+    fx_rate: float = DEFAULT_FX_USD_TO_RMB,
+) -> dict[str, Any]:
+    cleaned = [str(s or "").strip() for s in snippets if str(s or "").strip()]
+    if not cleaned or len(cleaned) > 50:
+        raise ValueError("Invalid usage_snippets")
+    days = float(days_observed if days_observed is not None else 30.0)
+    if not math.isfinite(days) or days <= 0 or days > 365:
+        days = 30.0
+    if len(cleaned) == 1:
+        single = _parse_usage_snippet(cleaned[0], days_observed=days)
+        return {**single, "merged_files_count": 1}
+
+    json_lines_combined: list[str] = []
+    other_rows: list[dict[str, Any]] = []
+    for s in cleaned:
+        if s.startswith("[") and s.endswith("]"):
+            try:
+                arr = json.loads(s)
+                if isinstance(arr, list):
+                    for item in arr:
+                        if isinstance(item, dict):
+                            json_lines_combined.append(json.dumps(item, ensure_ascii=False))
+                    continue
+            except json.JSONDecodeError:
+                pass
+        lines = [ln.strip() for ln in s.splitlines() if ln.strip() and not ln.strip().startswith("#")]
+        if lines and all(ln.startswith("{") and ln.endswith("}") for ln in lines):
+            json_lines_combined.extend(lines)
+            continue
+        try:
+            p = _parse_usage_snippet(s, days_observed=days)
+        except ValueError:
+            continue
+        if p.get("detected_format") == "csv_multimodel_bill":
+            for r in p.get("model_breakdown", []):
+                other_rows.append(dict(r))
+        else:
+            est_reqs = max(1, int(round(float(p.get("daily_requests") or 1) * days)))
+            m_in = int(round((float(p.get("monthly_input_m") or 0.0) * 1_000_000.0 * days) / 30.0))
+            m_out = int(round((float(p.get("monthly_output_m") or 0.0) * 1_000_000.0 * days) / 30.0))
+            other_rows.append(
+                {
+                    "model": "claude-sonnet-4" if p.get("detected_format") in ("claude_code_cost", "anthropic_usage_json") else "deepseek-v3",
+                    "requests": est_reqs,
+                    "input_tokens": m_in,
+                    "cached_input_tokens": int(round(m_in * float(p.get("cache_hit_rate") or 0.0))),
+                    "output_tokens": m_out,
+                    "reasoning_tokens": 1 if p.get("output_includes_reasoning") else 0,
+                    "reported_cost_rmb": 0.0,
+                }
+            )
+
+    dedup_cnt = 0
+    groups: dict[str, dict[str, Any]] = {}
+    if json_lines_combined:
+        try:
+            jp = _try_parse_json_records_bill("\n".join(json_lines_combined), days, fx_rate=fx_rate)
+        except ValueError:
+            jp = None
+        if jp is not None:
+            dedup_cnt = int(jp.get("deduplicated_chunks") or 0)
+            for r in jp.get("model_breakdown", []):
+                other_rows.append(dict(r))
+
+    for r in other_rows:
+        gk = str(r["model"]).lower()
+        if gk not in groups:
+            groups[gk] = {
+                "model": str(r["model"]),
+                "requests": 0.0,
+                "input_tokens": 0.0,
+                "cached_input_tokens": 0.0,
+                "output_tokens": 0.0,
+                "reasoning_tokens": 0.0,
+                "reported_cost_rmb": 0.0,
+            }
+        g = groups[gk]
+        g["requests"] += float(r["requests"])
+        g["input_tokens"] += float(r["input_tokens"])
+        g["cached_input_tokens"] += float(r["cached_input_tokens"])
+        g["output_tokens"] += float(r["output_tokens"])
+        g["reasoning_tokens"] += float(r.get("reasoning_tokens") or 0.0)
+        g["reported_cost_rmb"] += float(r.get("reported_cost_rmb") or 0.0)
+
+    if not groups:
+        raise ValueError("Merged usage_snippets contain zero positive token records")
+
+    sorted_groups = sorted(
+        groups.values(),
+        key=lambda g: (g["reported_cost_rmb"], g["input_tokens"] + g["output_tokens"]),
+        reverse=True,
+    )
+    model_breakdown: list[dict[str, Any]] = []
+    total_reqs = total_in = total_cached = total_out = total_reason = total_cost_rmb = 0.0
+    for g in sorted_groups:
+        g_in = g["input_tokens"]
+        g_cached = min(g_in, max(0.0, g["cached_input_tokens"]))
+        total_reqs += g["requests"]
+        total_in += g_in
+        total_cached += g_cached
+        total_out += g["output_tokens"]
+        total_reason += g["reasoning_tokens"]
+        total_cost_rmb += g["reported_cost_rmb"]
+        model_breakdown.append(
+            {
+                "model": g["model"],
+                "requests": int(round(g["requests"])),
+                "input_tokens": int(round(g_in)),
+                "cached_input_tokens": int(round(g_cached)),
+                "output_tokens": int(round(g["output_tokens"])),
+                "reasoning_tokens": int(round(g["reasoning_tokens"])),
+                "cache_hit_rate": round(g_cached / g_in, 4) if g_in > 0 else 0.0,
+                "output_includes_reasoning": bool(g["reasoning_tokens"] > 0),
+                "reported_cost_rmb": round(g["reported_cost_rmb"], 4),
+            }
+        )
+
+    daily_requests = max(1, int(round(total_reqs / days)))
+    monthly_requests = max(1, int(round((total_reqs / days) * 30.0)))
+    return {
+        "detected_format": "csv_multimodel_bill",
+        "source_format": "multifile_merged",
+        "merged_files_count": len(cleaned),
+        "deduplicated_chunks": dedup_cnt,
+        "days_observed": days,
+        "distinct_models_count": len(model_breakdown),
+        "total_requests": int(round(total_reqs)),
+        "monthly_requests": monthly_requests,
+        "total_input_tokens": int(round(total_in)),
+        "cached_input_tokens": int(round(total_cached)),
+        "total_output_tokens": int(round(total_out)),
+        "monthly_input_m": round(((total_in / days) * 30.0) / 1_000_000.0, 6),
+        "monthly_output_m": round(((total_out / days) * 30.0) / 1_000_000.0, 6),
+        "daily_requests": daily_requests,
+        "avg_input_tokens": max(1, int(round(total_in / max(1.0, total_reqs)))) if total_in > 0 else 1500,
+        "avg_output_tokens": max(1, int(round(total_out / max(1.0, total_reqs)))) if total_out > 0 else 500,
+        "cache_hit_rate": round(total_cached / total_in, 4) if total_in > 0 else 0.0,
+        "output_includes_reasoning": bool(total_reason > 0),
+        "calls_estimated": False,
+        "reported_cost_rmb": round(total_cost_rmb, 2),
+        "monthly_reported_cost_rmb": round((total_cost_rmb / days) * 30.0, 2),
+        "model_breakdown": model_breakdown,
+    }
+
+
 def _run_budget(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, Any], str]:
     models = catalog.get("models", [])
     q = str(_get_param(inp, "model_query", "deepseek-v3")).strip().lower()
@@ -1838,6 +1999,7 @@ def _run_budget(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, Any],
     wants_free = "free" in q
 
     raw_snippet = _get_param(inp, "usage_snippet", None)
+    raw_snippets = _get_param(inp, "usage_snippets", None)
     raw_days = float(_get_param(inp, "days_observed", 30.0))
     raw_m_reqs = _get_param(inp, "monthly_requests", None)
     raw_m_in = _get_param(inp, "monthly_input_m", None)
@@ -1850,8 +2012,19 @@ def _run_budget(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, Any],
     raw_seats = _get_param(inp, "team_size", 1)
     seats = max(1, min(50, int(round(float(raw_seats or 1)))))
 
-    if raw_snippet is not None and str(raw_snippet).strip() != "":
-        parsed_usage_summary = _parse_usage_snippet(str(raw_snippet), days_observed=raw_days)
+    has_multi_snippets = isinstance(raw_snippets, list) and any(str(x or "").strip() for x in raw_snippets)
+    if has_multi_snippets or (raw_snippet is not None and str(raw_snippet).strip() != ""):
+        if has_multi_snippets:
+            merged_items = list(raw_snippets)
+            if raw_snippet is not None and str(raw_snippet).strip() != "":
+                merged_items.append(str(raw_snippet))
+            parsed_usage_summary = _merge_usage_snippets_coze(
+                merged_items,
+                days_observed=raw_days,
+                fx_rate=float(catalog.get("fx_rate_usd_to_rmb", DEFAULT_FX_USD_TO_RMB)),
+            )
+        else:
+            parsed_usage_summary = _parse_usage_snippet(str(raw_snippet), days_observed=raw_days)
         reqs = float(parsed_usage_summary["daily_requests"])
         in_tok = float(parsed_usage_summary["avg_input_tokens"])
         out_tok = float(parsed_usage_summary["avg_output_tokens"])

@@ -114,6 +114,12 @@
       "description": "Paste an OpenRouter Activity CSV, cloud console CSV/TSV/JSON/JSONL bill (incl. Claude Code `.jsonl` & OpenAI Batch `.jsonl`), Claude Code `/cost` output, `usage` JSON, or cloud console summary to auto-parse usage and generate `bill_audit` + `migration_litellm_config`.",
       "editor": "textarea"
     },
+    "usage_snippets": {
+      "title": "Optional Batch Usage Snippets (.jsonl / .csv list)",
+      "type": "array",
+      "description": "Optional list of multiple Claude Code `.jsonl` session transcripts and/or `.csv` billing files to merge with cross-file deduplication.",
+      "editor": "stringList"
+    },
     "days_observed": {
       "title": "Observation Window in Days (for usage_snippet)",
       "type": "number",

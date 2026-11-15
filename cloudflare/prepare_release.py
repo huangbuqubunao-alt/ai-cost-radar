@@ -21,7 +21,7 @@ FILES = [
     "test_codex_v3_acceptance.py", "test_upgrade_2026_roadmap.py", "test_cloudflare_budget.py",
     "test_round1_product_iteration.py", "test_round2_product_iteration.py", "test_round3_product_iteration.py",
     "test_round4_product_iteration.py", "test_round5_product_iteration.py", "test_round6_product_iteration.py",
-    "test_round7_product_iteration.py", "test_round8_product_iteration.py",
+    "test_round7_product_iteration.py", "test_round8_product_iteration.py", "test_round9_product_iteration.py",
     "functions/api/budget.js",
     "functions/events.js", "functions/admin/stats.js", "wrangler.toml",
     "cloudflare/d1_schema.sql", "cloudflare/events_reconcile.py",

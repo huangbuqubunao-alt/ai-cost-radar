@@ -183,6 +183,11 @@
                     "type": "string",
                     "description": "可选：粘贴 OpenRouter Activity 多模型 CSV/TSV/JSON/JSONL 账单（含 Claude Code .jsonl 会话与 OpenAI Batch .jsonl）、Claude Code /cost 输出、usage JSON 或统计摘要，自动解析并返回 bill_audit 与零改代码 LiteLLM 迁移配置 (migration_litellm_config)"
                   },
+                  "usage_snippets": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "可选：传入多个 Claude Code .jsonl 会话文件与 CSV 账单文本列表，自动跨文件按 message.id 去重合并为统一 30 天多模型审计报表"
+                  },
                   "days_observed": {
                     "type": "number",
                     "description": "可选：usage_snippet 对应的统计天数（默认 30 天，如近 7 天日志可传 7）",

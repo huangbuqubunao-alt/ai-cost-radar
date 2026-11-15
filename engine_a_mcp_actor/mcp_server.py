@@ -289,13 +289,14 @@ def calculate_api_budget(
     monthly_output_m: float | None = None,
     cached_input_m: float | None = None,
     usage_snippet: str | None = None,
+    usage_snippets: list[str] | None = None,
     days_observed: float = 30.0,
 ) -> dict[str, Any]:
     """
     Calculate daily/monthly/annual USD & RMB API budget for a given model, evaluate Coding Plan quotas
     & renewal breakeven, and suggest cheaper alternatives.
     Supports direct monthly bill totals (`monthly_requests`, `monthly_input_m`, `monthly_output_m`, `cached_input_m`)
-    and deterministic log/JSON parsing (`usage_snippet`, `days_observed`).
+    and deterministic single/multi-file log parsing (`usage_snippet`, `usage_snippets`, `days_observed`).
     """
     catalog = load_models_catalog()
     models: list[dict[str, Any]] = catalog.get("models", [])
@@ -311,12 +312,23 @@ def calculate_api_budget(
     exact_monthly_in_m: float | None = None
     exact_monthly_out_m: float | None = None
 
-    if usage_snippet is not None and str(usage_snippet).strip() != "":
+    has_multi_snippets = isinstance(usage_snippets, list) and any(str(x or "").strip() for x in usage_snippets)
+    if has_multi_snippets or (usage_snippet is not None and str(usage_snippet).strip() != ""):
         obs_days = float(days_observed if days_observed is not None else 30.0)
-        parsed_usage_summary = pricing_core.parse_usage_log_snippet(
-            str(usage_snippet),
-            days_observed=obs_days,
-        )
+        if has_multi_snippets:
+            merged_list = list(usage_snippets or [])
+            if usage_snippet is not None and str(usage_snippet).strip() != "":
+                merged_list.append(str(usage_snippet))
+            parsed_usage_summary = pricing_core.merge_usage_log_snippets(
+                merged_list,
+                days_observed=obs_days,
+                fx_rate=float(catalog.get("fx_rate_usd_to_rmb", 7.20)),
+            )
+        else:
+            parsed_usage_summary = pricing_core.parse_usage_log_snippet(
+                str(usage_snippet),
+                days_observed=obs_days,
+            )
         reqs = float(parsed_usage_summary["daily_requests"])
         in_tok = float(parsed_usage_summary["avg_input_tokens"])
         out_tok = float(parsed_usage_summary["avg_output_tokens"])
@@ -740,6 +752,11 @@ MCP_TOOLS_SPEC: list[dict[str, Any]] = [
                     "type": "string",
                     "description": "Optional multi-model OpenRouter/cloud CSV, TSV, JSON array, or JSONL bill (incl. Claude Code `.jsonl` & OpenAI Batch `.jsonl`), `/cost` output, `usage` JSON, or cloud console summary to parse and audit (`bill_audit` + `migration_litellm_config`).",
                 },
+                "usage_snippets": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional array of multiple `.jsonl` session transcripts (`~/.claude/projects/*.jsonl`) and/or `.csv` billing files to merge with cross-file `message.id` deduplication.",
+                },
                 "days_observed": {
                     "type": "number",
                     "description": "Observation window in days for `usage_snippet` (default 30; e.g. 7 for a 7-day log).",
@@ -798,6 +815,7 @@ def dispatch_tool_call(tool_name: str, arguments: dict[str, Any] | None) -> dict
             monthly_output_m=args.get("monthly_output_m"),
             cached_input_m=args.get("cached_input_m"),
             usage_snippet=args.get("usage_snippet"),
+            usage_snippets=args.get("usage_snippets"),
             days_observed=args.get("days_observed", 30.0),
         )
     if tool_name == "list_free_and_ultra_cheap_models":
@@ -1044,7 +1062,8 @@ class ModelRouterHTTPHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed = urllib.parse.urlsplit(self.path)
         path = parsed.path.rstrip("/") or "/"
-        qs = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items()}
+        raw_qs = urllib.parse.parse_qs(parsed.query)
+        qs = {k: v[0] for k, v in raw_qs.items()}
 
         if path in ("/", "/health"):
             catalog = load_models_catalog()
@@ -1117,6 +1136,7 @@ class ModelRouterHTTPHandler(BaseHTTPRequestHandler):
                     if "cached_input_m" in qs and qs["cached_input_m"] != ""
                     else None
                 )
+                snippet_vals = [s for s in raw_qs.get("usage_snippet", []) if str(s or "").strip()]
                 res = calculate_api_budget(
                     model_query=qs.get("model_query") or qs.get("model_id") or "deepseek-v3",
                     daily_requests=int(float(qs.get("daily_requests", 1000))),
@@ -1132,7 +1152,8 @@ class ModelRouterHTTPHandler(BaseHTTPRequestHandler):
                     monthly_input_m=m_in_val,
                     monthly_output_m=m_out_val,
                     cached_input_m=c_in_val,
-                    usage_snippet=qs.get("usage_snippet"),
+                    usage_snippet=qs.get("usage_snippet") if len(snippet_vals) <= 1 else None,
+                    usage_snippets=snippet_vals if len(snippet_vals) > 1 else None,
                     days_observed=float(qs.get("days_observed", 30.0)),
                 )
                 self._send_json(200, res)

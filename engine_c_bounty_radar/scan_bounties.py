@@ -258,8 +258,55 @@ def load_cached_bounties_if_available() -> list[dict[str, Any]]:
         return []
 
 
+def recompute_cached_bounty_item(b: dict[str, Any], config: dict[str, Any]) -> dict[str, Any] | None:
+    """Re-validate and re-classify a cached bounty item against current filters and payout readiness."""
+    item = dict(b)
+    title_txt = str(item.get("title") or "")
+    excerpt_txt = str(item.get("spec_excerpt") or "")
+    labels_list = [str(x) for x in (item.get("labels") or [])]
+    repo_name = str(item.get("repo") or "")
+    is_trap, _ = is_honeypot_or_mirror(
+        repo_full_name=repo_name,
+        title=title_txt,
+        body=excerpt_txt,
+        labels=labels_list,
+    )
+    if is_trap:
+        return None
+    rails_hint = " ".join(str(r) for r in (item.get("cn_payout_rails") or []))
+    combined_body = f"{excerpt_txt}\n{rails_hint}".strip()
+    reward_obj = extract_reward(title=title_txt, body=combined_body, labels=labels_list)
+    if not has_genuine_bounty_signal(title=title_txt, body=combined_body, labels=labels_list, reward=reward_obj):
+        return None
+    payout_cfg = config.get("payout_readiness", {})
+    prefs_cfg = config.get("bounty_preferences", {})
+    payout_cls = classify_cn_payout(
+        title=title_txt,
+        body=combined_body,
+        labels=labels_list,
+        payout_readiness=payout_cfg,
+        repo_full_name=repo_name,
+    )
+    item["cn_payout_tier"] = payout_cls.tier
+    item["cn_payout_rails"] = payout_cls.rails
+    item["cn_payout_note"] = payout_cls.note
+    item["is_algora_stripe_only"] = payout_cls.is_algora_stripe_only
+    if is_non_cash_reward_text(title_txt, f"{excerpt_txt}\n{item.get('cn_payout_note', '')}"):
+        item["is_non_cash_credit"] = True
+        if item.get("cn_payout_tier") == TIER_CN_FRIENDLY:
+            item["cn_payout_tier"] = TIER_UNCONFIRMED
+    item["action_priority_score"] = compute_action_priority(
+        solvability_score=int(item.get("ai_solvability_score") or 0),
+        cn_tier=item["cn_payout_tier"],
+        reward_usd=item.get("reward_usd_est"),
+        prioritize_cn=bool(prefs_cfg.get("prioritize_cn_friendly_payouts", True)),
+    )
+    return item
+
+
 def scan_github_bounties(config: dict[str, Any], max_queries: int | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], bool]:
     """Execute targeted GitHub Search Issues queries and merge/deduplicate results."""
+    cached_prior = load_cached_bounties_if_available()
     by_url: dict[str, dict[str, Any]] = {}
     query_stats: list[dict[str, Any]] = []
     any_success = False
@@ -268,7 +315,7 @@ def scan_github_bounties(config: dict[str, Any], max_queries: int | None = None)
     queries_to_run = TARGETED_QUERIES if max_queries is None else TARGETED_QUERIES[:max_queries]
     for idx, q_spec in enumerate(queries_to_run):
         if idx > 0:
-            time.sleep(2.4)  # Polite spacing for GitHub Search API secondary rate-limit
+            time.sleep(3.2)  # Polite spacing for GitHub Search API secondary rate-limit
 
         params = urllib.parse.urlencode(
             {
@@ -280,6 +327,10 @@ def scan_github_bounties(config: dict[str, Any], max_queries: int | None = None)
         )
         full_url = f"{SEARCH_API_URL}?{params}"
         resp = github_get_json(full_url, timeout=15.0)
+        if not resp.ok and resp.status_code == 403 and (resp.rate_limit_remaining or 0) > 0:
+            # Secondary burst limit while primary quota remains: back off once and retry
+            time.sleep(6.0)
+            resp = github_get_json(full_url, timeout=15.0)
 
         if resp.ok and isinstance(resp.data, dict):
             any_success = True
@@ -324,16 +375,21 @@ def scan_github_bounties(config: dict[str, Any], max_queries: int | None = None)
                     "rate_limit_reset": resp.rate_limit_reset,
                 }
             )
-            if resp.rate_limited:
-                # Stop firing further search queries if bucket is exhausted
+            if resp.rate_limited and (resp.rate_limit_remaining or 0) == 0:
+                # Primary search bucket exhausted; stop firing further search queries
                 break
 
     used_cache_fallback = False
-    if not any_success:
-        cached = load_cached_bounties_if_available()
-        if cached:
+    if (not any_success or hit_rate_limit) and cached_prior:
+        if not any_success:
             used_cache_fallback = True
-            return cached, query_stats, used_cache_fallback
+        for c_item in cached_prior:
+            c_url = str(c_item.get("url") or "")
+            if not c_url or c_url in by_url:
+                continue
+            sanitized = recompute_cached_bounty_item(c_item, config)
+            if sanitized is not None:
+                by_url[c_url] = sanitized
 
     preliminary_sorted = sorted(
         by_url.values(),
@@ -362,17 +418,20 @@ def scan_github_bounties(config: dict[str, Any], max_queries: int | None = None)
     return ranked, query_stats, used_cache_fallback
 
 
-def is_strictly_actionable_bounty(item: dict[str, Any]) -> bool:
+def is_strictly_actionable_bounty(item: dict[str, Any], max_actionable_comments: int = 40) -> bool:
     """
     Strict gate: a bounty enters 'actionable_now' ONLY when:
       1. Payout tier is confirmed CN-friendly (`TIER_CN_FRIENDLY`) — NEVER `TIER_UNCONFIRMED` or `TIER_NEED_HK_STRIPE`.
       2. Issue is unassigned.
-      3. Has an explicit positive cash/crypto reward amount (not unconfirmed or non-cash site/API credits).
+      3. Comment count does not exceed `max_actionable_comments` (excludes heavily swarmed zombie issues).
+      4. Has an explicit positive cash/crypto reward amount (not unconfirmed or non-cash site/API credits).
     """
     tier = item.get("cn_payout_tier") or item.get("payout_tier")
     if tier != TIER_CN_FRIENDLY:
         return False
     if not bool(item.get("unassigned", True)):
+        return False
+    if int(item.get("comments") or 0) > max_actionable_comments:
         return False
     if bool(item.get("is_non_cash_credit", False)):
         return False
@@ -478,7 +537,16 @@ def render_markdown_report(
         lines.append("| :--- | :---: | :--- | :---: | :---: | :--- |")
         for b in verification_queue[:12]:
             issue_link = f"[{b['repo']}#{b['number']}]({b['url']}) — {_md_escape_table(b['title'], 44)}"
-            note_short = "疑似平台积分/代金券" if b.get("is_non_cash_credit") else "需确认打款通道与真实金额"
+            if b.get("is_non_cash_credit"):
+                note_short = "疑似平台积分/代金券"
+            elif int(b.get("comments") or 0) > 40:
+                note_short = "竞争过热(评论>40)，需先核实是否仍开放"
+            elif b.get("cn_payout_tier") == TIER_CN_FRIENDLY and b.get("reward_usd_est") is None:
+                note_short = "通道已确认，需核实具体悬赏金额"
+            elif b.get("cn_payout_tier") == TIER_UNCONFIRMED and b.get("cn_payout_rails"):
+                note_short = "需确认是否支持USDC/加密货币直收"
+            else:
+                note_short = "需确认打款通道与真实金额"
             lines.append(
                 f"| {issue_link} | **{b['estimated_reward']}** | {b['cn_payout_tier']} | "
                 f"{b['ai_solvability_score']}/100 | {b['comments']} | {note_short} |"
@@ -564,14 +632,24 @@ def main() -> int:
 
     if args.recompute_from_cache and LIVE_JSON_PATH.exists():
         cached = json.loads(LIVE_JSON_PATH.read_text(encoding="utf-8"))
-        bounties = cached.get("bounties", [])
-        for b in bounties:
-            if is_non_cash_reward_text(b.get("title", ""), f"{b.get('spec_excerpt', '')}\n{b.get('cn_payout_note', '')}"):
-                b["is_non_cash_credit"] = True
-                if b.get("cn_payout_tier") == TIER_CN_FRIENDLY:
-                    b["cn_payout_tier"] = TIER_UNCONFIRMED
+        raw_cached = cached.get("bounties", [])
+        bounties = []
+        for b in raw_cached:
+            sanitized = recompute_cached_bounty_item(b, config)
+            if sanitized is not None:
+                bounties.append(sanitized)
+        bounties.sort(
+            key=lambda x: (
+                float(x.get("action_priority_score") or 0.0),
+                int(x.get("ai_solvability_score") or 0),
+                float(x.get("reward_usd_est") or 0.0),
+            ),
+            reverse=True,
+        )
+        for rank_idx, item in enumerate(bounties, start=1):
+            item["rank"] = rank_idx
         query_stats = cached.get("query_stats", [])
-        used_cache_fallback = True
+        used_cache_fallback = bool(cached.get("used_cache_fallback", False))
     else:
         print(f"[Engine C] Reading config from: {args.config}")
         print(f"[Engine C] Querying live GitHub Search Issues API across {len(TARGETED_QUERIES)} targeted queries...")

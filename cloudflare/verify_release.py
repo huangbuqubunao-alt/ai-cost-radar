@@ -147,6 +147,22 @@ def main():
             assert jsonl_budget.get("parsed_usage_summary", {}).get("source_format") == "jsonl_multimodel", (
                 f"Unexpected JSONL parsed_usage_summary: {jsonl_budget}"
             )
+            csv_part = (
+                "model_permaslug,requests,tokens_prompt,tokens_completion,native_tokens_cached,native_tokens_reasoning,usage\n"
+                "qwen3-coder-next,5,25000,5000,10000,0,$0.02\n"
+            )
+            st_multi, body_multi = request_remote(
+                f"api/budget?model_id=auto&usage_snippet={quote(jsonl_sample, safe='')}&usage_snippet={quote(csv_part, safe='')}&days_observed=1&team_size=1"
+            )
+            assert st_multi == 200, f"/api/budget multi-file merge returned HTTP {st_multi}: {body_multi}"
+            multi_budget = json.loads(body_multi)
+            multi_summary = multi_budget.get("parsed_usage_summary", {})
+            assert multi_summary.get("source_format") == "multifile_merged", (
+                f"Unexpected multi-file source_format: {multi_summary}"
+            )
+            assert multi_summary.get("merged_files_count") == 2, (
+                f"Unexpected merged_files_count: {multi_summary}"
+            )
             st_feed, body_feed = request_remote("feeds/price-changes.xml")
             assert st_feed == 200 and "<feed" in body_feed, f"/feeds/price-changes.xml returned HTTP {st_feed}"
             st_admin, _ = request_remote("admin/stats")

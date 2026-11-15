@@ -138,6 +138,7 @@ function tryParseCsvBill(text, days, fxRate = 7.2) {
   const summaryLabels = new Set(["total", "totals", "sum", "summary", "合计", "总计", "汇总", "小计"]);
   const groups = new Map();
   const costHeaderCompact = colCost !== null ? compactHeaders[colCost] : "";
+  const headerSig = compactHeaders.join("\u0001");
 
   const cellNum = (r, idx) => {
     if (idx === null || idx >= r.length) return 0;
@@ -148,6 +149,10 @@ function tryParseCsvBill(text, days, fxRate = 7.2) {
 
   for (const r of rows.slice(1)) {
     if (!r || r.every((c) => !String(c ?? "").trim())) continue;
+    const rowCompact = r.map((c) => String(c ?? "").trim().replace(/^\ufeff/, "").replace(/^['"]|['"]$/g, "").toLowerCase().replace(/[\s_\-()/（）]+/g, ""));
+    if (rowCompact.join("\u0001") === headerSig) continue;
+    if ((colIn !== null && colIn < rowCompact.length && inAliases.has(rowCompact[colIn])) ||
+        (colOut !== null && colOut < rowCompact.length && outAliases.has(rowCompact[colOut]))) continue;
     const firstClean = String(r[0] ?? "").trim().toLowerCase();
     const modelRaw = colModel !== null && colModel < r.length ? String(r[colModel] ?? "").trim() : "";
     if (summaryLabels.has(firstClean) || summaryLabels.has(modelRaw.toLowerCase())) continue;
@@ -267,7 +272,7 @@ function tryParseCsvBill(text, days, fxRate = 7.2) {
   };
 }
 
-export function tryParseJsonRecordsBill(text, days, fxRate = 7.2) {
+function extractJsonRecordsRaw(text) {
   let rawRecords = null;
   let sourceFormat = null;
 
@@ -333,9 +338,11 @@ export function tryParseJsonRecordsBill(text, days, fxRate = 7.2) {
       }
     }
   }
-
   if (!rawRecords || !sourceFormat) return null;
+  return {rawRecords, sourceFormat};
+}
 
+function collectJsonRecordEntries(rawRecords, fxRate = 7.2) {
   const safeNum = (v) => {
     if (v === undefined || v === null || typeof v === "object" || typeof v === "boolean") return 0;
     try {
@@ -451,16 +458,16 @@ export function tryParseJsonRecordsBill(text, days, fxRate = 7.2) {
       anonEntries.push(entry);
     }
   }
+  return {entries: [...dedupedEntries.values(), ...anonEntries], deduplicatedChunks};
+}
 
-  const allEntries = [...dedupedEntries.values(), ...anonEntries];
-  if (allEntries.length === 0) throw new Error("JSON/JSONL bill contains zero positive token records");
-
+function buildMultimodelPortfolioFromEntries(allEntries, days, sourceFormat, deduplicatedChunks = 0, mergedFilesCount = null) {
   const groups = new Map();
   for (const ent of allEntries) {
-    const gKey = ent.model.toLowerCase();
+    const gKey = String(ent.model).toLowerCase();
     if (!groups.has(gKey)) {
       groups.set(gKey, {
-        model: ent.model,
+        model: String(ent.model),
         requests: 0,
         input_tokens: 0,
         cached_input_tokens: 0,
@@ -470,12 +477,12 @@ export function tryParseJsonRecordsBill(text, days, fxRate = 7.2) {
       });
     }
     const grp = groups.get(gKey);
-    grp.requests += ent.requests;
-    grp.input_tokens += ent.input_tokens;
-    grp.cached_input_tokens += ent.cached_input_tokens;
-    grp.output_tokens += ent.output_tokens;
-    grp.reasoning_tokens += ent.reasoning_tokens;
-    grp.reported_cost_rmb += ent.reported_cost_rmb;
+    grp.requests += Number(ent.requests || 0);
+    grp.input_tokens += Number(ent.input_tokens || 0);
+    grp.cached_input_tokens += Number(ent.cached_input_tokens || 0);
+    grp.output_tokens += Number(ent.output_tokens || 0);
+    grp.reasoning_tokens += Number(ent.reasoning_tokens || 0);
+    grp.reported_cost_rmb += Number(ent.reported_cost_rmb || 0);
   }
 
   const sortedGroups = [...groups.values()].sort(
@@ -512,7 +519,7 @@ export function tryParseJsonRecordsBill(text, days, fxRate = 7.2) {
   const cacheHitRate = totalIn > 0 ? Math.round((totalCached / totalIn) * 10000) / 10000 : 0;
   const dailyRequests = Math.max(1, Math.round(totalReqs / days));
   const monthlyRequests = Math.max(1, Math.round((totalReqs / days) * 30));
-  return {
+  const out = {
     detected_format: "csv_multimodel_bill",
     source_format: sourceFormat,
     deduplicated_chunks: deduplicatedChunks,
@@ -535,6 +542,89 @@ export function tryParseJsonRecordsBill(text, days, fxRate = 7.2) {
     monthly_reported_cost_rmb: Math.round((((totalCostRmb / days) * 30) + Number.EPSILON) * 100) / 100,
     model_breakdown: modelBreakdown,
   };
+  if (mergedFilesCount !== null) out.merged_files_count = mergedFilesCount;
+  return out;
+}
+
+export function tryParseJsonRecordsBill(text, days, fxRate = 7.2) {
+  const extracted = extractJsonRecordsRaw(text);
+  if (!extracted) return null;
+  const {entries, deduplicatedChunks} = collectJsonRecordEntries(extracted.rawRecords, fxRate);
+  if (entries.length === 0) throw new Error("JSON/JSONL bill contains zero positive token records");
+  return buildMultimodelPortfolioFromEntries(entries, days, extracted.sourceFormat, deduplicatedChunks);
+}
+
+export function mergeUsageSnippets(snippets, daysObserved = 30, fxRate = 7.2) {
+  if (!Array.isArray(snippets)) throw new Error("usage_snippets must be an array");
+  const cleaned = snippets.map((s) => String(s ?? "").trim()).filter(Boolean);
+  if (cleaned.length === 0 || cleaned.length > 50) throw new Error("Invalid usage_snippets");
+  const days = Number(daysObserved ?? 30);
+  if (!Number.isFinite(days) || days <= 0 || days > 365) throw new Error("Invalid days_observed");
+  const totalChars = cleaned.reduce((acc, s) => acc + s.length, 0);
+  if (totalChars > 500000 || cleaned.some((s) => s.length > 120000)) throw new Error("Oversized usage_snippets");
+
+  if (cleaned.length === 1) {
+    const single = parseUsageSnippet(cleaned[0], days);
+    return {...single, merged_files_count: 1};
+  }
+
+  const combinedJsonRecords = [];
+  const otherEntries = [];
+  for (const snippet of cleaned) {
+    const ext = extractJsonRecordsRaw(snippet);
+    if (ext) {
+      combinedJsonRecords.push(...ext.rawRecords);
+      continue;
+    }
+    let csvParsed = null;
+    try {
+      csvParsed = tryParseCsvBill(snippet, days, fxRate);
+    } catch {
+      csvParsed = null;
+    }
+    if (csvParsed) {
+      for (const row of (csvParsed.model_breakdown || [])) {
+        otherEntries.push({
+          model: row.model,
+          requests: Number(row.requests || 1),
+          input_tokens: Number(row.input_tokens || 0),
+          cached_input_tokens: Number(row.cached_input_tokens || 0),
+          output_tokens: Number(row.output_tokens || 0),
+          reasoning_tokens: Number(row.reasoning_tokens || 0),
+          reported_cost_rmb: Number(row.reported_cost_rmb || 0),
+        });
+      }
+      continue;
+    }
+    let singleParsed = null;
+    try {
+      singleParsed = parseUsageSnippet(snippet, days);
+    } catch {
+      continue;
+    }
+    if (singleParsed.detected_format === "csv_multimodel_bill") {
+      for (const row of (singleParsed.model_breakdown || [])) {
+        otherEntries.push(row);
+      }
+    } else {
+      otherEntries.push({
+        model: ["claude_code_cost", "anthropic_usage_json"].includes(singleParsed.detected_format) ? "claude-sonnet-4" : "deepseek-v3",
+        requests: Math.max(1, Math.round(Number(singleParsed.daily_requests || 1) * days)),
+        input_tokens: Number(singleParsed.total_input_tokens || 0),
+        cached_input_tokens: Number(singleParsed.cached_input_tokens || 0),
+        output_tokens: Number(singleParsed.total_output_tokens || 0),
+        reasoning_tokens: singleParsed.output_includes_reasoning ? 1 : 0,
+        reported_cost_rmb: 0,
+      });
+    }
+  }
+
+  const {entries: jsonEntries, deduplicatedChunks} = combinedJsonRecords.length > 0
+    ? collectJsonRecordEntries(combinedJsonRecords, fxRate)
+    : {entries: [], deduplicatedChunks: 0};
+  const allEntries = [...jsonEntries, ...otherEntries];
+  if (allEntries.length === 0) throw new Error("Merged usage_snippets contain zero positive token records");
+  return buildMultimodelPortfolioFromEntries(allEntries, days, "multifile_merged", deduplicatedChunks, cleaned.length);
 }
 
 export function parseUsageSnippet(rawText, daysObserved = 30, defaultTokensPerCall = 4000) {
@@ -1103,10 +1193,28 @@ export function calculateBudget(catalog, params) {
   let parsedUsageSummary = null;
   let billAudit = null;
 
-  if (params.has("usage_snippet")) {
-    const rawSnippet = params.get("usage_snippet");
+  if (params.has("usage_snippet") || params.has("usage_snippets")) {
     const daysObs = params.has("days_observed") ? number(params, "days_observed", 30, 365) : 30;
-    parsedUsageSummary = parseUsageSnippet(rawSnippet, daysObs);
+    const fxRate = Number(catalog.fx_rate_usd_to_rmb || 7.2);
+    const repeatedSnippets = params.getAll("usage_snippet");
+    let jsonArraySnippets = [];
+    if (params.has("usage_snippets")) {
+      let parsedArr;
+      try {
+        parsedArr = JSON.parse(params.get("usage_snippets"));
+      } catch {
+        throw new Error("Invalid usage_snippets JSON array");
+      }
+      if (!Array.isArray(parsedArr)) throw new Error("Invalid usage_snippets JSON array");
+      jsonArraySnippets = parsedArr.map((x) => String(x ?? ""));
+    }
+    const allSnippets = [...jsonArraySnippets, ...repeatedSnippets];
+    if (allSnippets.length > 1 || params.has("usage_snippets")) {
+      parsedUsageSummary = mergeUsageSnippets(allSnippets, daysObs, fxRate);
+    } else {
+      const rawSnippet = params.get("usage_snippet");
+      parsedUsageSummary = parseUsageSnippet(rawSnippet, daysObs);
+    }
     daily = parsedUsageSummary.daily_requests;
     input = parsedUsageSummary.avg_input_tokens;
     output = parsedUsageSummary.avg_output_tokens;
