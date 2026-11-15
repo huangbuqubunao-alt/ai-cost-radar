@@ -7,11 +7,11 @@
   "build_date": "2026-11-15",
   "updated_at": "2026-11-15",
   "quote_verified_date": "2026-11-13",
-  "last_live_verified_at": "2026-11-15 01:50:55",
+  "last_live_verified_at": "2026-11-15 05:29:13",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
   "official_rule_audit": {
-    "checked_at": "2026-11-15T01:50:55Z",
+    "checked_at": "2026-11-15T05:29:13Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -23,7 +23,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-15T01:50:55Z",
+        "last_verified_at": "2026-11-15T05:29:13Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -55,7 +55,7 @@
           "interactive_ide_only"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-15T01:50:55Z",
+        "last_verified_at": "2026-11-15T05:29:13Z",
         "last_verified_groups": [
           "tiers_lite_pro",
           "quota_window_5h",
@@ -577,41 +577,6 @@
       "signup_url": "https://openrouter.ai"
     },
     {
-      "id": "qwen/qwen3.5-9b",
-      "anchor_id": "model-qwen-qwen3-5-9b",
-      "name": "Qwen: Qwen3.5-9B",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "qwen/qwen3.5-9b",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "affiliate_url": "https://openrouter.ai",
-      "region": "global",
-      "input_usd_per_1m": 0.03,
-      "output_usd_per_1m": 0.044,
-      "input_rmb_per_1m": 0.216,
-      "output_rmb_per_1m": 0.3168,
-      "blended_usd_per_1m": 0.0335,
-      "blended_rmb_per_1m": 0.2412,
-      "context_length": 262144,
-      "supports_tools": true,
-      "is_free": false,
-      "has_free_quota": false,
-      "is_batch": false,
-      "open_weights": true,
-      "value_score": 93.8,
-      "tags": [
-        "cheap",
-        "coding",
-        "global",
-        "reasoning"
-      ],
-      "bonus_note": "统一多模型按量网关",
-      "bonus_note_en": "Unified Multi-LLM API",
-      "signup_url": "https://openrouter.ai"
-    },
-    {
       "id": "deepseek/deepseek-v4.1-flash-1017",
       "anchor_id": "model-deepseek-deepseek-v4-1-flash-1017",
       "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
@@ -1091,6 +1056,41 @@
       "is_batch": false,
       "open_weights": false,
       "value_score": 89.0,
+      "tags": [
+        "cheap",
+        "coding",
+        "global",
+        "reasoning"
+      ],
+      "bonus_note": "统一多模型按量网关",
+      "bonus_note_en": "Unified Multi-LLM API",
+      "signup_url": "https://openrouter.ai"
+    },
+    {
+      "id": "qwen/qwen3.7-plus",
+      "anchor_id": "model-qwen-qwen3-7-plus",
+      "name": "Qwen: Qwen3.7 Plus",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "qwen/qwen3.7-plus",
+      "cache_hit_factor": 0.5,
+      "perf_note": "",
+      "affiliate_url": "https://openrouter.ai",
+      "region": "global",
+      "input_usd_per_1m": 0.32,
+      "output_usd_per_1m": 1.28,
+      "input_rmb_per_1m": 2.304,
+      "output_rmb_per_1m": 9.216,
+      "blended_usd_per_1m": 0.56,
+      "blended_rmb_per_1m": 4.032,
+      "context_length": 1000000,
+      "supports_tools": true,
+      "is_free": false,
+      "has_free_quota": false,
+      "is_batch": false,
+      "open_weights": true,
+      "value_score": 88.9,
       "tags": [
         "cheap",
         "coding",
