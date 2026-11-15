@@ -325,7 +325,7 @@
             "name": "model_id",
             "in": "query",
             "required": true,
-            "description": "模型完整 id 或常用 api_model_id（支持大小写容错，例如 aliyun-bailian/qwen3-coder-next、qwen3.5-plus、deepseek-v3、siliconflow/THUDM/GLM-5）",
+            "description": "模型完整 id 或常用 api_model_id（支持大小写容错，例如 aliyun-bailian/qwen3-coder-next、qwen3.5-plus、deepseek-v3；当 usage_snippet 传入多模型 CSV 账单时可传 auto）",
             "schema": {
               "type": "string"
             }
@@ -465,7 +465,7 @@
             "name": "usage_snippet",
             "in": "query",
             "required": false,
-            "description": "可选：Claude Code /cost 日志、OpenAI/百炼 usage JSON 或云控制台统计文本",
+            "description": "可选：OpenRouter Activity 多模型 CSV/TSV 账单、云控制台 CSV 导出、Claude Code /cost 日志、OpenAI/百炼 usage JSON 或统计文本（传入 CSV 时自动返回 bill_audit 多模型降本审计）",
             "schema": {
               "type": "string"
             }

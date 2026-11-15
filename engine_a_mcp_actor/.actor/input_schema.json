@@ -51,7 +51,7 @@
     "model_query": {
       "title": "Model Query (for calculate_api_budget)",
       "type": "string",
-      "description": "Model ID or keyword (e.g. 'claude-sonnet-4', 'deepseek-v3', 'qwen3', 'gpt-5').",
+      "description": "Model ID or keyword (e.g. 'claude-sonnet-4', 'deepseek-v3', 'qwen3', or 'auto' when passing a multi-model CSV bill in usage_snippet).",
       "editor": "textfield",
       "default": "deepseek-v3"
     },
@@ -109,9 +109,9 @@
       "description": "Optional monthly cached input tokens in millions to compute exact cache_hit_rate."
     },
     "usage_snippet": {
-      "title": "Optional Raw Usage Log / JSON Snippet",
+      "title": "Optional Multi-Model CSV Bill / Raw Usage Log / JSON Snippet",
       "type": "string",
-      "description": "Paste Claude Code `/cost` output, OpenAI/Bailian `usage` JSON, or cloud console summary to auto-parse usage.",
+      "description": "Paste an OpenRouter Activity CSV, cloud console CSV/TSV bill, Claude Code `/cost` output, OpenAI/Bailian `usage` JSON, or cloud console summary to auto-parse usage and generate `bill_audit`.",
       "editor": "textarea"
     },
     "days_observed": {

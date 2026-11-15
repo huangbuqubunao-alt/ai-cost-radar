@@ -530,7 +530,7 @@ console.log(JSON.stringify({status: res.status, body: await res.json()}));
             sync_sh = sync_sh_path.read_text(encoding="utf-8")
             self.assertIn("test_round6_product_iteration", sync_sh)
             readme = (ROOT / "README.md").read_text(encoding="utf-8")
-            self.assertIn("v3.6", readme)
+            self.assertRegex(readme, r"\bv3\.(?:[6-9]|\d{2,})\b")
             self.assertIn("test_round6_product_iteration", readme)
         article = (ROOT / "marketing_pack" / "01_juejin_zhihu_article.md").read_text(encoding="utf-8")
         self.assertIn("ark.cn-beijing.volces.com/api/coding", article)

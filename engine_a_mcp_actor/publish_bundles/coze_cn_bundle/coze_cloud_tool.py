@@ -841,6 +841,410 @@ def _parse_scaled_num(raw_val: Any) -> float:
     return max(0.0, base * mult_map.get(unit, 1.0))
 
 
+def _parse_currency_rmb(raw_val: Any, header_compact: str, fx_rate: float = DEFAULT_FX_USD_TO_RMB) -> float:
+    import re
+
+    s = str(raw_val or "").strip()
+    if not s or s.lower() in ("-", "n/a", "na", "null", "none"):
+        return 0.0
+    s_low = s.lower()
+    if any(sym in s_low for sym in ("¥", "￥", "rmb", "cny", "元")):
+        is_rmb = True
+    elif any(sym in s_low for sym in ("$", "usd")):
+        is_rmb = False
+    elif any(k in header_compact for k in ("rmb", "cny", "应付金额", "账单金额", "消费金额", "费用", "金额", "花费", "总费用", "元")):
+        is_rmb = True
+    else:
+        is_rmb = False
+    cleaned = re.sub(r"^(?:usd|rmb|cny|us\$|[$¥￥])\s*", "", s, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*(?:usd|rmb|cny|元)$", "", cleaned, flags=re.IGNORECASE).strip()
+    if not cleaned:
+        return 0.0
+    val = _parse_scaled_num(cleaned)
+    return val if is_rmb else val * fx_rate
+
+
+def _try_parse_csv_bill(text: str, days: float, fx_rate: float = DEFAULT_FX_USD_TO_RMB) -> dict[str, Any] | None:
+    import csv
+    import io
+    import re
+
+    raw_lines = []
+    for ln in text.splitlines():
+        stripped = ln.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if re.match(r"^\|?[\s:\-]+(?:\|[\s:\-]+)+\|?$", stripped):
+            continue
+        raw_lines.append(stripped)
+    if len(raw_lines) < 2:
+        return None
+
+    header_line = raw_lines[0]
+    is_pipe = header_line.count("|") >= 2
+    delim: str | None = None
+    if is_pipe:
+        delim = "|"
+    else:
+        counts = [(d, header_line.count(d)) for d in ("\t", ",", ";")]
+        counts.sort(key=lambda x: x[1], reverse=True)
+        if counts[0][1] >= 1:
+            delim = counts[0][0]
+    if delim is None:
+        return None
+
+    rows = (
+        [[cell.strip().strip('"').strip("'") for cell in ln.strip("|").split("|")] for ln in raw_lines]
+        if is_pipe
+        else list(csv.reader(io.StringIO("\n".join(raw_lines)), delimiter=delim))
+    )
+    if len(rows) < 2:
+        return None
+    raw_headers = [str(c or "").strip().lstrip("\ufeff").strip('"').strip("'") for c in rows[0]]
+    if len(raw_headers) < 2 or any(re.match(r"^[0-9.]+$", h) for h in raw_headers if h):
+        return None
+    compact_headers = [re.sub(r"[\s_\-()/（）]+", "", h.lower()) for h in raw_headers]
+
+    def _find_col(alias_set: set[str]) -> int | None:
+        for idx, ch in enumerate(compact_headers):
+            if ch in alias_set:
+                return idx
+        return None
+
+    col_model = _find_col({"model", "modelid", "modelname", "modelpermaslug", "modelslug", "permaslug", "endpoint", "模型", "模型名称", "模型id", "调用模型"})
+    col_req = _find_col({"requests", "requestcount", "numrequests", "calls", "apicalls", "totalrequests", "totalcalls", "count", "调用次数", "请求次数", "请求数", "调用量"})
+    col_in = _find_col({"tokensprompt", "nativetokensprompt", "prompttokens", "inputtokens", "totalinputtokens", "input", "prompt", "输入token", "输入tokens", "输入token数", "提问token", "入参token"})
+    col_out = _find_col({"tokenscompletion", "nativetokenscompletion", "completiontokens", "outputtokens", "totaloutputtokens", "output", "completion", "输出token", "输出tokens", "输出token数", "回答token", "出参token"})
+    col_cached = _find_col({"nativetokenscached", "cachedtokens", "cachedinputtokens", "prompttokenscached", "cachehit", "缓存命中token", "缓存命中tokens", "命中缓存token", "缓存token", "缓存输入token", "命中缓存"})
+    col_cread = _find_col({"cachereadinputtokens", "cachereadtokens", "cacheread"})
+    col_cwrite = _find_col({"cachecreationinputtokens", "cachewritetokens", "cachewrite", "缓存写入token"})
+    col_reason = _find_col({"nativetokensreasoning", "reasoningtokens", "thinkingtokens", "思考token", "思考tokens", "推理token"})
+    col_cost = _find_col({"usage", "cost", "totalcost", "spend", "amount", "bill", "costusd", "spendusd", "costrmb", "costcny", "应付金额", "账单金额", "消费金额", "费用", "金额", "花费", "总费用"})
+
+    if col_in is None and col_out is None:
+        return None
+
+    summary_labels = {"total", "totals", "sum", "summary", "合计", "总计", "汇总", "小计"}
+    groups: dict[str, dict[str, Any]] = {}
+    cost_header_compact = compact_headers[col_cost] if col_cost is not None else ""
+
+    def _cell_num(r: list[str], idx: int | None) -> float:
+        if idx is None or idx >= len(r):
+            return 0.0
+        v = str(r[idx] or "").strip()
+        if not v or v.lower() in ("-", "n/a", "na", "null", "none"):
+            return 0.0
+        return _parse_scaled_num(v)
+
+    for r in rows[1:]:
+        if not r or all(not str(c or "").strip() for c in r):
+            continue
+        first_clean = str(r[0] or "").strip().lower()
+        model_raw = str(r[col_model] if (col_model is not None and col_model < len(r)) else "").strip()
+        if first_clean in summary_labels or model_raw.lower() in summary_labels:
+            continue
+        in_val = _cell_num(r, col_in)
+        out_val = _cell_num(r, col_out)
+        cached_sub_val = _cell_num(r, col_cached)
+        cread_val = _cell_num(r, col_cread)
+        cwrite_val = _cell_num(r, col_cwrite)
+        reason_val = _cell_num(r, col_reason)
+        if col_cread is not None or col_cwrite is not None:
+            row_in = in_val + cread_val + cwrite_val
+            row_cached = cread_val
+        else:
+            row_in = max(in_val, cached_sub_val)
+            row_cached = min(row_in, cached_sub_val)
+        if row_in <= 0 and out_val <= 0:
+            continue
+        row_reqs = (_cell_num(r, col_req) or 1.0) if col_req is not None else 1.0
+        row_cost_rmb = _parse_currency_rmb(r[col_cost], cost_header_compact, fx_rate=fx_rate) if (col_cost is not None and col_cost < len(r)) else 0.0
+        model_label = model_raw or "unknown"
+        g_key = model_label.lower()
+        if g_key not in groups:
+            groups[g_key] = {
+                "model": model_label,
+                "requests": 0.0,
+                "input_tokens": 0.0,
+                "cached_input_tokens": 0.0,
+                "output_tokens": 0.0,
+                "reasoning_tokens": 0.0,
+                "reported_cost_rmb": 0.0,
+            }
+        grp = groups[g_key]
+        grp["requests"] += row_reqs
+        grp["input_tokens"] += row_in
+        grp["cached_input_tokens"] += row_cached
+        grp["output_tokens"] += out_val
+        grp["reasoning_tokens"] += reason_val
+        grp["reported_cost_rmb"] += row_cost_rmb
+
+    if not groups:
+        raise ValueError("CSV bill contains zero positive token rows")
+
+    sorted_groups = sorted(
+        groups.values(),
+        key=lambda g: (g["reported_cost_rmb"], g["input_tokens"] + g["output_tokens"]),
+        reverse=True,
+    )
+    model_breakdown: list[dict[str, Any]] = []
+    total_reqs = total_in = total_cached = total_out = total_reason = total_cost_rmb = 0.0
+    for g in sorted_groups:
+        g_in = g["input_tokens"]
+        g_cached = min(g_in, max(0.0, g["cached_input_tokens"]))
+        total_reqs += g["requests"]
+        total_in += g_in
+        total_cached += g_cached
+        total_out += g["output_tokens"]
+        total_reason += g["reasoning_tokens"]
+        total_cost_rmb += g["reported_cost_rmb"]
+        model_breakdown.append(
+            {
+                "model": g["model"],
+                "requests": int(round(g["requests"])),
+                "input_tokens": int(round(g_in)),
+                "cached_input_tokens": int(round(g_cached)),
+                "output_tokens": int(round(g["output_tokens"])),
+                "reasoning_tokens": int(round(g["reasoning_tokens"])),
+                "cache_hit_rate": round(g_cached / g_in, 4) if g_in > 0 else 0.0,
+                "output_includes_reasoning": bool(g["reasoning_tokens"] > 0),
+                "reported_cost_rmb": round(g["reported_cost_rmb"], 4),
+            }
+        )
+
+    daily_requests = max(1, int(round(total_reqs / days)))
+    monthly_requests = max(1, int(round((total_reqs / days) * 30.0)))
+    return {
+        "detected_format": "csv_multimodel_bill",
+        "days_observed": days,
+        "distinct_models_count": len(model_breakdown),
+        "total_requests": int(round(total_reqs)),
+        "monthly_requests": monthly_requests,
+        "total_input_tokens": int(round(total_in)),
+        "cached_input_tokens": int(round(total_cached)),
+        "total_output_tokens": int(round(total_out)),
+        "monthly_input_m": round(((total_in / days) * 30.0) / 1_000_000.0, 6),
+        "monthly_output_m": round(((total_out / days) * 30.0) / 1_000_000.0, 6),
+        "daily_requests": daily_requests,
+        "avg_input_tokens": max(1, int(round(total_in / max(1.0, total_reqs)))) if total_in > 0 else 1500,
+        "avg_output_tokens": max(1, int(round(total_out / max(1.0, total_reqs)))) if total_out > 0 else 500,
+        "cache_hit_rate": round(total_cached / total_in, 4) if total_in > 0 else 0.0,
+        "output_includes_reasoning": bool(total_reason > 0),
+        "calls_estimated": False,
+        "reported_cost_rmb": round(total_cost_rmb, 2),
+        "monthly_reported_cost_rmb": round((total_cost_rmb / days) * 30.0, 2),
+        "model_breakdown": model_breakdown,
+    }
+
+
+def _match_model_in_catalog(models: list[dict[str, Any]], raw_q: str) -> dict[str, Any]:
+    raw = str(raw_q or "deepseek-v3").strip() or "deepseek-v3"
+    q = raw.lower()
+    norm_q = q
+    if norm_q.startswith("aliyun/"):
+        norm_q = "aliyun-bailian/" + norm_q.removeprefix("aliyun/")
+    elif norm_q.startswith("tencent/"):
+        norm_q = "tencent-cloud/" + norm_q.removeprefix("tencent/")
+    for m in models:
+        if m["id"] == raw or m["id"].lower() == norm_q:
+            return m
+    suffix_matches = [
+        m for m in models
+        if str(m.get("api_model_id") or "").lower() == q or m["id"].lower().endswith("/" + q)
+    ]
+    if suffix_matches:
+        suffix_matches.sort(
+            key=lambda item: (
+                1 if item.get("region") == "cn_direct" else 0,
+                0 if item.get("is_free") else 1,
+                float(item.get("value_score") or 0.0),
+            ),
+            reverse=True,
+        )
+        return suffix_matches[0]
+    wants_free = "free" in q
+    best_match = models[0]
+    best_rank = -1.0
+    q_tokens = [tok for tok in norm_q.replace("/", " ").replace("-", " ").split() if tok]
+    for m in models:
+        mid = m["id"].lower()
+        api_id = str(m.get("api_model_id") or "").lower()
+        mname = m["name"].lower()
+        hay = f"{mid} {api_id} {mname} {m['provider'].lower()}"
+        score = 0.0
+        if norm_q in mid or (api_id and q in api_id):
+            score = 700.0
+        elif q in mname:
+            score = 600.0
+        elif q_tokens and all(tok in hay for tok in q_tokens):
+            score = 500.0
+        elif q_tokens:
+            overlap = sum(1 for tok in q_tokens if tok in hay)
+            if overlap > 0:
+                score = overlap * 120.0
+        if score > 0:
+            if not wants_free and m.get("is_free"):
+                score -= 50.0
+            score += float(m.get("value_score", 0.0)) * 0.1
+            if score > best_rank:
+                best_rank = score
+                best_match = m
+    return best_match
+
+
+def _audit_csv_bill_coze(
+    models: list[dict[str, Any]],
+    parsed: dict[str, Any],
+    usage_mode: str,
+    seats: int,
+    offers: list[dict[str, Any]] | None,
+) -> dict[str, Any]:
+    days = float(parsed["days_observed"])
+    scale_30d = 30.0 / days
+    norm_mode = "automated_backend" if str(usage_mode or "").strip().lower() in (
+        "automated_backend", "backend", "api_service", "batch", "non_interactive"
+    ) else "interactive_ide"
+    workhorses = [
+        m for m in models
+        if m.get("region") == "cn_direct"
+        and not m.get("is_free")
+        and int(m.get("context_length") or 0) >= 64000
+        and not any(tok in m["id"].lower() for tok in ("7b", "8b", "lite", "turbo", "mini", "flash"))
+    ]
+    line_items: list[dict[str, Any]] = []
+    has_global_closed = False
+    for grp in parsed.get("model_breakdown", []):
+        raw_model_name = str(grp["model"])
+        raw_low = raw_model_name.lower()
+        m_reqs = max(1, int(round(float(grp["requests"]) * scale_30d)))
+        m_in_m = (float(grp["input_tokens"]) * scale_30d) / 1_000_000.0
+        m_out_m = (float(grp["output_tokens"]) * scale_30d) / 1_000_000.0
+        hit_rate = float(grp["cache_hit_rate"])
+        reported_monthly_rmb = round(float(grp["reported_cost_rmb"]) * scale_30d, 2)
+        matched = _match_model_in_catalog(models, raw_model_name)
+        matched_id_low = matched["id"].lower()
+        if matched.get("region") == "global" and any(
+            v in raw_low or v in matched_id_low
+            for v in ("anthropic", "claude", "openai", "gpt-", "o1", "o3", "o4", "google", "gemini", "x-ai", "grok")
+        ):
+            has_global_closed = True
+        m_hit = float(matched.get("cache_hit_factor") if matched.get("cache_hit_factor") is not None else (0.2 if matched.get("region") == "cn_direct" else 0.5))
+        catalog_payg_rmb = round(
+            _calc_token_bill(m_in_m, m_out_m, matched["input_rmb_per_1m"], matched["output_rmb_per_1m"], hit_rate, m_hit, 1.0, True)["total_cost"],
+            2,
+        )
+        baseline_rmb = reported_monthly_rmb if reported_monthly_rmb > 0 else catalog_payg_rmb
+        needs_reasoning = bool(
+            grp.get("output_includes_reasoning")
+            or any(k in raw_low for k in ("-r1", "/r1", "deepseek-r1", "o1", "o3", "o4", "qwq", "hunyuan-t1", "thinking", "reasoner"))
+        )
+        req_tag = "reasoning" if needs_reasoning else "coding"
+        pool = [c for c in workhorses if req_tag in (c.get("tags") or [])] or workhorses
+        best_cand = None
+        best_cand_rmb = baseline_rmb
+        best_cand_score = -1.0
+        for cand in pool:
+            c_hit = float(cand.get("cache_hit_factor") if cand.get("cache_hit_factor") is not None else 0.2)
+            c_rmb = round(_calc_token_bill(m_in_m, m_out_m, cand["input_rmb_per_1m"], cand["output_rmb_per_1m"], hit_rate, c_hit, 1.0, True)["total_cost"], 2)
+            c_score = float(cand.get("value_score") or 0.0)
+            if best_cand is None or c_rmb < best_cand_rmb or (c_rmb == best_cand_rmb and c_score > best_cand_score):
+                best_cand = cand
+                best_cand_rmb = c_rmb
+                best_cand_score = c_score
+        if best_cand is not None and best_cand_rmb < baseline_rmb - 0.005:
+            rec_model, opt_rmb, action = best_cand, round(best_cand_rmb, 2), "switch_cn_direct"
+        else:
+            rec_model, opt_rmb, action = matched, round(baseline_rmb, 2), "keep_current"
+        sav_rmb = round(max(0.0, baseline_rmb - opt_rmb), 2)
+        sav_pct = round((sav_rmb / baseline_rmb) * 100.0, 1) if baseline_rmb > 0 else 0.0
+        line_items.append(
+            {
+                "raw_model": raw_model_name,
+                "matched_model_id": matched["id"],
+                "matched_model_name": matched["name"],
+                "monthly_requests": m_reqs,
+                "monthly_input_m": round(m_in_m, 4),
+                "monthly_output_m": round(m_out_m, 4),
+                "cache_hit_rate": hit_rate,
+                "reported_monthly_rmb": reported_monthly_rmb,
+                "catalog_payg_rmb": catalog_payg_rmb,
+                "baseline_monthly_rmb": round(baseline_rmb, 2),
+                "recommended_model_id": rec_model["id"],
+                "recommended_model_name": rec_model["name"],
+                "recommended_signup_url": rec_model.get("signup_url") or rec_model.get("affiliate_url") or "",
+                "optimized_payg_rmb": opt_rmb,
+                "savings_rmb": sav_rmb,
+                "savings_pct": sav_pct,
+                "action": action,
+            }
+        )
+
+    total_m_reqs = sum(x["monthly_requests"] for x in line_items)
+    total_base_rmb = round(sum(x["baseline_monthly_rmb"] for x in line_items), 2)
+    total_cat_rmb = round(sum(x["catalog_payg_rmb"] for x in line_items), 2)
+    total_opt_rmb = round(sum(x["optimized_payg_rmb"] for x in line_items), 2)
+    total_sav_rmb = round(max(0.0, total_base_rmb - total_opt_rmb), 2)
+    total_sav_pct = round((total_sav_rmb / total_base_rmb) * 100.0, 1) if total_base_rmb > 0 else 0.0
+
+    coding_plan_option = None
+    if norm_mode == "interactive_ide":
+        sub_offers = [o for o in (offers or SUBSCRIPTION_OFFERS_2026) if isinstance(o, dict) and o.get("offer_type") == "subscription"] or SUBSCRIPTION_OFFERS_2026
+        fits_lite = total_m_reqs <= (LITE_MONTHLY_CAP * seats)
+        fits_pro = total_m_reqs <= (PRO_MONTHLY_CAP * seats)
+        target_id = "tencent-coding-plan" if fits_lite else "aliyun-coding-plan"
+        chosen_offer = next((o for o in sub_offers if o["id"] == target_id), sub_offers[0])
+        tier_id = "lite" if (fits_lite and any(t.get("tier_id") == "lite" and t.get("purchasable") for t in chosen_offer.get("tiers", []))) else "pro"
+        chosen_tier = next((t for t in chosen_offer.get("tiers", []) if t.get("tier_id") == tier_id), (chosen_offer.get("tiers") or [{}])[-1])
+        raw_first = chosen_tier.get("first_month_rmb")
+        unit_renew = float(chosen_tier.get("renewal_rmb") or 200.0)
+        unit_first = float(raw_first) if raw_first is not None else unit_renew
+        first_rmb = round(unit_first * seats, 2)
+        renew_rmb = round(unit_renew * seats, 2)
+        cap_monthly = int(chosen_tier.get("quota_monthly") or PRO_MONTHLY_CAP) * seats
+        has_cross_caveat = bool(
+            has_global_closed
+            or any(not _plan_covers_model(chosen_offer, item["matched_model_id"]) for item in line_items)
+        )
+        coding_plan_option = {
+            "plan_id": chosen_offer["id"],
+            "plan_name": chosen_offer["name"],
+            "official_source_url": chosen_offer.get("official_source_url", ""),
+            "team_size": seats,
+            "tier_id": tier_id,
+            "tier_name": chosen_tier.get("name", "Pro"),
+            "fits_monthly_cap": fits_pro,
+            "combined_monthly_cap": cap_monthly,
+            "first_month_rmb": first_rmb,
+            "renewal_rmb": renew_rmb,
+            "vs_baseline_renewal_savings_rmb": round(total_base_rmb - renew_rmb, 2) if fits_pro else None,
+            "cheaper_than_optimized_payg_on_renewal": bool(fits_pro and renew_rmb < total_opt_rmb),
+            "has_cross_model_caveat": has_cross_caveat,
+            "caveat_zh": (
+                "原账单含 Claude/GPT 等海外闭源或非套餐同系模型；国内 Coding Plan 仅覆盖千问/混元/豆包/Kimi/GLM/MiniMax/DeepSeek-V3，切换前请先评估代码质量差异。"
+                if has_cross_caveat
+                else "原账单模型均在国内 Coding Plan 覆盖体系内。"
+            ),
+        }
+
+    return {
+        "days_observed": days,
+        "usage_mode": norm_mode,
+        "team_size": seats,
+        "line_items": line_items,
+        "totals": {
+            "distinct_models_count": len(line_items),
+            "monthly_requests": total_m_reqs,
+            "baseline_monthly_rmb": total_base_rmb,
+            "catalog_payg_monthly_rmb": total_cat_rmb,
+            "optimized_payg_monthly_rmb": total_opt_rmb,
+            "payg_savings_rmb": total_sav_rmb,
+            "payg_savings_pct": total_sav_pct,
+            "has_global_closed_models": has_global_closed,
+        },
+        "coding_plan_option": coding_plan_option,
+    }
+
+
 def _parse_usage_snippet(raw_text: str, days_observed: float = 30.0) -> dict[str, Any]:
     import re
 
@@ -920,6 +1324,9 @@ def _parse_usage_snippet(raw_text: str, days_observed: float = 30.0) -> dict[str
         if r_tok is not None and _parse_scaled_num(r_tok) > 0:
             output_includes_reasoning = True
     else:
+        csv_parsed = _try_parse_csv_bill(text, days)
+        if csv_parsed is not None:
+            return csv_parsed
         num_pat = r"([0-9][0-9,._]*\s*(?:百万|亿|万|千|[kKmMbBwW])?)"
         m_in = re.search(
             r"(?:total\s+input(?:\s+tokens?)?|uncached\s+input|prompt\s+tokens?|\binput(?:\s+tokens?)?|输入\s*(?:token|tokens)?)\s*[:：=]?\s*" + num_pat,
@@ -1011,6 +1418,9 @@ def _run_budget(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, Any],
     exact_monthly_in_m: float | None = None
     exact_monthly_out_m: float | None = None
     parsed_usage_summary: dict[str, Any] | None = None
+    bill_audit: dict[str, Any] | None = None
+    raw_seats = _get_param(inp, "team_size", 1)
+    seats = max(1, min(50, int(round(float(raw_seats or 1)))))
 
     if raw_snippet is not None and str(raw_snippet).strip() != "":
         parsed_usage_summary = _parse_usage_snippet(str(raw_snippet), days_observed=raw_days)
@@ -1022,6 +1432,19 @@ def _run_budget(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, Any],
         exact_monthly_out_m = float(parsed_usage_summary["monthly_output_m"])
         if parsed_usage_summary.get("output_includes_reasoning"):
             inc_cot = True
+        if parsed_usage_summary.get("detected_format") == "csv_multimodel_bill":
+            if not q or q == "auto":
+                bd = parsed_usage_summary.get("model_breakdown") or []
+                if bd:
+                    q = str(bd[0].get("model") or "deepseek-v3").strip().lower()
+                    wants_free = "free" in q
+            bill_audit = _audit_csv_bill_coze(
+                models,
+                parsed_usage_summary,
+                usage_mode,
+                seats,
+                catalog.get("coding_plans") if isinstance(catalog.get("coding_plans"), list) else None,
+            )
     elif any(v is not None for v in (raw_m_reqs, raw_m_in, raw_m_out, raw_c_in)):
         if raw_m_reqs is not None:
             m_reqs = max(1, int(round(float(raw_m_reqs))))
@@ -1198,6 +1621,8 @@ def _run_budget(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, Any],
     }
     if parsed_usage_summary is not None:
         out_data["parsed_usage_summary"] = parsed_usage_summary
+    if bill_audit is not None:
+        out_data["bill_audit"] = bill_audit
     return (
         summary,
         out_data,

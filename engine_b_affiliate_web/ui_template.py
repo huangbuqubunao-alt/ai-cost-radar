@@ -460,6 +460,7 @@ def render_html_template(
       border-radius: var(--radius-lg);
       padding: 20px;
       box-shadow: var(--shadow-card);
+      min-width: 0;
     }}
 
     .panel-header {{
@@ -510,6 +511,8 @@ def render_html_template(
       padding: 10px 12px;
       margin-bottom: 14px;
       font-variant-numeric: tabular-nums;
+      min-width: 0;
+      max-width: 100%;
     }}
 
     .usage-import-drawer > summary {{
@@ -531,6 +534,7 @@ def render_html_template(
       display: flex;
       flex-direction: column;
       gap: 10px;
+      min-width: 0;
     }}
 
     .usage-import-subhead {{
@@ -571,6 +575,8 @@ def render_html_template(
     }}
 
     .usage-import-btn {{
+      display: inline-flex;
+      align-items: center;
       border: 1px solid var(--border-strong);
       background: var(--bg-elevated);
       color: var(--text-primary);
@@ -649,6 +655,59 @@ def render_html_template(
       border-color: rgba(244, 63, 94, 0.4);
       background: var(--rose-soft);
       color: var(--rose-text);
+    }}
+
+    .usage-bill-breakdown {{
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+      margin-top: 4px;
+      font-variant-numeric: tabular-nums;
+      min-width: 0;
+      max-width: 100%;
+    }}
+
+    .usage-bill-breakdown .ssr-table {{
+      min-width: 470px;
+      font-size: 0.77rem;
+    }}
+
+    .usage-bill-breakdown .ssr-table th,
+    .usage-bill-breakdown .ssr-table td {{
+      padding: 8px 8px;
+    }}
+
+    .usage-bill-breakdown .mono-cell,
+    .usage-bill-breakdown .table-sub {{
+      word-break: normal;
+      overflow-wrap: break-word;
+    }}
+
+    .usage-bill-breakdown .badge {{
+      white-space: nowrap;
+      display: inline-block;
+      margin-top: 2px;
+    }}
+
+    .usage-bill-head {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }}
+
+    .usage-bill-title {{
+      font-size: 0.8rem;
+      font-weight: 750;
+      color: var(--text-primary);
+    }}
+
+    .usage-bill-note {{
+      font-size: 0.76rem;
+      color: var(--text-secondary);
+      line-height: 1.48;
+      margin-top: 8px;
     }}
 
     .control-group {{
@@ -973,6 +1032,32 @@ def render_html_template(
       line-height: 1.55;
     }}
 
+    .selfhost-controls-row {{
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px 14px;
+      margin: 10px 0 12px;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }}
+
+    .selfhost-control-item {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }}
+
+    .selfhost-control-item label {{
+      font-weight: 650;
+      color: var(--text-primary);
+    }}
+
     .selfhost-cta-grid {{
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -1106,6 +1191,7 @@ def render_html_template(
 
     .table-scroll {{
       width: 100%;
+      max-width: 100%;
       overflow-x: auto;
       padding: 12px 14px;
       border: 1px solid var(--border);
@@ -1951,10 +2037,10 @@ def render_html_template(
           </div>
 
           <details class="usage-import-drawer" id="usageImportDrawer">
-            <summary data-i18n="usageImportSummary">从真实日志或月度账单导入用量（支持 Claude Code /cost、OpenAI/百炼 usage JSON、月总账单）</summary>
+            <summary data-i18n="usageImportSummary">从真实日志或多模型 CSV 账单导入（支持 OpenRouter/云账单 CSV、Claude Code /cost、usage JSON）</summary>
             <div class="usage-import-body">
               <div>
-                <label class="usage-import-subhead" for="usageLogTextarea" data-i18n="usageLogLabel">方式一：粘贴 Claude Code /cost 输出、OpenAI/百炼 usage JSON 或云控制台统计文本</label>
+                <label class="usage-import-subhead" for="usageLogTextarea" data-i18n="usageLogLabel">方式一：上传本地 CSV/TSV/JSON 账单，或粘贴 Claude Code /cost 与 usage JSON</label>
                 <textarea id="usageLogTextarea" class="usage-import-textarea" rows="3" placeholder="示例：Input: 1.6M tokens / Cache read: 2.4M tokens / Output: 600k tokens / Requests: 1,200"></textarea>
                 <div class="usage-import-actions">
                   <label for="usageDaysSelect" style="font-size:0.76rem;color:var(--text-secondary);font-weight:600;" data-i18n="usageDaysLabel">日志统计周期:</label>
@@ -1965,8 +2051,12 @@ def render_html_template(
                     <option value="30" selected>近 30 天 (整月)</option>
                   </select>
                   <button type="button" class="usage-import-btn primary" id="applyUsageLogBtn" data-i18n="applyUsageLogBtn">解析并填入测算器</button>
+                  <label for="usageFileInput" class="usage-import-btn" tabindex="0" role="button" data-i18n="usageFileBtn">选择本地账单 (.csv/.tsv/.json)</label>
+                  <input type="file" id="usageFileInput" accept=".csv,.tsv,.json,.txt,.log" hidden />
+                  <button type="button" class="usage-import-btn" id="fillSampleCsvBtn" data-i18n="fillSampleCsvBtn">填入多模型 CSV 账单示例</button>
                   <button type="button" class="usage-import-btn" id="fillSampleLogBtn" data-i18n="fillSampleLogBtn">填入 Claude Code 示例</button>
                 </div>
+                <div class="unit-hint" style="margin-top:6px;" data-i18n="usagePrivacyNote">隐私承诺：账单与日志文件 100% 在本地浏览器内存解析，绝不上传至任何服务器。</div>
               </div>
               <hr class="usage-import-divider" />
               <div>
@@ -1994,6 +2084,7 @@ def render_html_template(
                 </div>
               </div>
               <div class="usage-import-status" id="usageImportStatus" role="status" hidden></div>
+              <div class="usage-bill-breakdown" id="usageBillBreakdown" hidden></div>
             </div>
           </details>
 
@@ -2280,11 +2371,20 @@ def render_html_template(
 
       <div id="cfgGuiHeadingEl" style="font-size:0.8rem;font-weight:700;color:var(--text-primary);" data-i18n="cfgGuiHeading">客户端面板参数核对</div>
       <pre class="cfg-code-block" id="cfgGuiSnippet"></pre>
-      <button type="button" class="cta-copy-cfg" id="copyGuiBtn" style="margin-bottom:12px;" data-i18n="copyGuiBtn">复制协议地址与模型参数</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <button type="button" class="cta-copy-cfg" id="copyGuiBtn" style="flex:1 1 180px;" data-i18n="copyGuiBtn">复制协议地址与模型参数</button>
+        <button type="button" class="cta-copy-cfg" id="downloadSettingsJsonBtn" style="flex:1 1 180px;display:none;" data-i18n="downloadSettingsJsonBtn">下载 settings.json 配置文件</button>
+      </div>
 
       <div id="cfgEnvHeadingEl" style="font-size:0.8rem;font-weight:700;color:var(--text-primary);" data-i18n="cfgEnvHeading">终端环境变量一键导出命令</div>
       <pre class="cfg-code-block" id="cfgEnvSnippet"></pre>
-      <button type="button" class="cta-copy-cfg" id="copyEnvBtn" style="margin-bottom:14px;" data-i18n="copyEnvBtn">复制环境变量命令</button>
+      <button type="button" class="cta-copy-cfg" id="copyEnvBtn" style="margin-bottom:12px;" data-i18n="copyEnvBtn">复制环境变量命令</button>
+
+      <div id="cfgVerifyWrap" style="margin-bottom:14px;">
+        <div id="cfgVerifyHeadingEl" style="font-size:0.8rem;font-weight:700;color:var(--text-primary);" data-i18n="cfgVerifyHeading">1-Token 连通性自检命令（防扣错验证）</div>
+        <pre class="cfg-code-block" id="cfgVerifySnippet"></pre>
+        <button type="button" class="cta-copy-cfg" id="copyVerifyCmdBtn" data-i18n="copyVerifyCmdBtn">复制 1-Token 连通性自检命令</button>
+      </div>
 
       <div style="padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
         <a id="cfgModalDocLink" href="https://help.aliyun.com/zh/model-studio/coding-plan" target="_blank" rel="noopener" style="font-size:0.79rem;color:var(--emerald-text);text-decoration:underline;" data-i18n="cfgModalDocLink">查阅该厂商官方接入文档</a>
@@ -2450,6 +2550,9 @@ def render_html_template(
       modalTargetName: "",
       modalFallbackBaseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
       modalOfficialCtaUrl: AFF.aliyun_bailian_url || "https://bailian.console.aliyun.com/",
+      modalCurrentSettingsJson: null,
+      semanticCacheHitRate: 0.35,
+      gpuMonthlyHours: 240,
       lastUsageImport: null
     }};
 
@@ -2466,6 +2569,238 @@ def render_html_template(
       const unit = (m[2] || "").toLowerCase();
       const multMap = {{ b: 1e9, "亿": 1e8, m: 1e6, "百万": 1e6, w: 1e4, "万": 1e4, k: 1e3, "千": 1e3, "": 1 }};
       return Math.max(0, base * (multMap[unit] ?? 1));
+    }}
+
+    function splitDelimitedLine(line, delim) {{
+      const cells = [];
+      let cur = "";
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i += 1) {{
+        const ch = line[i];
+        if (ch === '"') {{
+          if (inQuotes && line[i + 1] === '"') {{
+            cur += '"';
+            i += 1;
+          }} else {{
+            inQuotes = !inQuotes;
+          }}
+        }} else if (ch === delim && !inQuotes) {{
+          cells.push(cur.trim());
+          cur = "";
+        }} else {{
+          cur += ch;
+        }}
+      }}
+      cells.push(cur.trim());
+      return cells;
+    }}
+
+    function parseCurrencyRmb(rawVal, headerCompact, fxRate = 7.2) {{
+      const s = String(rawVal ?? "").trim();
+      if (!s || ["-", "n/a", "na", "null", "none"].includes(s.toLowerCase())) return 0;
+      const sLow = s.toLowerCase();
+      let isRmb = false;
+      if (["¥", "￥", "rmb", "cny", "元"].some(sym => sLow.includes(sym))) isRmb = true;
+      else if (["$", "usd"].some(sym => sLow.includes(sym))) isRmb = false;
+      else if (["rmb", "cny", "应付金额", "账单金额", "消费金额", "费用", "金额", "花费", "总费用", "元"].some(k => headerCompact.includes(k))) isRmb = true;
+
+      const cleaned = s
+        .replace(/^(?:usd|rmb|cny|us\\$|[$¥￥])\\s*/i, "")
+        .replace(/\\s*(?:usd|rmb|cny|元)$/i, "")
+        .trim();
+      if (!cleaned) return 0;
+      const val = parseScaledNumber(cleaned);
+      return isRmb ? val : val * fxRate;
+    }}
+
+    function tryParseCsvBill(text, days, fxRate = 7.2) {{
+      const rawLines = [];
+      for (const ln of text.split(/\\r?\\n/)) {{
+        const s = ln.trim();
+        if (!s || s.startsWith("#")) continue;
+        if (/^\\|?[\\s:-]+(?:\\|[\\s:-]+)+\\|?$/.test(s)) continue;
+        rawLines.push(s);
+      }}
+      if (rawLines.length < 2) return null;
+
+      const headerLine = rawLines[0];
+      const pipeCount = (headerLine.match(/\\|/g) || []).length;
+      const isPipe = pipeCount >= 2;
+      let delim = null;
+      if (isPipe) {{
+        delim = "|";
+      }} else {{
+        const counts = ["\\t", ",", ";"].map(d => [d, headerLine.split(d).length - 1]);
+        counts.sort((a, b) => b[1] - a[1]);
+        if (counts[0][1] >= 1) delim = counts[0][0];
+      }}
+      if (!delim) return null;
+
+      const rows = isPipe
+        ? rawLines.map(ln => ln.replace(/^\\|+\\s*|\\s*\\|+$/g, "").split("|").map(c => c.trim().replace(/^['"]|['"]$/g, "")))
+        : rawLines.map(ln => splitDelimitedLine(ln, delim));
+      if (rows.length < 2) return null;
+
+      const rawHeaders = rows[0].map(c => String(c || "").trim().replace(/^\\ufeff/, "").replace(/^['"]|['"]$/g, ""));
+      if (rawHeaders.length < 2) return null;
+      if (rawHeaders.some(h => h && /^[0-9.]+$/.test(h))) return null;
+
+      const compactHeaders = rawHeaders.map(h => h.toLowerCase().replace(/[\\s_\\-()/（）]+/g, ""));
+      const modelAliases = new Set(["model", "modelid", "modelname", "modelpermaslug", "modelslug", "permaslug", "endpoint", "模型", "模型名称", "模型id", "调用模型"]);
+      const reqAliases = new Set(["requests", "requestcount", "numrequests", "calls", "apicalls", "totalrequests", "totalcalls", "count", "调用次数", "请求次数", "请求数", "调用量"]);
+      const inAliases = new Set(["tokensprompt", "nativetokensprompt", "prompttokens", "inputtokens", "totalinputtokens", "input", "prompt", "输入token", "输入tokens", "输入token数", "提问token", "入参token"]);
+      const outAliases = new Set(["tokenscompletion", "nativetokenscompletion", "completiontokens", "outputtokens", "totaloutputtokens", "output", "completion", "输出token", "输出tokens", "输出token数", "回答token", "出参token"]);
+      const cachedAliases = new Set(["nativetokenscached", "cachedtokens", "cachedinputtokens", "prompttokenscached", "cachehit", "缓存命中token", "缓存命中tokens", "命中缓存token", "缓存token", "缓存输入token", "命中缓存"]);
+      const cReadAliases = new Set(["cachereadinputtokens", "cachereadtokens", "cacheread"]);
+      const cWriteAliases = new Set(["cachecreationinputtokens", "cachewritetokens", "cachewrite", "缓存写入token"]);
+      const reasonAliases = new Set(["nativetokensreasoning", "reasoningtokens", "thinkingtokens", "思考token", "思考tokens", "推理token"]);
+      const costAliases = new Set(["usage", "cost", "totalcost", "spend", "amount", "bill", "costusd", "spendusd", "costrmb", "costcny", "应付金额", "账单金额", "消费金额", "费用", "金额", "花费", "总费用"]);
+
+      const findCol = set => {{
+        const idx = compactHeaders.findIndex(ch => set.has(ch));
+        return idx >= 0 ? idx : null;
+      }};
+
+      const colModel = findCol(modelAliases);
+      const colReq = findCol(reqAliases);
+      const colIn = findCol(inAliases);
+      const colOut = findCol(outAliases);
+      const colCached = findCol(cachedAliases);
+      const colCRead = findCol(cReadAliases);
+      const colCWrite = findCol(cWriteAliases);
+      const colReason = findCol(reasonAliases);
+      const colCost = findCol(costAliases);
+
+      if (colIn === null && colOut === null) return null;
+
+      const summaryLabels = new Set(["total", "totals", "sum", "summary", "合计", "总计", "汇总", "小计"]);
+      const groups = new Map();
+      const costHeaderCompact = colCost !== null ? compactHeaders[colCost] : "";
+
+      const cellNum = (r, idx) => {{
+        if (idx === null || idx >= r.length) return 0;
+        const v = String(r[idx] ?? "").trim();
+        if (!v || ["-", "n/a", "na", "null", "none"].includes(v.toLowerCase())) return 0;
+        return parseScaledNumber(v);
+      }};
+
+      for (const r of rows.slice(1)) {{
+        if (!r || r.every(c => !String(c ?? "").trim())) continue;
+        const firstClean = String(r[0] ?? "").trim().toLowerCase();
+        const modelRaw = colModel !== null && colModel < r.length ? String(r[colModel] ?? "").trim() : "";
+        if (summaryLabels.has(firstClean) || summaryLabels.has(modelRaw.toLowerCase())) continue;
+
+        const inVal = cellNum(r, colIn);
+        const outVal = cellNum(r, colOut);
+        const cachedSubVal = cellNum(r, colCached);
+        const cReadVal = cellNum(r, colCRead);
+        const cWriteVal = cellNum(r, colCWrite);
+        const reasonVal = cellNum(r, colReason);
+
+        let rowIn = 0;
+        let rowCached = 0;
+        if (colCRead !== null || colCWrite !== null) {{
+          rowIn = inVal + cReadVal + cWriteVal;
+          rowCached = cReadVal;
+        }} else {{
+          rowIn = Math.max(inVal, cachedSubVal);
+          rowCached = Math.min(rowIn, cachedSubVal);
+        }}
+        if (rowIn <= 0 && outVal <= 0) continue;
+
+        let rowReqs = 1;
+        if (colReq !== null) {{
+          const reqVal = cellNum(r, colReq);
+          rowReqs = reqVal > 0 ? reqVal : 1;
+        }}
+        const rowCostRmb = colCost !== null && colCost < r.length ? parseCurrencyRmb(r[colCost], costHeaderCompact, fxRate) : 0;
+        const modelLabel = modelRaw || "unknown";
+        const gKey = modelLabel.toLowerCase();
+        if (!groups.has(gKey)) {{
+          groups.set(gKey, {{
+            model: modelLabel,
+            requests: 0,
+            input_tokens: 0,
+            cached_input_tokens: 0,
+            output_tokens: 0,
+            reasoning_tokens: 0,
+            reported_cost_rmb: 0
+          }});
+        }}
+        const grp = groups.get(gKey);
+        grp.requests += rowReqs;
+        grp.input_tokens += rowIn;
+        grp.cached_input_tokens += rowCached;
+        grp.output_tokens += outVal;
+        grp.reasoning_tokens += reasonVal;
+        grp.reported_cost_rmb += rowCostRmb;
+      }}
+
+      if (groups.size === 0) {{
+        throw new Error("no_tokens");
+      }}
+
+      const sortedGroups = Array.from(groups.values()).sort(
+        (a, b) => (b.reported_cost_rmb - a.reported_cost_rmb) || ((b.input_tokens + b.output_tokens) - (a.input_tokens + a.output_tokens))
+      );
+
+      let totalReqs = 0;
+      let totalIn = 0;
+      let totalCached = 0;
+      let totalOut = 0;
+      let totalReason = 0;
+      let totalCostRmb = 0;
+      const modelBreakdown = sortedGroups.map(g => {{
+        const gIn = g.input_tokens;
+        const gCached = Math.min(gIn, Math.max(0, g.cached_input_tokens));
+        totalReqs += g.requests;
+        totalIn += gIn;
+        totalCached += gCached;
+        totalOut += g.output_tokens;
+        totalReason += g.reasoning_tokens;
+        totalCostRmb += g.reported_cost_rmb;
+        return {{
+          model: g.model,
+          requests: Math.round(g.requests),
+          input_tokens: Math.round(gIn),
+          cached_input_tokens: Math.round(gCached),
+          output_tokens: Math.round(g.output_tokens),
+          reasoning_tokens: Math.round(g.reasoning_tokens),
+          cache_hit_rate: gIn > 0 ? Math.round((gCached / gIn) * 10000) / 10000 : 0,
+          output_includes_reasoning: g.reasoning_tokens > 0,
+          reported_cost_rmb: Math.round(g.reported_cost_rmb * 10000) / 10000
+        }};
+      }});
+
+      const cacheHitRate = totalIn > 0 ? Math.round((totalCached / totalIn) * 10000) / 10000 : 0;
+      const dailyRequests = Math.max(1, Math.round(totalReqs / days));
+      const monthlyRequests = Math.max(1, Math.round((totalReqs / days) * 30));
+      const avgInputTokens = totalIn > 0 ? Math.max(1, Math.round(totalIn / Math.max(1, totalReqs))) : 1500;
+      const avgOutputTokens = totalOut > 0 ? Math.max(1, Math.round(totalOut / Math.max(1, totalReqs))) : 500;
+      const monthlyInputM = Math.round((((totalIn / days) * 30) / 1e6) * 1e6) / 1e6;
+      const monthlyOutputM = Math.round((((totalOut / days) * 30) / 1e6) * 1e6) / 1e6;
+
+      return {{
+        detected_format: "csv_multimodel_bill",
+        days_observed: days,
+        distinct_models_count: modelBreakdown.length,
+        total_requests: Math.round(totalReqs),
+        monthly_requests: monthlyRequests,
+        total_input_tokens: Math.round(totalIn),
+        cached_input_tokens: Math.round(totalCached),
+        total_output_tokens: Math.round(totalOut),
+        monthly_input_m: monthlyInputM,
+        monthly_output_m: monthlyOutputM,
+        daily_requests: dailyRequests,
+        avg_input_tokens: avgInputTokens,
+        avg_output_tokens: avgOutputTokens,
+        cache_hit_rate: cacheHitRate,
+        output_includes_reasoning: totalReason > 0,
+        calls_estimated: false,
+        reported_cost_rmb: Math.round((totalCostRmb + Number.EPSILON) * 100) / 100,
+        monthly_reported_cost_rmb: Math.round((((totalCostRmb / days) * 30) + Number.EPSILON) * 100) / 100,
+        model_breakdown: modelBreakdown
+      }};
     }}
 
     function parseUsageSnippet(rawText, daysObserved = 30, defaultTokensPerCall = 4000) {{
@@ -2540,6 +2875,10 @@ def render_html_template(
         const rTok = cDetails.reasoning_tokens ?? oDetails.reasoning_tokens ?? merged.reasoning_tokens;
         if (rTok !== undefined && rTok !== null && parseScaledNumber(rTok) > 0) outputIncludesReasoning = true;
       }} else {{
+        const effFx = typeof FX === "number" && FX > 0 ? FX : 7.2;
+        const csvParsed = tryParseCsvBill(text, days, effFx);
+        if (csvParsed) return csvParsed;
+
         const mIn = text.match(/(?:total\\s+input(?:\\s+tokens?)?|uncached\\s+input|prompt\\s+tokens?|\\binput(?:\\s+tokens?)?|输入\\s*(?:token|tokens)?)\\s*[:：=]?\\s*([0-9][0-9,._]*\\s*(?:百万|亿|万|千|[kKmMbBwW])?)/i);
         const mCacheRead = text.match(/(?:cache\\s*read(?:\\s+input)?(?:\\s+tokens?)?|cached(?:\\s+input)?(?:\\s+tokens?)?|缓存命中(?:\\s*token|\\s*tokens|\\s*输入)?|命中缓存)\\s*[:：=]?\\s*([0-9][0-9,._]*\\s*(?:百万|亿|万|千|[kKmMbBwW])?)/i);
         const mCacheWrite = text.match(/(?:cache\\s*(?:write|creation)(?:\\s+tokens?)?|缓存写入)\\s*[:：=]?\\s*([0-9][0-9,._]*\\s*(?:百万|亿|万|千|[kKmMbBwW])?)/i);
@@ -2648,8 +2987,8 @@ def render_html_template(
             : "请填写大于 0 的月总请求数以及月总输入/输出百万 Token（其中缓存命中不可超过月总输入）。";
         }} else {{
           el.textContent = isEn
-            ? "Could not detect token counts in the pasted text. Paste Claude Code /cost output, OpenAI/Anthropic usage JSON, or Input/Output token lines."
-            : "未从粘贴文本中识别到输入/输出 Token 数值。请粘贴 Claude Code /cost 输出、OpenAI/百炼 usage JSON 或含「输入/输出 Token」的统计文本。";
+            ? "Could not detect token counts in the input. Upload or paste an OpenRouter/cloud CSV bill, Claude Code /cost output, or usage JSON."
+            : "未识别到有效的输入/输出 Token 数值。请上传或粘贴多模型 CSV/TSV 账单、Claude Code /cost 输出或 usage JSON。";
         }}
         return;
       }}
@@ -2663,12 +3002,14 @@ def render_html_template(
         return;
       }}
       const fmtMapEn = {{
+        csv_multimodel_bill: `Multi-model CSV bill (${{p.distinct_models_count || 1}} models)`,
         claude_code_cost: "Claude Code /cost (additive cache)",
         anthropic_usage_json: "Anthropic JSON (additive cache)",
         openai_usage_json: "OpenAI / CN JSON",
         text_summary: "Console summary"
       }};
       const fmtMapZh = {{
+        csv_multimodel_bill: `多模型 CSV 账单（共 ${{p.distinct_models_count || 1}} 款模型）`,
         claude_code_cost: "Claude Code /cost（未命中+缓存读取累加）",
         anthropic_usage_json: "Anthropic JSON（未命中+缓存读取累加）",
         openai_usage_json: "OpenAI / 国产兼容 JSON",
@@ -2681,6 +3022,371 @@ def render_html_template(
       el.textContent = isEn
         ? `Imported ${{fmtMapEn[p.detected_format] || p.detected_format}} (${{p.days_observed}}d window): ${{fmtNum(p.daily_requests)}} calls/day${{callNoteEn}} · Avg ${{fmtNum(p.avg_input_tokens)}} in / ${{fmtNum(p.avg_output_tokens)}} out · Cache hit ${{hitPct}}%${{reasonNoteEn}}.`
         : `已导入 ${{fmtMapZh[p.detected_format] || p.detected_format}}（按 ${{p.days_observed}} 天折算）：日均 ${{fmtNum(p.daily_requests)}} 次调用${{callNoteZh}} · 单次 ${{fmtNum(p.avg_input_tokens)}} 输入 / ${{fmtNum(p.avg_output_tokens)}} 输出 · 缓存命中率 ${{hitPct}}%${{reasonNoteZh}}。`;
+    }}
+
+    function resolveModelFuzzyWeb(rawId) {{
+      const raw = String(rawId || "").trim();
+      if (!MODELS || MODELS.length === 0) return null;
+      if (raw) {{
+        const exact = MODELS.find(m => m.id === raw);
+        if (exact) return exact;
+        const normalized = raw
+          .replace(/^aliyun\\//i, "aliyun-bailian/")
+          .replace(/^tencent\\//i, "tencent-cloud/")
+          .toLowerCase();
+        const ciExact = MODELS.find(m => String(m.id || "").toLowerCase() === normalized);
+        if (ciExact) return ciExact;
+        const rawLower = raw.toLowerCase();
+        const suffixMatches = MODELS.filter(m => {{
+          const idLower = String(m.id || "").toLowerCase();
+          const apiLower = String(m.api_model_id || "").toLowerCase();
+          return apiLower === rawLower || idLower.endsWith("/" + rawLower);
+        }});
+        if (suffixMatches.length > 0) {{
+          suffixMatches.sort((a, b) => {{
+            const aCn = a.region === "cn_direct" ? 1 : 0;
+            const bCn = b.region === "cn_direct" ? 1 : 0;
+            if (aCn !== bCn) return bCn - aCn;
+            const aPaid = a.is_free ? 0 : 1;
+            const bPaid = b.is_free ? 0 : 1;
+            if (aPaid !== bPaid) return bPaid - aPaid;
+            return (Number(b.value_score) || 0) - (Number(a.value_score) || 0);
+          }});
+          return suffixMatches[0];
+        }}
+      }}
+      const q = (raw || "deepseek-v3").toLowerCase();
+      const wantsFree = q.includes("free");
+      const qTokens = q.replace(/[/-]/g, " ").split(/\\s+/).filter(Boolean);
+      let best = null;
+      let bestRank = -1;
+      for (const m of MODELS) {{
+        const mid = String(m.id || "").toLowerCase();
+        const apiMid = String(m.api_model_id || "").toLowerCase();
+        const mname = String(m.name || "").toLowerCase();
+        const hay = `${{mid}} ${{apiMid}} ${{mname}} ${{String(m.provider || "").toLowerCase()}}`;
+        let score = 0;
+        if (mid.includes(q) || (apiMid && apiMid.includes(q))) score = 700;
+        else if (mname.includes(q)) score = 600;
+        else if (qTokens.length > 0 && qTokens.every(tok => hay.includes(tok))) score = 500;
+        else if (qTokens.length > 0) {{
+          const overlap = qTokens.filter(tok => hay.includes(tok)).length;
+          if (overlap > 0) score = overlap * 120;
+        }}
+        if (score > 0) {{
+          if (!wantsFree && m.is_free) score -= 50;
+          score += (Number(m.value_score) || 0) * 0.1;
+          if (score > bestRank) {{
+            bestRank = score;
+            best = m;
+          }}
+        }}
+      }}
+      return best || MODELS[0];
+    }}
+
+    function auditCsvBillWeb(parsedSummary) {{
+      const days = Number(parsedSummary.days_observed || 30);
+      const scale30d = 30 / days;
+      const seats = getSeats();
+      const round2 = v => Math.round((v + Number.EPSILON) * 100) / 100;
+
+      const workhorses = MODELS.filter(m => {{
+        if (m.region !== "cn_direct" || m.is_free) return false;
+        if ((Number(m.context_length) || 0) < 64000) return false;
+        const midLow = String(m.id || "").toLowerCase();
+        return !["7b", "8b", "lite", "turbo", "mini", "flash"].some(tok => midLow.includes(tok));
+      }});
+
+      const lineItems = [];
+      let hasGlobalClosed = false;
+
+      for (const grp of parsedSummary.model_breakdown || []) {{
+        const rawModel = String(grp.model || "unknown");
+        const rawLow = rawModel.toLowerCase();
+        const mReqs = Math.max(1, Math.round(Number(grp.requests || 0) * scale30d));
+        const mInM = (Number(grp.input_tokens || 0) * scale30d) / 1e6;
+        const mOutM = (Number(grp.output_tokens || 0) * scale30d) / 1e6;
+        const hitRate = Number(grp.cache_hit_rate || 0);
+        const reportedMonthlyRmb = round2(Number(grp.reported_cost_rmb || 0) * scale30d);
+
+        const matched = resolveModelFuzzyWeb(rawModel);
+        if (!matched) continue;
+        const matchedIdLow = String(matched.id || "").toLowerCase();
+        if (
+          matched.region === "global" &&
+          ["anthropic", "claude", "openai", "gpt-", "o1", "o3", "o4", "google", "gemini", "x-ai", "grok"].some(
+            v => rawLow.includes(v) || matchedIdLow.includes(v)
+          )
+        ) {{
+          hasGlobalClosed = true;
+        }}
+
+        const mFactor = matched.cache_hit_factor ?? (matched.region === "cn_direct" ? 0.2 : 0.5);
+        const catalogPaygRmb = round2(
+          mInM * ((1 - hitRate) + hitRate * mFactor) * Number(matched.input_rmb_per_1m || 0) +
+          mOutM * Number(matched.output_rmb_per_1m || 0)
+        );
+        const baselineRmb = reportedMonthlyRmb > 0 ? reportedMonthlyRmb : catalogPaygRmb;
+
+        const needsReasoning = Boolean(
+          grp.output_includes_reasoning ||
+          ["-r1", "/r1", "deepseek-r1", "o1", "o3", "o4", "qwq", "hunyuan-t1", "thinking", "reasoner"].some(k => rawLow.includes(k))
+        );
+        const reqTag = needsReasoning ? "reasoning" : "coding";
+        const taggedPool = workhorses.filter(c => (c.tags || []).includes(reqTag));
+        const pool = taggedPool.length > 0 ? taggedPool : workhorses;
+
+        let bestCand = null;
+        let bestCandRmb = baselineRmb;
+        let bestCandScore = -1;
+        for (const cand of pool) {{
+          const cFactor = cand.cache_hit_factor ?? 0.2;
+          const cRmb = round2(
+            mInM * ((1 - hitRate) + hitRate * cFactor) * Number(cand.input_rmb_per_1m || 0) +
+            mOutM * Number(cand.output_rmb_per_1m || 0)
+          );
+          const cScore = Number(cand.value_score || 0);
+          if (!bestCand || cRmb < bestCandRmb || (cRmb === bestCandRmb && cScore > bestCandScore)) {{
+            bestCand = cand;
+            bestCandRmb = cRmb;
+            bestCandScore = cScore;
+          }}
+        }}
+
+        const canSwitch = Boolean(bestCand && bestCandRmb < baselineRmb - 0.005);
+        const recModel = canSwitch ? bestCand : matched;
+        const optRmb = canSwitch ? round2(bestCandRmb) : round2(baselineRmb);
+        const action = canSwitch ? "switch_cn_direct" : "keep_current";
+        const savRmb = round2(Math.max(0, baselineRmb - optRmb));
+        const savPct = baselineRmb > 0 ? Math.round(((savRmb / baselineRmb) * 100) * 10) / 10 : 0;
+
+        lineItems.push({{
+          raw_model: rawModel,
+          matched_model: matched,
+          matched_model_id: matched.id,
+          matched_model_name: matched.name,
+          monthly_requests: mReqs,
+          monthly_input_m: Math.round(mInM * 10000) / 10000,
+          monthly_output_m: Math.round(mOutM * 10000) / 10000,
+          cache_hit_rate: hitRate,
+          reported_monthly_rmb: reportedMonthlyRmb,
+          catalog_payg_rmb: catalogPaygRmb,
+          baseline_monthly_rmb: round2(baselineRmb),
+          recommended_model: recModel,
+          recommended_model_id: recModel.id,
+          recommended_model_name: recModel.name,
+          optimized_payg_rmb: optRmb,
+          savings_rmb: savRmb,
+          savings_pct: savPct,
+          action
+        }});
+      }}
+
+      const totalMReqs = lineItems.reduce((acc, x) => acc + x.monthly_requests, 0);
+      const totalBaseRmb = round2(lineItems.reduce((acc, x) => acc + x.baseline_monthly_rmb, 0));
+      const totalOptRmb = round2(lineItems.reduce((acc, x) => acc + x.optimized_payg_rmb, 0));
+      const totalSavRmb = round2(Math.max(0, totalBaseRmb - totalOptRmb));
+      const totalSavPct = totalBaseRmb > 0 ? Math.round(((totalSavRmb / totalBaseRmb) * 100) * 10) / 10 : 0;
+
+      let codingPlanOption = null;
+      if (state.usageMode === "interactive_ide") {{
+        const subOffers = CODING_PLANS.filter(o => o && o.offer_type === "subscription");
+        if (subOffers.length > 0) {{
+          const fitsLite = totalMReqs <= LITE_MONTHLY_CAP * seats;
+          const fitsPro = totalMReqs <= PRO_MONTHLY_CAP * seats;
+          const targetPlanId = fitsLite ? "tencent-coding-plan" : "aliyun-coding-plan";
+          const chosenOffer = subOffers.find(o => o.id === targetPlanId) || subOffers[0];
+          const tiers = chosenOffer.tiers || [];
+          const tierId = fitsLite && tiers.some(t => t.tier_id === "lite" && t.purchasable) ? "lite" : "pro";
+          const chosenTier = tiers.find(t => t.tier_id === tierId) || tiers[tiers.length - 1] || {{}};
+          const unitRenew = Number(chosenTier.renewal_rmb ?? 200);
+          const unitFirst = chosenTier.first_month_rmb !== null && chosenTier.first_month_rmb !== undefined ? Number(chosenTier.first_month_rmb) : unitRenew;
+          const firstRmb = round2(unitFirst * seats);
+          const renewRmb = round2(unitRenew * seats);
+          const capMonthly = Number(chosenTier.quota_monthly ?? PRO_MONTHLY_CAP) * seats;
+          const hasCrossCaveat = Boolean(
+            hasGlobalClosed ||
+            lineItems.some(it => !planCoversModel(chosenOffer, it.matched_model))
+          );
+          codingPlanOption = {{
+            plan_id: chosenOffer.id,
+            plan_name: chosenOffer.name,
+            tier_id: tierId,
+            tier_name: chosenTier.name || "Pro",
+            team_size: seats,
+            fits_monthly_cap: fitsPro,
+            combined_monthly_cap: capMonthly,
+            first_month_rmb: firstRmb,
+            renewal_rmb: renewRmb,
+            cheaper_than_optimized_payg_on_renewal: Boolean(fitsPro && renewRmb < totalOptRmb),
+            has_cross_model_caveat: hasCrossCaveat
+          }};
+        }}
+      }}
+
+      return {{
+        days_observed: days,
+        usage_mode: state.usageMode,
+        team_size: seats,
+        line_items: lineItems,
+        totals: {{
+          distinct_models_count: lineItems.length,
+          monthly_requests: totalMReqs,
+          baseline_monthly_rmb: totalBaseRmb,
+          optimized_payg_monthly_rmb: totalOptRmb,
+          payg_savings_rmb: totalSavRmb,
+          payg_savings_pct: totalSavPct,
+          has_global_closed_models: hasGlobalClosed
+        }},
+        coding_plan_option: codingPlanOption
+      }};
+    }}
+
+    function buildBillAuditMarkdown(audit) {{
+      const isEn = state.lang === "en";
+      const cur = state.currency;
+      const shareUrl = buildShareUrl();
+      const fmtVal = rmb => fmtMoney(rmb / FX, rmb, cur);
+      const cp = audit.coding_plan_option;
+
+      if (isEn) {{
+        const rows = audit.line_items.map(it => {{
+          const recTitle = it.action === "keep_current"
+            ? `Keep Current (${{formatModelTitle(it.matched_model, true)}})`
+            : formatModelTitle(it.recommended_model, true);
+          return `| ${{it.raw_model}} | ${{fmtNum(it.monthly_requests)}} / ${{it.monthly_input_m.toFixed(1)}}M in / ${{it.monthly_output_m.toFixed(1)}}M out (${{Math.round(it.cache_hit_rate * 100)}}% cached) | ${{fmtVal(it.baseline_monthly_rmb)}} | ${{recTitle}} | ${{fmtVal(it.optimized_payg_rmb)}} (Save ${{it.savings_pct.toFixed(1)}}%) |`;
+        }});
+        let cpLine = "- **Coding Plan Portfolio Check**: Excluded for automated backend workloads.";
+        if (cp) {{
+          const planEn = (PLAN_EN_TITLES[cp.plan_id] || [cp.plan_name])[0];
+          cpLine = cp.fits_monthly_cap
+            ? `- **Coding Plan Portfolio Check**: ${{cp.team_size}}× ${{planEn}} (${{cp.tier_id.toUpperCase()}}) caps at ${{fmtNum(cp.combined_monthly_cap)}}/mo (1st mo ¥${{cp.first_month_rmb.toFixed(2)}} / renewal ¥${{fmtNum(cp.renewal_rmb)}}/mo). ${{cp.has_cross_model_caveat ? "Cross-model caveat: original bill includes non-covered models (such as Claude/GPT)." : "All models covered natively."}}`
+            : `- **Coding Plan Portfolio Check**: ${{fmtNum(audit.totals.monthly_requests)}} calls/mo exceeds ${{cp.team_size}}× Pro cap (${{fmtNum(cp.combined_monthly_cap)}}/mo).`;
+        }}
+        return [
+          `### AI Cost Radar · Multi-Model Bill Slim-Down Audit (${{QUOTE_VERIFIED_DATE}})`,
+          `- **Observed Window**: ${{audit.days_observed}}d extrapolated to 30d · ${{audit.totals.distinct_models_count}} models · ${{fmtNum(audit.totals.monthly_requests)}} calls/mo · ${{audit.team_size}} IDE ${{audit.team_size === 1 ? "seat" : "seats"}}`,
+          ``,
+          `| Original Bill Model | 30d Calls & Tokens | Current Bill / mo | Recommended CN Direct Route | Optimized PayG / mo |`,
+          `| :--- | :--- | :--- | :--- | :--- |`,
+          ...rows,
+          `| **Portfolio Total** | **${{fmtNum(audit.totals.monthly_requests)}} calls/mo** | **${{fmtVal(audit.totals.baseline_monthly_rmb)}}** | **Workhorse CN Direct Routing** | **${{fmtVal(audit.totals.optimized_payg_monthly_rmb)}} (Save ${{fmtVal(audit.totals.payg_savings_rmb)}} · ${{audit.totals.payg_savings_pct.toFixed(1)}}%)** |`,
+          ``,
+          cpLine,
+          `> Reproducible Audit Link: ${{shareUrl}}`
+        ].join("\\n");
+      }}
+
+      const rowsZh = audit.line_items.map(it => {{
+        const recTitle = it.action === "keep_current"
+          ? `保持现用（${{it.matched_model_name}}）`
+          : it.recommended_model_name;
+        return `| ${{it.raw_model}} | ${{fmtNum(it.monthly_requests)}}次 / 输入${{it.monthly_input_m.toFixed(1)}}M / 输出${{it.monthly_output_m.toFixed(1)}}M (缓存${{Math.round(it.cache_hit_rate * 100)}}%) | ${{fmtVal(it.baseline_monthly_rmb)}} | ${{recTitle}} | ${{fmtVal(it.optimized_payg_rmb)}} (省 ${{it.savings_pct.toFixed(1)}}%) |`;
+      }});
+      let cpLineZh = "- **Coding Plan 组合核对**：非交互式后端场景已自动排除个人包月套餐。";
+      if (cp) {{
+        cpLineZh = cp.fits_monthly_cap
+          ? `- **Coding Plan 组合核对**：${{cp.team_size}} 席 ${{cp.plan_name}}（${{cp.tier_name}}，合计月限 ${{fmtNum(cp.combined_monthly_cap)}} 次）首月 ¥${{cp.first_month_rmb.toFixed(2)}} / 续费 ¥${{fmtNum(cp.renewal_rmb)}}/月。${{cp.has_cross_model_caveat ? "注意：原账单含 Claude/GPT 等非套餐同系模型，切换包月属跨模型国产平替。" : "原账单模型均在套餐覆盖体系内。"}}`
+          : `- **Coding Plan 组合核对**：月总调用 ${{fmtNum(audit.totals.monthly_requests)}} 次已超出 ${{cp.team_size}} 席 Pro 上限（${{fmtNum(cp.combined_monthly_cap)}} 次/月）。`;
+      }}
+      return [
+        `### AI Cost Radar · 多模型账单瘦身审计表（核验日 ${{QUOTE_VERIFIED_DATE}}）`,
+        `- **审计口径**：按 ${{audit.days_observed}} 天真实账单折算 30 天整月 · 共 ${{audit.totals.distinct_models_count}} 款模型 · 月总 ${{fmtNum(audit.totals.monthly_requests)}} 次调用 · ${{audit.team_size}} 个 IDE 席位`,
+        ``,
+        `| 原账单模型 | 30天调用与 Token | 原月账单 | 推荐国产直连方案 | 优化后按量月费 |`,
+        `| :--- | :--- | :--- | :--- | :--- |`,
+        ...rowsZh,
+        `| **组合总计** | **${{fmtNum(audit.totals.monthly_requests)}} 次/月** | **${{fmtVal(audit.totals.baseline_monthly_rmb)}}** | **同档工作流直连瘦身** | **${{fmtVal(audit.totals.optimized_payg_monthly_rmb)}}（月省 ${{fmtVal(audit.totals.payg_savings_rmb)}} · 省 ${{audit.totals.payg_savings_pct.toFixed(1)}}%）** |`,
+        ``,
+        cpLineZh,
+        `> 一键复算链接：${{shareUrl}}`
+      ].join("\\n");
+    }}
+
+    function renderUsageBillBreakdown() {{
+      const el = document.getElementById("usageBillBreakdown");
+      if (!el) return;
+      const info = state.lastUsageImport;
+      if (!info || info.error || !info.parsed || info.parsed.detected_format !== "csv_multimodel_bill") {{
+        el.hidden = true;
+        el.innerHTML = "";
+        return;
+      }}
+      const isEn = state.lang === "en";
+      const cur = state.currency;
+      const audit = auditCsvBillWeb(info.parsed);
+      const fmtVal = rmb => fmtMoney(rmb / FX, rmb, cur);
+      const cp = audit.coding_plan_option;
+
+      const bodyRows = audit.line_items.map(it => {{
+        const recName = it.action === "keep_current"
+          ? (isEn ? `Keep Current (${{shortModelName(it.matched_model, true)}})` : `保持现用（${{shortModelName(it.matched_model, false)}}）`)
+          : formatModelTitle(it.recommended_model, isEn);
+        const savBadge = it.savings_rmb > 0.01
+          ? `<span class="badge badge-save" style="margin-left:6px;">${{isEn ? `Save ${{it.savings_pct.toFixed(0)}}%` : `省 ${{it.savings_pct.toFixed(0)}}%`}}</span>`
+          : `<span class="badge badge-neutral" style="margin-left:6px;">${{isEn ? "Optimal" : "已是最优"}}</span>`;
+        const tokText = isEn
+          ? `${{fmtNum(it.monthly_requests)}} calls · In ${{it.monthly_input_m.toFixed(1)}}M / Out ${{it.monthly_output_m.toFixed(1)}}M · ${{Math.round(it.cache_hit_rate * 100)}}% cached`
+          : `${{fmtNum(it.monthly_requests)}} 次 · 输入 ${{it.monthly_input_m.toFixed(1)}}M / 输出 ${{it.monthly_output_m.toFixed(1)}}M · 缓存 ${{Math.round(it.cache_hit_rate * 100)}}%`;
+        return `
+          <tr>
+            <td class="mono-cell"><strong>${{esc(it.raw_model)}}</strong><br><span class="table-sub">${{esc(formatModelTitle(it.matched_model, isEn))}}</span></td>
+            <td class="mono-cell">${{esc(tokText)}}</td>
+            <td class="mono-cell">${{fmtVal(it.baseline_monthly_rmb)}}</td>
+            <td>${{esc(recName)}}</td>
+            <td class="mono-cell"><strong>${{fmtVal(it.optimized_payg_rmb)}}</strong>${{savBadge}}</td>
+          </tr>
+        `;
+      }}).join("");
+
+      let cpNote = isEn
+        ? "Automated backend mode: personal Coding Plans are excluded by official terms."
+        : "非交互式后端模式：已按官方条款排除个人 Coding Plan 包月。";
+      if (cp) {{
+        const planTitle = isEn ? (PLAN_EN_TITLES[cp.plan_id] || [cp.plan_name])[0] : cp.plan_name;
+        if (cp.fits_monthly_cap) {{
+          cpNote = isEn
+            ? `Coding Plan Check: ${{cp.team_size}}× ${{planTitle}} (${{cp.tier_id.toUpperCase()}}, cap ${{fmtNum(cp.combined_monthly_cap)}}/mo) costs ¥${{cp.first_month_rmb.toFixed(2)}} 1st mo / ¥${{fmtNum(cp.renewal_rmb)}}/mo renewal. ${{cp.has_cross_model_caveat ? "Note: original bill includes Claude/GPT or non-covered models — switching to a domestic Coding Plan replaces those model families." : "All models in bill are covered natively."}}`
+            : `套餐组合核对：${{cp.team_size}} 席 ${{planTitle}}（${{cp.tier_name}}，合计月限 ${{fmtNum(cp.combined_monthly_cap)}} 次）首月 ¥${{cp.first_month_rmb.toFixed(2)}} / 续费 ¥${{fmtNum(cp.renewal_rmb)}}/月。${{cp.has_cross_model_caveat ? "跨模型提示：原账单含 Claude/GPT 等非套餐覆盖模型，切换包月前请确认国产平替质量。" : "原账单模型均在套餐原生覆盖内。"}}`;
+        }} else {{
+          cpNote = isEn
+            ? `Coding Plan Check: Portfolio total (${{fmtNum(audit.totals.monthly_requests)}} calls/mo) exceeds ${{cp.team_size}}× Pro cap (${{fmtNum(cp.combined_monthly_cap)}}/mo).`
+            : `套餐组合核对：月总调用 ${{fmtNum(audit.totals.monthly_requests)}} 次已超出 ${{cp.team_size}} 席 Pro 合计上限（${{fmtNum(cp.combined_monthly_cap)}} 次/月）。`;
+        }}
+      }}
+
+      el.hidden = false;
+      el.innerHTML = `
+        <div class="usage-bill-head">
+          <div class="usage-bill-title">${{isEn ? `Multi-Model Bill Slim-Down Audit (${{audit.days_observed}}d → 30d Monthly)` : `多模型账单逐行瘦身审计（按 ${{audit.days_observed}} 天折算 30 天整月）`}}</div>
+          <button type="button" class="usage-import-btn" id="copyBillAuditMdBtn">${{isEn ? "Copy Bill Audit Table (Markdown)" : "复制多模型账单审计表 (Markdown)"}}</button>
+        </div>
+        <div class="table-scroll" style="padding:0;background:var(--bg-elevated);">
+          <table class="ssr-table" aria-label="${{isEn ? "Multi-Model Bill Audit" : "多模型账单逐行瘦身审计"}}">
+            <thead>
+              <tr>
+                <th scope="col">${{isEn ? "Bill Model" : "原账单模型"}}</th>
+                <th scope="col">${{isEn ? "30d Calls & Tokens" : "30天调用与 Token"}}</th>
+                <th scope="col">${{isEn ? "Current / mo" : "原月账单"}}</th>
+                <th scope="col">${{isEn ? "Recommended Route" : "推荐直连方案"}}</th>
+                <th scope="col">${{isEn ? "Optimized / mo" : "优化后月费"}}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${{bodyRows}}
+              <tr>
+                <td><strong>${{isEn ? "Portfolio Total" : "组合总计"}}</strong></td>
+                <td class="mono-cell"><strong>${{fmtNum(audit.totals.monthly_requests)}} ${{isEn ? "calls/mo" : "次/月"}}</strong></td>
+                <td class="mono-cell"><strong>${{fmtVal(audit.totals.baseline_monthly_rmb)}}</strong></td>
+                <td><strong>${{isEn ? `Save ${{fmtVal(audit.totals.payg_savings_rmb)}}/mo` : `月净省 ${{fmtVal(audit.totals.payg_savings_rmb)}}`}}</strong></td>
+                <td class="mono-cell"><strong>${{fmtVal(audit.totals.optimized_payg_monthly_rmb)}}</strong> <span class="badge badge-save">${{isEn ? `Save ${{audit.totals.payg_savings_pct.toFixed(1)}}%` : `省 ${{audit.totals.payg_savings_pct.toFixed(1)}}%`}}</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="usage-bill-note">${{esc(cpNote)}}</div>
+      `;
     }}
 
     function esc(s) {{
@@ -3276,8 +3982,12 @@ def render_html_template(
         .sort((a, b) => ((b.plan.featured_partner ? 1 : 0) - (a.plan.featured_partner ? 1 : 0)) || (b.ev.saveRenew - a.ev.saveRenew));
 
       // Single focused Primary CTA under simulator result (transparent first/renewal, model coverage & affiliate disclosure)
+      const sCacheHit = Math.min(0.9, Math.max(0, Number(state.semanticCacheHitRate ?? 0.35)));
+      const sHitPct = Math.round(sCacheHit * 100);
+      const sUncachedPct = 100 - sHitPct;
       if (primaryRecEl) {{
-        const gwTotal = 68 + paygRmb * 0.65 + 15;
+        const uncachedPrimary = paygRmb * (1 - sCacheHit);
+        const gwTotal = 68 + uncachedPrimary + 15;
         if (state.usageMode === "automated_backend" && gwTotal + 20 < paygRmb) {{
           primaryRecEl.innerHTML = `
             <div class="primary-rec-head">
@@ -3286,8 +3996,8 @@ def render_html_template(
             </div>
             <div class="primary-rec-desc">
               ${{isEn
-                ? `Best for automated backends with repetitive queries (35% cache hit assumption: ¥68 host + ¥${{(paygRmb * 0.65).toFixed(0)}} uncached API + ¥15 egress ≈ ¥${{gwTotal.toFixed(0)}}/mo). Includes Aliyun Ambassador code (vlxk7knp) at official catalog prices.`
-                : `适用人群：非交互式后端高重复请求（按 35% 语义缓存拦截率测算，主机 ¥68 + 未命中 API ¥${{(paygRmb * 0.65).toFixed(0)}} + 存储流量 ¥15 ≈ ¥${{gwTotal.toFixed(0)}}/月）。<br>推广说明：含阿里云云大使推广参数（vlxk7knp，云主机属常规返佣核对品类），价格与官网一致。`}}
+                ? `Best for automated backends with repetitive queries (${{sHitPct}}% cache hit assumption: ¥68 host + ¥${{uncachedPrimary.toFixed(0)}} uncached API + ¥15 egress ≈ ¥${{gwTotal.toFixed(0)}}/mo). Includes Aliyun Ambassador code (vlxk7knp) at official catalog prices.`
+                : `适用人群：非交互式后端高重复请求（按 ${{sHitPct}}% 语义缓存拦截率测算，主机 ¥68 + 未命中 API ¥${{uncachedPrimary.toFixed(0)}} + 存储流量 ¥15 ≈ ¥${{gwTotal.toFixed(0)}}/月）。<br>推广说明：含阿里云云大使推广参数（vlxk7knp，云主机属常规返佣核对品类），价格与官网一致。`}}
             </div>
             <a class="cta-primary cn-cta" href="${{esc(AFF.aliyun_ambassador_url)}}" target="_blank" rel="${{relAttr(AFF.aliyun_ambassador_url, "aliyun_ambassador_url")}}" data-offer-id="aliyun-ecs-agent-host" data-card-slot="primary_result">
               ${{isEn ? "View Aliyun ECS / Cloud Server Deals" : "查看阿里云 ECS / 轻量云官方活动机型"}}
@@ -3415,7 +4125,7 @@ def render_html_template(
           if (ev.excluded) cardCls += " excluded";
           else if ((ev.saveRenew && ev.saveRenew > 0 && ev.coversModel) || (ev.overflowHybrid && ev.overflowHybrid.savesOnRenewal && ev.coversModel)) cardCls += " featured";
         }} else if (otype === "cloud_host") {{
-          const uncached = paygRmb * 0.65;
+          const uncached = paygRmb * (1 - sCacheHit);
           const totalHost = 68 + uncached + 15;
           const saves = totalHost + 20 < paygRmb;
           badgeHtml = saves
@@ -3425,8 +4135,8 @@ def render_html_template(
           tierSummary = isEn ? `Est. Total ≈ ¥${{totalHost.toFixed(0)}}/mo (incl. ¥15 egress)` : `当前总账约 ¥${{totalHost.toFixed(0)}}/月 (含流量¥15)`;
           detailText = saves
             ? (isEn
-                ? `Fits repetitive backend/Dify workloads: ¥68 host + 65% uncached API (¥${{uncached.toFixed(0)}}) + ¥15 egress ≈ ¥${{totalHost.toFixed(0)}}/mo.`
-                : `适合自动化后端/Dify 高重复问答：主机 ¥68 + 65%未命中API ¥${{uncached.toFixed(0)}} + 存储流量 ¥15 ≈ ¥${{totalHost.toFixed(0)}}/月。`)
+                ? `Fits repetitive backend/Dify workloads: ¥68 host + ${{sUncachedPct}}% uncached API (¥${{uncached.toFixed(0)}}) + ¥15 egress ≈ ¥${{totalHost.toFixed(0)}}/mo.`
+                : `适合自动化后端/Dify 高重复问答：主机 ¥68 + ${{sUncachedPct}}%未命中API ¥${{uncached.toFixed(0)}} + 存储流量 ¥15 ≈ ¥${{totalHost.toFixed(0)}}/月。`)
             : (isEn
                 ? `Current PayG is only ¥${{paygRmb.toFixed(2)}}/mo; adding ¥68 host + ¥15 egress costs more than staying on PayG.`
                 : `当前按量仅 ¥${{paygRmb.toFixed(2)}}/月，加上主机 ¥68 与存储流量 ¥15 后总成本更高，建议继续按量。`);
@@ -3492,15 +4202,57 @@ def render_html_template(
       }}).join("");
     }}
 
+    function buildSelfHostControlsHtml(isEn) {{
+      const curCache = Math.round((Number(state.semanticCacheHitRate ?? 0.35)) * 100) / 100;
+      const curGpuH = Math.max(1, Math.round(Number(state.gpuMonthlyHours ?? 240)));
+      const cachePresets = [
+        [0.15, isEn ? "15% Low Repeat" : "15% 低重复问答"],
+        [0.35, isEn ? "35% Typical (Default)" : "35% 常规知识库 (默认)"],
+        [0.55, isEn ? "55% High FAQ" : "55% 高频客服/FAQ"],
+        [0.75, isEn ? "75% Ultra Cache" : "75% 极高重复模版"]
+      ];
+      if (!cachePresets.some(x => Math.abs(x[0] - curCache) < 0.001)) {{
+        cachePresets.push([curCache, `${{Math.round(curCache * 100)}}%`]);
+      }}
+      const gpuPresets = [
+        [80, isEn ? "80h/mo (~4h/workday)" : "80 小时/月 (工作日常驻 4h)"],
+        [240, isEn ? "240h/mo (8h/day · Default)" : "240 小时/月 (日均 8h 默认)"],
+        [720, isEn ? "720h/mo (24×7 Dedicated)" : "720 小时/月 (24×7 全天常驻)"]
+      ];
+      if (!gpuPresets.some(x => x[0] === curGpuH)) {{
+        gpuPresets.push([curGpuH, isEn ? `${{curGpuH}}h/mo` : `${{curGpuH}} 小时/月`]);
+      }}
+      return `
+        <div class="selfhost-controls-row">
+          <label class="selfhost-control-item" for="semanticCacheRateSelect">
+            <span>${{isEn ? "Semantic Cache Hit Assumption:" : "语义缓存拦截率假设:"}}</span>
+            <select id="semanticCacheRateSelect" class="select-sm">
+              ${{cachePresets.map(([v, lbl]) => `<option value="${{v}}" ${{Math.abs(v - curCache) < 0.001 ? "selected" : ""}}>${{esc(lbl)}}</option>`).join("")}}
+            </select>
+          </label>
+          <label class="selfhost-control-item" for="gpuMonthlyHoursSelect">
+            <span>${{isEn ? "Elastic GPU Monthly Runtime:" : "24GB GPU 月开机时长:"}}</span>
+            <select id="gpuMonthlyHoursSelect" class="select-sm">
+              ${{gpuPresets.map(([v, lbl]) => `<option value="${{v}}" ${{v === curGpuH ? "selected" : ""}}>${{esc(lbl)}}</option>`).join("")}}
+            </select>
+          </label>
+        </div>
+      `;
+    }}
+
     function renderSelfHostBanner(baseCost) {{
       const el = document.getElementById("selfHostBanner");
       const isEn = state.lang === "en";
       const paygRmb = baseCost.rmb;
       const hostRmb = 68;
       const egressRmb = 15;
-      const uncachedApiRmb = paygRmb * 0.65;
+      const sCacheHit = Math.min(0.9, Math.max(0, Number(state.semanticCacheHitRate ?? 0.35)));
+      const sHitPct = Math.round(sCacheHit * 100);
+      const gpuHrs = Math.max(1, Math.round(Number(state.gpuMonthlyHours ?? 240)));
+      const uncachedApiRmb = paygRmb * (1 - sCacheHit);
       const gatewayTotalRmb = hostRmb + uncachedApiRmb + egressRmb;
-      const gpuTotalRmb = 11.5 * 240 + egressRmb; // 240h/mo * ¥11.5/h + ¥15
+      const gpuTotalRmb = 11.5 * gpuHrs + egressRmb;
+      const controlsHtml = buildSelfHostControlsHtml(isEn);
 
       const gatewaySaves = (paygRmb - gatewayTotalRmb) > 20;
       const gpuSaves = (paygRmb - gpuTotalRmb) > 50;
@@ -3509,13 +4261,15 @@ def render_html_template(
         el.className = "selfhost-banner";
         el.innerHTML = isEn ? `
           <div class="selfhost-title">Self-Host Gateway / GPU vs Pay-As-You-Go: Stay on Pay-As-You-Go API</div>
+          ${{controlsHtml}}
           <div class="selfhost-desc">
-            Current baseline PayG bill is <strong>¥${{paygRmb.toFixed(2)}}/mo</strong>. Deploying a LiteLLM/Dify cache gateway on a cloud host (assuming 35% cache hit) totals <strong>¥${{gatewayTotalRmb.toFixed(2)}}/mo</strong> (¥${{hostRmb}} host + ¥${{uncachedApiRmb.toFixed(2)}} uncached API + ¥${{egressRmb}} egress); renting a 24GB elastic GPU (240h/mo @ ¥11.5/h, ~35 tok/s) totals <strong>¥${{gpuTotalRmb.toFixed(0)}}/mo</strong>. Self-hosting costs more than PayG at this volume.
+            Current baseline PayG bill is <strong>¥${{paygRmb.toFixed(2)}}/mo</strong>. Deploying a LiteLLM/Dify cache gateway on a cloud host (assuming ${{sHitPct}}% cache hit) totals <strong>¥${{gatewayTotalRmb.toFixed(2)}}/mo</strong> (¥${{hostRmb}} host + ¥${{uncachedApiRmb.toFixed(2)}} uncached API + ¥${{egressRmb}} egress); renting a 24GB elastic GPU (${{gpuHrs}}h/mo @ ¥11.5/h, ~35 tok/s) totals <strong>¥${{gpuTotalRmb.toFixed(0)}}/mo</strong>. Self-hosting costs more than PayG at this volume.
           </div>
         ` : `
           <div class="selfhost-title">自建网关 / GPU 与按量总成本核对：建议继续按量付费 API</div>
+          ${{controlsHtml}}
           <div class="selfhost-desc">
-            当前基准按量账单为 <strong>¥${{paygRmb.toFixed(2)}}/月</strong>。若购买云主机部署 LiteLLM/Dify 缓存网关（按 35% 缓存拦截假设），月总成本约 <strong>¥${{gatewayTotalRmb.toFixed(2)}}/月</strong>（主机月租 ¥${{hostRmb}} ＋ 未命中缓存 API 费 ¥${{uncachedApiRmb.toFixed(2)}} ＋ 存储流量 ¥${{egressRmb}}）；若租用单卡 24GB 弹性 GPU（按日均 8h 共 240h/月、吞吐 ~35 tok/s 假设）月总成本约 <strong>¥${{gpuTotalRmb.toFixed(0)}}/月</strong>。自建总成本高于当前按量账单，无需购买服务器。
+            当前基准按量账单为 <strong>¥${{paygRmb.toFixed(2)}}/月</strong>。若购买云主机部署 LiteLLM/Dify 缓存网关（按 ${{sHitPct}}% 缓存拦截假设），月总成本约 <strong>¥${{gatewayTotalRmb.toFixed(2)}}/月</strong>（主机月租 ¥${{hostRmb}} ＋ 未命中缓存 API 费 ¥${{uncachedApiRmb.toFixed(2)}} ＋ 存储流量 ¥${{egressRmb}}）；若租用单卡 24GB 弹性 GPU（按 ${{gpuHrs}}h/月、吞吐 ~35 tok/s 假设）月总成本约 <strong>¥${{gpuTotalRmb.toFixed(0)}}/月</strong>。自建总成本高于当前按量账单，无需购买服务器。
           </div>
         `;
         return;
@@ -3526,9 +4280,10 @@ def render_html_template(
         <div class="selfhost-title">
           High-Volume Break-Even: Baseline PayG ≈ ¥${{paygRmb.toFixed(0)}}/mo — ${{gpuSaves ? "Both Semantic Cache Gateway & Elastic GPU Save Money" : "Semantic Cache Cloud Host Saves Money (Dedicated GPU Not Needed Yet)"}}
         </div>
+        ${{controlsHtml}}
         <div class="selfhost-desc">
-          1. <strong>Dify / LiteLLM Cache Gateway Total</strong>: ¥${{hostRmb}} host + ¥${{uncachedApiRmb.toFixed(0)}} uncached API (35% hit assumption) + ¥${{egressRmb}} egress = <strong>¥${{gatewayTotalRmb.toFixed(0)}}/mo</strong> (net save ¥${{Math.max(0, paygRmb - gatewayTotalRmb).toFixed(0)}}/mo).<br>
-          2. <strong>Open-Weights Elastic GPU Total</strong>: 1×24GB GPU (RTX 4090 / A10 class, ¥11.5/h × 240h/mo, ~35 tok/s) + ¥${{egressRmb}} egress = <strong>¥${{gpuTotalRmb.toFixed(0)}}/mo</strong> ${{gpuSaves ? `(net save ¥${{(paygRmb - gpuTotalRmb).toFixed(0)}}/mo)` : "(above current PayG bill)"}}.
+          1. <strong>Dify / LiteLLM Cache Gateway Total</strong>: ¥${{hostRmb}} host + ¥${{uncachedApiRmb.toFixed(0)}} uncached API (${{sHitPct}}% hit assumption) + ¥${{egressRmb}} egress = <strong>¥${{gatewayTotalRmb.toFixed(0)}}/mo</strong> (net save ¥${{Math.max(0, paygRmb - gatewayTotalRmb).toFixed(0)}}/mo).<br>
+          2. <strong>Open-Weights Elastic GPU Total</strong>: 1×24GB GPU (RTX 4090 / A10 class, ¥11.5/h × ${{gpuHrs}}h/mo, ~35 tok/s) + ¥${{egressRmb}} egress = <strong>¥${{gpuTotalRmb.toFixed(0)}}/mo</strong> ${{gpuSaves ? `(net save ¥${{(paygRmb - gpuTotalRmb).toFixed(0)}}/mo)` : "(above current PayG bill)"}}.
         </div>
         <div class="selfhost-cta-grid">
           <a class="gpu-cta-card" href="${{esc(AFF.aliyun_ambassador_url)}}" target="_blank" rel="noopener sponsored" data-offer-id="aliyun-ecs-agent-host" data-card-slot="selfhost_banner">
@@ -3566,9 +4321,10 @@ def render_html_template(
         <div class="selfhost-title">
           高消耗成本拆解：当前基准按量约 ¥${{paygRmb.toFixed(0)}}/月，${{gpuSaves ? "已达弹性 GPU 自建与语义缓存网关回本线" : "适合用轻量云主机挂 LiteLLM/Dify 语义缓存降本（尚无需租独立 GPU）"}}
         </div>
+        ${{controlsHtml}}
         <div class="selfhost-desc">
-          1. <strong>Dify / LiteLLM 缓存网关总账</strong>：主机月租 ¥${{hostRmb}} ＋ 未命中缓存 API 费 ¥${{uncachedApiRmb.toFixed(0)}}（按 35% 重复请求命中假设）＋ 存储流量 ¥${{egressRmb}} ＝ <strong>¥${{gatewayTotalRmb.toFixed(0)}}/月</strong>（预计净省 ¥${{Math.max(0, paygRmb - gatewayTotalRmb).toFixed(0)}}/月）。<br>
-          2. <strong>开源权重弹性 GPU 自建总账</strong>：单卡 24GB GPU（RTX 4090 / A10 级，¥11.5/小时 × 240 小时/月，吞吐假设 ~35 tok/s）＋ 存储流量 ¥${{egressRmb}} ＝ <strong>¥${{gpuTotalRmb.toFixed(0)}}/月</strong>${{gpuSaves ? `（比当前按量净省 ¥${{(paygRmb - gpuTotalRmb).toFixed(0)}}/月）` : "（高于当前按量账单，暂不建议租独立 GPU）"}}。
+          1. <strong>Dify / LiteLLM 缓存网关总账</strong>：主机月租 ¥${{hostRmb}} ＋ 未命中缓存 API 费 ¥${{uncachedApiRmb.toFixed(0)}}（按 ${{sHitPct}}% 重复请求命中假设）＋ 存储流量 ¥${{egressRmb}} ＝ <strong>¥${{gatewayTotalRmb.toFixed(0)}}/月</strong>（预计净省 ¥${{Math.max(0, paygRmb - gatewayTotalRmb).toFixed(0)}}/月）。<br>
+          2. <strong>开源权重弹性 GPU 自建总账</strong>：单卡 24GB GPU（RTX 4090 / A10 级，¥11.5/小时 × ${{gpuHrs}} 小时/月，吞吐假设 ~35 tok/s）＋ 存储流量 ¥${{egressRmb}} ＝ <strong>¥${{gpuTotalRmb.toFixed(0)}}/月</strong>${{gpuSaves ? `（比当前按量净省 ¥${{(paygRmb - gpuTotalRmb).toFixed(0)}}/月）` : "（高于当前按量账单，暂不建议租独立 GPU）"}}。
         </div>
         <div class="selfhost-cta-grid">
           <a class="gpu-cta-card" href="${{esc(AFF.aliyun_ambassador_url)}}" target="_blank" rel="noopener sponsored" data-offer-id="aliyun-ecs-agent-host" data-card-slot="selfhost_banner">
@@ -3734,6 +4490,15 @@ def render_html_template(
       `).join("");
     }}
 
+    function stripGatewayModelPrefix(rawMid) {{
+      const val = String(rawMid || "qwen3.5-plus").trim() || "qwen3.5-plus";
+      const lower = val.toLowerCase();
+      for (const prefix of ["aliyun-bailian/", "tencent-cloud/", "volcengine/", "siliconflow/", "aliyun/", "tencent/"]) {{
+        if (lower.startsWith(prefix)) return val.slice(prefix.length);
+      }}
+      return val;
+    }}
+
     function resolveEndpointConfig(vendorHint, clientType, billingMode, modelId, fallbackBaseUrl) {{
       const isEn = state.lang === "en";
       const vp = String(vendorHint || "").toLowerCase();
@@ -3746,9 +4511,10 @@ def render_html_template(
 
       const plan = CODING_PLANS.find(p => p.id === planKey);
       const isAnthropic = clientType === "claude_code";
+      const rawMid = String(modelId || "qwen3.5-plus").trim() || "qwen3.5-plus";
+      const cleanMid = stripGatewayModelPrefix(rawMid);
 
       if (billingMode === "coding_plan") {{
-        if (planKey === "tencent-coding-plan") modelId = "tc-code-latest";
         if (!plan || plan.offer_type !== "subscription") {{
           return {{
             docUrl: (plan && plan.official_source_url) || "https://openrouter.ai/docs",
@@ -3756,9 +4522,30 @@ def render_html_template(
               ? "No subscription endpoint is verified for this provider. Check official docs or switch Billing Mode to Pay-As-You-Go."
               : "该渠道无已核验的订阅端点。请查阅官方文档，或明确选择按量付费。",
             gui: isEn ? "Verify subscription compatibility in official docs." : "请核对订阅与客户端的兼容性。",
-            env: isEn ? "# No verified subscription snippet for this provider" : "# 当前组合无已核验的配置"
+            env: isEn ? "# No verified subscription snippet for this provider" : "# 当前组合无已核验的配置",
+            settingsJson: null,
+            verifyCmd: null
           }};
         }}
+
+        const covered = (plan.models_covered || []).map(x => String(x));
+        let effectiveModelId = cleanMid;
+        let modelRemapped = false;
+        if (planKey === "tencent-coding-plan") {{
+          effectiveModelId = covered[0] || "tc-code-latest";
+          modelRemapped = cleanMid.toLowerCase() !== effectiveModelId.toLowerCase();
+        }} else {{
+          let normCand = cleanMid;
+          if (/^doubao-seed-2[.-]0-pro/i.test(normCand)) normCand = "doubao-seed-2.0-pro";
+          const matchedCov = covered.find(c => c.toLowerCase() === normCand.toLowerCase());
+          if (matchedCov) {{
+            effectiveModelId = matchedCov;
+          }} else {{
+            effectiveModelId = covered[0] || normCand;
+            modelRemapped = true;
+          }}
+        }}
+
         const endpoints = plan.endpoints || {{}};
         const ep = endpoints[isAnthropic ? "claude_code" : "openai_compat"];
         if (!ep) {{
@@ -3772,19 +4559,50 @@ def render_html_template(
               : `请查阅官方文档获取最新专属接入方式：\\n${{plan.official_source_url}}`,
             env: isEn
               ? `# Unverified combination — see official docs:\\n# ${{plan.official_source_url}}`
-              : `# 未核验组合：请勿混用普通按量端点，详见官方教程：\\n# ${{plan.official_source_url}}`
+              : `# 未核验组合：请勿混用普通按量端点，详见官方教程：\\n# ${{plan.official_source_url}}`,
+            settingsJson: null,
+            verifyCmd: null
           }};
         }}
         const keyPlaceholder = `${{ep.key_prefix || "sk-sp-"}}your-coding-plan-key`;
+        const cleanBaseUrl = String(ep.base_url || "").replace(/\\/+$/, "");
+        let warning = isEn
+          ? `Switched to dedicated Coding Plan endpoint & key prefix (${{ep.key_prefix || "sk-sp-"}}). Never mix with standard PayG Base URLs or leave ANTHROPIC_API_KEY active, or requests will bill Pay-As-You-Go!`
+          : `已切换为「${{plan.name}}」专属端点与专属密钥（${{ep.key_prefix || "sk-sp-"}} 开头）。切勿填入普通按量端点或残留全局 ANTHROPIC_API_KEY，否则会直接按量扣费！`;
+        if (modelRemapped) {{
+          warning += isEn
+            ? ` Note: "${{rawMid}}" is outside this plan's covered list; auto-mapped to "${{effectiveModelId}}".`
+            : ` 原模型 ${{rawMid}} 不在套餐覆盖列表内，已自动映射为套餐支持的 ${{effectiveModelId}}。`;
+        }}
+        if (ep.protocol === "anthropic") {{
+          const settingsJson = JSON.stringify({{
+            env: {{
+              ANTHROPIC_BASE_URL: ep.base_url,
+              ANTHROPIC_AUTH_TOKEN: keyPlaceholder,
+              ANTHROPIC_MODEL: effectiveModelId,
+              ANTHROPIC_SMALL_FAST_MODEL: effectiveModelId
+            }}
+          }}, null, 2);
+          const verifyCmd = `curl -fsS "${{cleanBaseUrl}}/v1/messages" -H "x-api-key: ${{keyPlaceholder}}" -H "anthropic-version: 2023-06-01" -H "content-type: application/json" -d '{{"model":"${{effectiveModelId}}","max_tokens":1,"messages":[{{"role":"user","content":"ping"}}]}}'`;
+          return {{
+            docUrl: plan.official_source_url,
+            warning,
+            gui: settingsJson,
+            env: `unset ANTHROPIC_API_KEY\\nexport ${{ep.env_url_name}}="${{ep.base_url}}"\\nexport ${{ep.env_key_name}}="${{keyPlaceholder}}"\\nexport ${{ep.env_model_name}}="${{effectiveModelId}}"\\nexport ANTHROPIC_SMALL_FAST_MODEL="${{effectiveModelId}}"`,
+            settingsJson,
+            verifyCmd
+          }};
+        }}
+        const verifyCmd = `curl -fsS "${{cleanBaseUrl}}/chat/completions" -H "Authorization: Bearer ${{keyPlaceholder}}" -H "Content-Type: application/json" -d '{{"model":"${{effectiveModelId}}","max_tokens":1,"messages":[{{"role":"user","content":"ping"}}]}}'`;
         return {{
           docUrl: plan.official_source_url,
-          warning: isEn
-            ? `Switched to dedicated Coding Plan endpoint & key prefix (${{ep.key_prefix || "sk-sp-"}}). Never mix with standard PayG Base URLs or keys, or requests will bill Pay-As-You-Go!`
-            : `已切换为「${{plan.name}}」专属端点与专属密钥（${{ep.key_prefix || "sk-sp-"}} 开头）。切勿填入普通按量端点或普通 API Key，否则会直接按量扣费！`,
+          warning,
           gui: isEn
-            ? `Protocol: ${{ep.protocol === "anthropic" ? "Anthropic Messages API (Coding Plan Dedicated)" : "OpenAI Compatible (Coding Plan Dedicated)"}}\\nBase URL: ${{ep.base_url}}\\nAPI Key Format: ${{keyPlaceholder}}\\nModel ID: ${{modelId}}`
-            : `Protocol: ${{ep.protocol === "anthropic" ? "Anthropic Messages API (Coding Plan 专属)" : "OpenAI Compatible (Coding Plan 专属)"}}\\nBase URL: ${{ep.base_url}}\\nAPI Key 格式: ${{keyPlaceholder}}\\nModel ID: ${{modelId}}`,
-          env: `export ${{ep.env_url_name}}="${{ep.base_url}}"\\nexport ${{ep.env_key_name}}="${{keyPlaceholder}}"\\nexport ${{ep.env_model_name}}="${{modelId}}"`
+            ? `Protocol: OpenAI Compatible (Coding Plan Dedicated)\\nBase URL: ${{ep.base_url}}\\nAPI Key Format: ${{keyPlaceholder}}\\nModel ID: ${{effectiveModelId}}`
+            : `Protocol: OpenAI Compatible (Coding Plan 专属)\\nBase URL: ${{ep.base_url}}\\nAPI Key 格式: ${{keyPlaceholder}}\\nModel ID: ${{effectiveModelId}}`,
+          env: `export ${{ep.env_url_name}}="${{ep.base_url}}"\\nexport ${{ep.env_key_name}}="${{keyPlaceholder}}"\\nexport ${{ep.env_model_name}}="${{effectiveModelId}}"`,
+          settingsJson: null,
+          verifyCmd
         }};
       }}
 
@@ -3802,17 +4620,24 @@ def render_html_template(
           ? "Pay-As-You-Go Anthropic native endpoint is not pre-verified here; check provider Claude Code docs or select OpenAI-compatible."
           : "此处尚未核验该渠道按量计费的 Anthropic 协议配置。",
         gui: isEn ? "See official provider docs for Claude Code PayG setup." : "请查阅厂商针对 Claude Code 的教程。",
-        env: isEn ? "# Check official provider docs for PayG Anthropic endpoint." : "# 请按官方文档核对按量端点。"
+        env: isEn ? "# Check official provider docs for PayG Anthropic endpoint." : "# 请按官方文档核对按量端点。",
+        settingsJson: null,
+        verifyCmd: null
       }};
+      const paygModelId = (!planKey || planKey === "openrouter-global-coding") ? rawMid : cleanMid;
+      const cleanPaygUrl = String(pair[0] || "").replace(/\\/+$/, "");
+      const verifyCmd = `curl -fsS "${{cleanPaygUrl}}/chat/completions" -H "Authorization: Bearer sk-your-payg-api-key" -H "Content-Type: application/json" -d '{{"model":"${{paygModelId}}","max_tokens":1,"messages":[{{"role":"user","content":"ping"}}]}}'`;
       return {{
         docUrl: pair[1],
         warning: isEn
           ? "Showing standard Pay-As-You-Go endpoint. If you purchased a monthly Coding Plan, switch Billing Mode above to Coding Plan (sk-sp-) so usage counts against your subscription!"
           : "当前生成的是「按量付费 API」标准端点；如果您已购买 Coding Plan 包月套餐，请务必切换上方计费方式为「已购 Coding Plan 包月」，否则不会走包月额度！",
         gui: isEn
-          ? `Protocol: OpenAI Compatible (Standard Pay-As-You-Go)\\nBase URL: ${{pair[0]}}\\nModel ID: ${{modelId}}`
-          : `Protocol: OpenAI Compatible (按量付费标准端点)\\nBase URL: ${{pair[0]}}\\nModel ID: ${{modelId}}`,
-        env: `export OPENAI_BASE_URL="${{pair[0]}}"\\nexport OPENAI_API_KEY="sk-your-payg-api-key"\\nexport OPENAI_MODEL="${{modelId}}"`
+          ? `Protocol: OpenAI Compatible (Standard Pay-As-You-Go)\\nBase URL: ${{pair[0]}}\\nModel ID: ${{paygModelId}}`
+          : `Protocol: OpenAI Compatible (按量付费标准端点)\\nBase URL: ${{pair[0]}}\\nModel ID: ${{paygModelId}}`,
+        env: `export OPENAI_BASE_URL="${{pair[0]}}"\\nexport OPENAI_API_KEY="sk-your-payg-api-key"\\nexport OPENAI_MODEL="${{paygModelId}}"`,
+        settingsJson: null,
+        verifyCmd
       }};
     }}
 
@@ -3824,9 +4649,17 @@ def render_html_template(
       const envHeadEl = document.getElementById("cfgEnvHeadingEl");
       const copyGuiBtn = document.getElementById("copyGuiBtn");
       const copyEnvBtn = document.getElementById("copyEnvBtn");
+      const dlJsonBtn = document.getElementById("downloadSettingsJsonBtn");
+      const verifyWrap = document.getElementById("cfgVerifyWrap");
+      const verifyHeadEl = document.getElementById("cfgVerifyHeadingEl");
+      const verifySnippetEl = document.getElementById("cfgVerifySnippet");
+      const copyVerifyBtn = document.getElementById("copyVerifyCmdBtn");
 
       if (state.modalMode === "litellm_hybrid") {{
+        state.modalCurrentSettingsJson = null;
         if (selectorGrid) selectorGrid.style.display = "none";
+        if (dlJsonBtn) dlJsonBtn.style.display = "none";
+        if (verifyWrap) verifyWrap.style.display = "none";
         const baselineModel = getBaselineModel();
         const baseCost = calcModelMonthly(baselineModel);
         const poolByBatch = MODELS.filter(m => state.includeBatch || !m.is_batch);
@@ -3866,9 +4699,7 @@ def render_html_template(
       if (titleEl) titleEl.textContent = isEn
         ? "Dedicated Endpoint Generator (Client × Billing Mode)"
         : "按客户端与计费模式生成专属接入配置";
-      if (guiHeadEl) guiHeadEl.textContent = isEn ? I18N_EN.cfgGuiHeading : (ORIG_ZH_I18N.cfgGuiHeading || "客户端面板参数核对");
       if (envHeadEl) envHeadEl.textContent = isEn ? I18N_EN.cfgEnvHeading : (ORIG_ZH_I18N.cfgEnvHeading || "终端环境变量一键导出命令");
-      if (copyGuiBtn) copyGuiBtn.textContent = isEn ? I18N_EN.copyGuiBtn : (ORIG_ZH_I18N.copyGuiBtn || "复制协议地址与模型参数");
       if (copyEnvBtn) copyEnvBtn.textContent = isEn ? I18N_EN.copyEnvBtn : (ORIG_ZH_I18N.copyEnvBtn || "复制环境变量命令");
 
       const clientType = document.getElementById("cfgClientSelect").value;
@@ -3880,6 +4711,29 @@ def render_html_template(
         state.modalTargetModelId,
         state.modalFallbackBaseUrl
       );
+      state.modalCurrentSettingsJson = cfg.settingsJson || null;
+      if (cfg.settingsJson) {{
+        if (guiHeadEl) guiHeadEl.textContent = isEn
+          ? "~/.claude/settings.json Persistent Config (Recommended)"
+          : "~/.claude/settings.json 持久化配置（推荐）";
+        if (copyGuiBtn) copyGuiBtn.textContent = isEn ? "Copy settings.json" : "复制 settings.json 配置";
+        if (dlJsonBtn) {{
+          dlJsonBtn.style.display = "";
+          dlJsonBtn.textContent = isEn ? I18N_EN.downloadSettingsJsonBtn : (ORIG_ZH_I18N.downloadSettingsJsonBtn || "下载 settings.json 配置文件");
+        }}
+      }} else {{
+        if (guiHeadEl) guiHeadEl.textContent = isEn ? I18N_EN.cfgGuiHeading : (ORIG_ZH_I18N.cfgGuiHeading || "客户端面板参数核对");
+        if (copyGuiBtn) copyGuiBtn.textContent = isEn ? I18N_EN.copyGuiBtn : (ORIG_ZH_I18N.copyGuiBtn || "复制协议地址与模型参数");
+        if (dlJsonBtn) dlJsonBtn.style.display = "none";
+      }}
+      if (cfg.verifyCmd) {{
+        if (verifyWrap) verifyWrap.style.display = "";
+        if (verifyHeadEl) verifyHeadEl.textContent = isEn ? I18N_EN.cfgVerifyHeading : (ORIG_ZH_I18N.cfgVerifyHeading || "1-Token 连通性自检命令（防扣错验证）");
+        if (verifySnippetEl) verifySnippetEl.textContent = cfg.verifyCmd;
+        if (copyVerifyBtn) copyVerifyBtn.textContent = isEn ? I18N_EN.copyVerifyCmdBtn : (ORIG_ZH_I18N.copyVerifyCmdBtn || "复制 1-Token 连通性自检命令");
+      }} else if (verifyWrap) {{
+        verifyWrap.style.display = "none";
+      }}
       document.getElementById("cfgModalSubtitle").textContent = isEn
         ? (state.modalTargetNameEn || state.modalTargetName)
         : state.modalTargetName;
@@ -3925,6 +4779,20 @@ def render_html_template(
 
       document.getElementById("cfgBillingModeSelect").value = "payg";
       document.getElementById("cfgClientSelect").value = "openai_compat";
+      if (ROUTE_PATH.includes("claude-code-domestic")) {{
+        const coveringSub = CODING_PLANS.find(
+          p => p.offer_type === "subscription" && p.provider_config_key && p.provider_config_key === m.provider_config_key && planCoversModel(p, m)
+        ) || CODING_PLANS.find(
+          p => p.offer_type === "subscription" && planCoversModel(p, m)
+        );
+        if (coveringSub) {{
+          state.modalTargetVendor = coveringSub.id;
+          state.modalOfferId = coveringSub.id;
+          state.modalOfficialCtaUrl = coveringSub.url || cta.url;
+          document.getElementById("cfgClientSelect").value = "claude_code";
+          document.getElementById("cfgBillingModeSelect").value = "coding_plan";
+        }}
+      }}
       refreshConfigModalSnippets();
       modal.classList.add("open");
       document.getElementById("cfgClientSelect").focus();
@@ -3996,6 +4864,8 @@ def render_html_template(
       if (state.compareIds && state.compareIds.length > 0) params.set("cmp", state.compareIds.join(","));
       if (Math.abs(state.hybridRoutineRatio - 0.8) > 0.001) params.set("split", String(state.hybridRoutineRatio));
       if (state.hybridRoutineModelId && state.hybridRoutineModelId !== "auto") params.set("routine", state.hybridRoutineModelId);
+      if (Math.abs(state.semanticCacheHitRate - 0.35) > 0.001) params.set("scache", String(state.semanticCacheHitRate));
+      if (Math.abs(state.gpuMonthlyHours - 240) > 0.01) params.set("gpuh", String(state.gpuMonthlyHours));
       params.set("qv", QUOTE_VERIFIED_DATE);
       const base = window.location.origin + window.location.pathname;
       return `${{base}}?${{params.toString()}}`;
@@ -4128,7 +4998,9 @@ def render_html_template(
         }}
       }}
 
-      const gwTotal = 68 + paygRmb * 0.65 + 15;
+      const sCacheHit = Math.min(0.9, Math.max(0, Number(state.semanticCacheHitRate ?? 0.35)));
+      const sUncachedPct = Math.round((1 - sCacheHit) * 100);
+      const gwTotal = 68 + paygRmb * (1 - sCacheHit) + 15;
       const gwSave = paygRmb - gwTotal;
 
       if (isEn) {{
@@ -4141,7 +5013,7 @@ def render_html_template(
           `| Same-Model PayG Pool (${{formatModelTitle(baselineModel, true)}}) | ${{baseBill}}/mo | $0 base · Pay per token · Shared team key OK | Baseline (100%) |`,
           `| ${{planOptLabel}} | ${{planCostCol}} | ${{planRuleCol}} | ${{planVerdictCol}} |`,
           `| Tiered Routing (${{rPct}}% ${{shortModelName(hy.routineModel, true)}} + ${{hPct}}% ${{shortModelName(baselineModel, true)}}) | ${{hyBill}}/mo | LiteLLM weighted PayG pool | Save ${{hy.hybridPct.toFixed(0)}}% |`,
-          `| Cloud Host + LiteLLM/Dify Cache Gateway | ¥${{gwTotal.toFixed(2)}}/mo | ¥68 host + 65% uncached API + ¥15 egress | ${{gwSave > 20 ? `Save ¥${{gwSave.toFixed(0)}}/mo` : "Pricier than PayG"}} |`,
+          `| Cloud Host + LiteLLM/Dify Cache Gateway | ¥${{gwTotal.toFixed(2)}}/mo | ¥68 host + ${{sUncachedPct}}% uncached API + ¥15 egress | ${{gwSave > 20 ? `Save ¥${{gwSave.toFixed(0)}}/mo` : "Pricier than PayG"}} |`,
           ``,
           `> Reproducible Audit & Dedicated Endpoint Config: ${{shareUrl}}`
         ].join("\\n");
@@ -4156,7 +5028,7 @@ def render_html_template(
         `| 同模型共享按量池（${{baselineModel.name}}） | ${{baseBill}}/月 | ¥0 月租 · 按 Token 实结 · 支持团队共享密钥 | 当前对账基准 (100%) |`,
         `| ${{planOptLabel}} | ${{planCostCol}} | ${{planRuleCol}} | ${{planVerdictCol}} |`,
         `| 混合分层路由（${{rPct}}% ${{shortModelName(hy.routineModel, false)}} ＋ ${{hPct}}% ${{shortModelName(baselineModel, false)}}） | ${{hyBill}}/月 | LiteLLM 按量权重分流 | 按量分层省 ${{hy.hybridPct.toFixed(0)}}% |`,
-        `| 云主机自建 LiteLLM/Dify 语义缓存网关 | ¥${{gwTotal.toFixed(2)}}/月 | ¥68 主机 + 65% 未命中 API + ¥15 流量 | ${{gwSave > 20 ? `预计月省 ¥${{gwSave.toFixed(0)}}` : "总成本高于当前按量"}} |`,
+        `| 云主机自建 LiteLLM/Dify 语义缓存网关 | ¥${{gwTotal.toFixed(2)}}/月 | ¥68 主机 + ${{sUncachedPct}}% 未命中 API + ¥15 流量 | ${{gwSave > 20 ? `预计月省 ¥${{gwSave.toFixed(0)}}` : "总成本高于当前按量"}} |`,
         ``,
         `> 一键复算与专属端点核对链接：${{shareUrl}}`
       ].join("\\n");
@@ -4303,6 +5175,20 @@ def render_html_template(
         const rt = params.get("routine");
         if (rt === "auto" || MODELS.some(m => m.id === rt)) {{
           state.hybridRoutineModelId = rt;
+          hasShareParams = true;
+        }}
+      }}
+      if (params.has("scache")) {{
+        const sc = Number(params.get("scache"));
+        if (Number.isFinite(sc) && sc >= 0 && sc <= 0.9) {{
+          state.semanticCacheHitRate = Math.round(sc * 100) / 100;
+          hasShareParams = true;
+        }}
+      }}
+      if (params.has("gpuh")) {{
+        const gh = Number(params.get("gpuh"));
+        if (Number.isFinite(gh) && gh >= 1 && gh <= 744) {{
+          state.gpuMonthlyHours = Math.round(gh);
           hasShareParams = true;
         }}
       }}
@@ -4583,6 +5469,7 @@ def render_html_template(
       renderCodingPlans(baseCost, baselineModel);
       renderSelfHostBanner(baseCost);
       renderCompareTray(baseCost, baselineModel);
+      renderUsageBillBreakdown();
 
       const q = state.searchQuery.trim().toLowerCase();
       let filtered = regionPool.filter(m => {{
@@ -4762,11 +5649,14 @@ def render_html_template(
       presetPro: "Heavy IDE (2,500/day · 75k/mo)",
       presetOver: "Over-Cap Case (5,000/day · 150k/mo)",
       presetBackend: "Backend API (15,000/day · PayG/Host)",
-      usageImportSummary: "Import from Real Logs or Monthly Bill (Claude Code /cost, OpenAI/CN usage JSON, Monthly Totals)",
-      usageLogLabel: "Option 1: Paste Claude Code /cost output, OpenAI/Anthropic usage JSON, or console token stats",
+      usageImportSummary: "Import from Real Logs or Multi-Model CSV Bill (OpenRouter/Cloud CSV, Claude Code /cost, usage JSON)",
+      usageLogLabel: "Option 1: Upload local CSV/TSV/JSON bill, or paste Claude Code /cost & usage JSON",
       usageDaysLabel: "Log Window:",
       applyUsageLogBtn: "Parse & Apply to Calculator",
+      usageFileBtn: "Choose Local Bill (.csv/.tsv/.json)",
+      fillSampleCsvBtn: "Fill Multi-Model CSV Sample",
       fillSampleLogBtn: "Fill Claude Code Sample",
+      usagePrivacyNote: "Privacy: Bills & logs are parsed 100% locally in browser memory and never uploaded to any server.",
       usageMonthlyQuickLabel: "Option 2: Convert Monthly Bill Totals (auto-computes daily calls, per-call avg & cache hit %)",
       labelMonthlyCallsQuick: "Monthly API Calls (30-day total)",
       labelMonthlyInputMQuick: "Monthly Input (Million M Tokens)",
@@ -4819,7 +5709,10 @@ def render_html_template(
       cfgGuiHeading: "Client Settings Parameters",
       cfgEnvHeading: "Terminal Export Snippet",
       copyGuiBtn: "Copy Base URL & Model Parameters",
+      downloadSettingsJsonBtn: "Download settings.json",
       copyEnvBtn: "Copy Export Commands",
+      cfgVerifyHeading: "1-Token Connectivity Smoke Test (Prevent Misbilling)",
+      copyVerifyCmdBtn: "Copy 1-Token Smoke Test Command",
       cfgModalDocLink: "Read Official Provider Docs",
       cfgModalOfficialCta: "Open Official Console for API Key"
     }};
@@ -4976,6 +5869,7 @@ def render_html_template(
         }});
       }}
       renderUsageImportStatus();
+      renderUsageBillBreakdown();
 
       renderPartnerMatrix();
       applyTheme(state.theme);
@@ -5041,6 +5935,22 @@ def render_html_template(
         }});
       }});
 
+      const fillSampleCsvBtn = document.getElementById("fillSampleCsvBtn");
+      if (fillSampleCsvBtn) {{
+        fillSampleCsvBtn.addEventListener("click", () => {{
+          const sampleCsv = [
+            "model_permaslug,requests,tokens_prompt,tokens_completion,native_tokens_cached,native_tokens_reasoning,usage",
+            "anthropic/claude-sonnet-4,15000,60000000,12000000,30000000,0,$315.00",
+            "deepseek/deepseek-r1,10000,40000000,10000000,20000000,6000000,$42.00",
+            "qwen3-coder-next,20000,80000000,16000000,40000000,0,$21.33"
+          ].join("\\n");
+          const ta = document.getElementById("usageLogTextarea");
+          const ds = document.getElementById("usageDaysSelect");
+          if (ta) ta.value = sampleCsv;
+          if (ds) ds.value = "30";
+        }});
+      }}
+
       const fillSampleBtn = document.getElementById("fillSampleLogBtn");
       if (fillSampleBtn) {{
         fillSampleBtn.addEventListener("click", () => {{
@@ -5059,6 +5969,93 @@ def render_html_template(
         }});
       }}
 
+      const applyParsedUsageSnippet = parsed => {{
+        state.dailyCalls = Math.min(2000000, Math.max(1, parsed.daily_requests));
+        state.inputTokens = Math.min(500000, Math.max(1, parsed.avg_input_tokens));
+        state.outputTokens = Math.min(128000, Math.max(1, parsed.avg_output_tokens));
+        state.cacheEnabled = parsed.cache_hit_rate > 0;
+        syncCacheHitSelectOption(parsed.cache_hit_rate > 0 ? parsed.cache_hit_rate : 0.5);
+        if (parsed.output_includes_reasoning) {{
+          state.outputIncludesReasoning = true;
+          document.getElementById("outputIncludesReasoningToggle").checked = true;
+        }}
+        if (parsed.detected_format === "csv_multimodel_bill") {{
+          const audit = auditCsvBillWeb(parsed);
+          if (audit && audit.line_items && audit.line_items.length > 0) {{
+            const primaryMatch = audit.line_items[0].matched_model_id;
+            if (primaryMatch && MODELS.some(m => m.id === primaryMatch)) {{
+              state.baselineId = primaryMatch;
+              const baseSel = document.getElementById("baselineSelect");
+              if (baseSel) baseSel.value = primaryMatch;
+            }}
+            const autoCmp = [];
+            for (const li of audit.line_items) {{
+              for (const cid of [li.matched_model_id, li.recommended_model_id]) {{
+                if (cid && MODELS.some(m => m.id === cid) && !autoCmp.includes(cid) && autoCmp.length < 3) {{
+                  autoCmp.push(cid);
+                }}
+              }}
+            }}
+            if (autoCmp.length >= 2) {{
+              state.compareIds = autoCmp.slice(0, 3);
+            }}
+          }}
+        }}
+        document.getElementById("dailyCallsNum").value = String(state.dailyCalls);
+        document.getElementById("dailyCallsRange").value = String(callsToSlider(state.dailyCalls));
+        document.getElementById("inputTokensNum").value = String(state.inputTokens);
+        document.getElementById("inputTokensRange").value = String(Math.min(32000, state.inputTokens));
+        document.getElementById("outputTokensNum").value = String(state.outputTokens);
+        document.getElementById("outputTokensRange").value = String(Math.min(8000, state.outputTokens));
+        document.getElementById("cacheToggle").checked = state.cacheEnabled;
+        document.querySelectorAll("#presetBar .preset-btn, [data-prompt-calls]").forEach(b => b.classList.remove("active"));
+        state.lastUsageImport = {{ mode: "log_snippet", parsed }};
+        renderUsageImportStatus();
+        renderUsageBillBreakdown();
+        updateAll(true);
+        trackEvent("usage_import", {{ slot_id: parsed.detected_format }});
+      }};
+
+      const usageFileInput = document.getElementById("usageFileInput");
+      const usageFileLabel = document.querySelector('label[for="usageFileInput"]');
+      if (usageFileLabel && usageFileInput) {{
+        usageFileLabel.addEventListener("keydown", e => {{
+          if (e.key === "Enter" || e.key === " ") {{
+            e.preventDefault();
+            usageFileInput.click();
+          }}
+        }});
+      }}
+      if (usageFileInput) {{
+        usageFileInput.addEventListener("change", e => {{
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {{
+            const rawText = String(reader.result || "");
+            const ta = document.getElementById("usageLogTextarea");
+            if (ta) ta.value = rawText;
+            const daysVal = Number(document.getElementById("usageDaysSelect")?.value || 30) || 30;
+            try {{
+              const parsed = parseUsageSnippet(rawText, daysVal);
+              applyParsedUsageSnippet(parsed);
+            }} catch (_) {{
+              state.lastUsageImport = {{ error: "parse_failed" }};
+              renderUsageImportStatus();
+              renderUsageBillBreakdown();
+            }}
+            usageFileInput.value = "";
+          }};
+          reader.onerror = () => {{
+            state.lastUsageImport = {{ error: "parse_failed" }};
+            renderUsageImportStatus();
+            renderUsageBillBreakdown();
+            usageFileInput.value = "";
+          }};
+          reader.readAsText(file);
+        }});
+      }}
+
       const applyLogBtn = document.getElementById("applyUsageLogBtn");
       if (applyLogBtn) {{
         applyLogBtn.addEventListener("click", () => {{
@@ -5066,30 +6063,11 @@ def render_html_template(
           const daysVal = Number(document.getElementById("usageDaysSelect")?.value || 30) || 30;
           try {{
             const parsed = parseUsageSnippet(rawText, daysVal);
-            state.dailyCalls = Math.min(2000000, Math.max(1, parsed.daily_requests));
-            state.inputTokens = Math.min(500000, Math.max(1, parsed.avg_input_tokens));
-            state.outputTokens = Math.min(128000, Math.max(1, parsed.avg_output_tokens));
-            state.cacheEnabled = parsed.cache_hit_rate > 0;
-            syncCacheHitSelectOption(parsed.cache_hit_rate > 0 ? parsed.cache_hit_rate : 0.5);
-            if (parsed.output_includes_reasoning) {{
-              state.outputIncludesReasoning = true;
-              document.getElementById("outputIncludesReasoningToggle").checked = true;
-            }}
-            document.getElementById("dailyCallsNum").value = String(state.dailyCalls);
-            document.getElementById("dailyCallsRange").value = String(callsToSlider(state.dailyCalls));
-            document.getElementById("inputTokensNum").value = String(state.inputTokens);
-            document.getElementById("inputTokensRange").value = String(Math.min(32000, state.inputTokens));
-            document.getElementById("outputTokensNum").value = String(state.outputTokens);
-            document.getElementById("outputTokensRange").value = String(Math.min(8000, state.outputTokens));
-            document.getElementById("cacheToggle").checked = state.cacheEnabled;
-            document.querySelectorAll("#presetBar .preset-btn, [data-prompt-calls]").forEach(b => b.classList.remove("active"));
-            state.lastUsageImport = {{ mode: "log_snippet", parsed }};
-            renderUsageImportStatus();
-            updateAll(true);
-            trackEvent("usage_import", {{ slot_id: parsed.detected_format }});
+            applyParsedUsageSnippet(parsed);
           }} catch (_) {{
             state.lastUsageImport = {{ error: "parse_failed" }};
             renderUsageImportStatus();
+            renderUsageBillBreakdown();
           }}
         }});
       }}
@@ -5335,7 +6313,38 @@ def render_html_template(
       document.getElementById("cfgClientSelect").addEventListener("change", refreshConfigModalSnippets);
       document.getElementById("cfgBillingModeSelect").addEventListener("change", refreshConfigModalSnippets);
 
+      document.addEventListener("change", e => {{
+        if (e.target && e.target.id === "semanticCacheRateSelect") {{
+          const v = Number(e.target.value);
+          if (Number.isFinite(v) && v >= 0 && v <= 0.9) {{
+            state.semanticCacheHitRate = Math.round(v * 100) / 100;
+            updateAll(true);
+          }}
+          return;
+        }}
+        if (e.target && e.target.id === "gpuMonthlyHoursSelect") {{
+          const v = Number(e.target.value);
+          if (Number.isFinite(v) && v >= 1 && v <= 744) {{
+            state.gpuMonthlyHours = Math.round(v);
+            updateAll(true);
+          }}
+        }}
+      }});
+
       document.addEventListener("click", e => {{
+        const copyBillMdBtn = e.target.closest("#copyBillAuditMdBtn");
+        if (copyBillMdBtn) {{
+          const imp = state.lastUsageImport;
+          if (imp && imp.mode === "log_snippet" && imp.parsed && imp.parsed.detected_format === "csv_multimodel_bill") {{
+            const audit = auditCsvBillWeb(imp.parsed);
+            if (audit) {{
+              const md = buildBillAuditMarkdown(audit);
+              trackEvent("share_summary", {{ slot_id: "bill_audit_md" }});
+              copyTextWithFeedback(md, copyBillMdBtn, state.lang === "en" ? "Slim-Down Report Copied" : "已复制账单瘦身报告");
+            }}
+          }}
+          return;
+        }}
         const toggleCmpBtn = e.target.closest("[data-toggle-compare]");
         if (toggleCmpBtn) {{
           const targetId = toggleCmpBtn.getAttribute("data-toggle-compare");
@@ -5418,9 +6427,31 @@ def render_html_template(
       document.getElementById("copyGuiBtn").addEventListener("click", e => {{
         copyTextWithFeedback(document.getElementById("cfgGuiSnippet").textContent, e.currentTarget);
       }});
+      const dlSettingsBtn = document.getElementById("downloadSettingsJsonBtn");
+      if (dlSettingsBtn) {{
+        dlSettingsBtn.addEventListener("click", () => {{
+          if (!state.modalCurrentSettingsJson) return;
+          const blob = new Blob([state.modalCurrentSettingsJson + "\\n"], {{ type: "application/json;charset=utf-8" }});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "settings.json";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          trackEvent("share_copy", {{ slot_id: "claude_settings_json" }});
+        }});
+      }}
       document.getElementById("copyEnvBtn").addEventListener("click", e => {{
         copyTextWithFeedback(document.getElementById("cfgEnvSnippet").textContent, e.currentTarget);
       }});
+      const copyVerifyCmdBtn = document.getElementById("copyVerifyCmdBtn");
+      if (copyVerifyCmdBtn) {{
+        copyVerifyCmdBtn.addEventListener("click", e => {{
+          copyTextWithFeedback(document.getElementById("cfgVerifySnippet").textContent, e.currentTarget);
+        }});
+      }}
     }}
 
     initBaselines();

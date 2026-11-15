@@ -68,7 +68,7 @@ def main():
     if args.remote:
         import http.client
         import time
-        from urllib.parse import urlsplit
+        from urllib.parse import quote, urlsplit
 
         parsed_base = urlsplit(args.remote.rstrip("/") + "/")
         conn_cls = http.client.HTTPSConnection if parsed_base.scheme == "https" else http.client.HTTPConnection
@@ -118,6 +118,20 @@ def main():
             assert st_mo == 200, f"/api/budget monthly totals returned HTTP {st_mo}: {body_mo}"
             mo_budget = json.loads(body_mo)
             assert abs(float(mo_budget.get("monthly_rmb", 0)) - 656.64) < 0.02, f"Unexpected /api/budget monthly_rmb: {mo_budget}"
+            csv_sample = (
+                "model_permaslug,requests,tokens_prompt,tokens_completion,native_tokens_cached,native_tokens_reasoning,usage\n"
+                "anthropic/claude-sonnet-4,15000,60000000,12000000,30000000,0,$315.00\n"
+                "deepseek/deepseek-r1,10000,40000000,10000000,20000000,6000000,$42.00\n"
+                "qwen3-coder-next,20000,80000000,16000000,40000000,0,$21.33\n"
+            )
+            st_csv, body_csv = request_remote(
+                f"api/budget?model_id=auto&usage_snippet={quote(csv_sample, safe='')}&days_observed=30&team_size=2"
+            )
+            assert st_csv == 200, f"/api/budget CSV bill_audit returned HTTP {st_csv}: {body_csv}"
+            csv_budget = json.loads(body_csv)
+            assert "bill_audit" in csv_budget and csv_budget["bill_audit"]["totals"]["distinct_models_count"] == 3, (
+                f"Unexpected /api/budget bill_audit: {csv_budget}"
+            )
             st_feed, body_feed = request_remote("feeds/price-changes.xml")
             assert st_feed == 200 and "<feed" in body_feed, f"/feeds/price-changes.xml returned HTTP {st_feed}"
             st_admin, _ = request_remote("admin/stats")

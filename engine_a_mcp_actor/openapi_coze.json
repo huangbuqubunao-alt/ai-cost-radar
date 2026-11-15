@@ -109,7 +109,7 @@
                 "properties": {
                   "model_query": {
                     "type": "string",
-                    "description": "目标模型名称或关键字，例如 deepseek-v3、qwen3、claude-sonnet、gpt-5、doubao",
+                    "description": "目标模型名称或关键字，例如 deepseek-v3、qwen3、claude-sonnet、gpt-5、doubao（当 usage_snippet 传入多模型 CSV 账单时可传 auto 自动识别头号开销模型）",
                     "default": "deepseek-v3"
                   },
                   "daily_requests": {
@@ -181,7 +181,7 @@
                   },
                   "usage_snippet": {
                     "type": "string",
-                    "description": "可选：粘贴 Claude Code /cost 输出、OpenAI/百炼/DeepSeek usage JSON 或云控制台统计摘要，自动解析用量"
+                    "description": "可选：粘贴 OpenRouter Activity 多模型 CSV/TSV 账单、云控制台 CSV 导出、Claude Code /cost 输出、OpenAI/百炼/DeepSeek usage JSON 或统计摘要，自动解析用量并生成多模型降本审计 (bill_audit)"
                   },
                   "days_observed": {
                     "type": "number",

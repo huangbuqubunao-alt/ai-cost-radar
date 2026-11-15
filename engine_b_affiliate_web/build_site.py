@@ -270,6 +270,8 @@ FALLBACK_MODELS: list[dict[str, Any]] = [
         "name": "腾讯云 LKEAP: Hunyuan-T1 深度思考旗舰",
         "provider": "腾讯云 (Tencent Cloud)",
         "provider_config_key": "tencent_cps_url",
+        "api_base_url": "https://api.lkeap.cloud.tencent.com/v1",
+        "api_model_id": "hunyuan-t1-latest",
         "region": "cn_direct",
         "input_rmb_per_1m": 1.0,
         "output_rmb_per_1m": 4.0,
@@ -464,6 +466,11 @@ SEO_ROUTES: list[dict[str, Any]] = [
             "reasoningMultiplier": 2.5,
             "usageMode": "automated_backend",
             "baselineId": "siliconflow/deepseek-ai/DeepSeek-V3",
+            "compareIds": [
+                "siliconflow/deepseek-ai/DeepSeek-V3",
+                "aliyun-bailian/qwen3.5-plus",
+                "volcengine/doubao-seed-2.0-pro",
+            ],
         },
     },
 ]

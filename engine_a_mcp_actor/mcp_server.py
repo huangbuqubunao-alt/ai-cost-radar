@@ -307,13 +307,15 @@ def calculate_api_budget(
     r_mult = max(1.0, float(reasoning_multiplier or 1.0))
     inc_cot = bool(output_includes_reasoning)
     parsed_usage_summary: dict[str, Any] | None = None
+    bill_audit: dict[str, Any] | None = None
     exact_monthly_in_m: float | None = None
     exact_monthly_out_m: float | None = None
 
     if usage_snippet is not None and str(usage_snippet).strip() != "":
+        obs_days = float(days_observed if days_observed is not None else 30.0)
         parsed_usage_summary = pricing_core.parse_usage_log_snippet(
             str(usage_snippet),
-            days_observed=float(days_observed if days_observed is not None else 30.0),
+            days_observed=obs_days,
         )
         reqs = float(parsed_usage_summary["daily_requests"])
         in_tok = float(parsed_usage_summary["avg_input_tokens"])
@@ -323,6 +325,20 @@ def calculate_api_budget(
         exact_monthly_out_m = float(parsed_usage_summary["monthly_output_m"])
         if parsed_usage_summary.get("output_includes_reasoning"):
             inc_cot = True
+        if parsed_usage_summary.get("detected_format") == "csv_multimodel_bill":
+            if not str(model_query or "").strip() or str(model_query).strip().lower() == "auto":
+                bd = parsed_usage_summary.get("model_breakdown") or []
+                if bd:
+                    model_query = str(bd[0].get("model") or "deepseek-v3")
+            bill_audit = pricing_core.audit_csv_bill(
+                models=models,
+                raw_text=parsed_usage_summary,
+                days_observed=obs_days,
+                usage_mode=usage_mode,
+                team_size=team_size,
+                offers=catalog.get("coding_plans") if isinstance(catalog.get("coding_plans"), list) else None,
+                fx_rate=float(catalog.get("fx_rate_usd_to_rmb", 7.20)),
+            )
     elif any(v is not None for v in (monthly_requests, monthly_input_m, monthly_output_m, cached_input_m)):
         if monthly_requests is not None:
             m_reqs = int(round(float(monthly_requests)))
@@ -547,6 +563,8 @@ def calculate_api_budget(
     }
     if parsed_usage_summary is not None:
         response["parsed_usage_summary"] = parsed_usage_summary
+    if bill_audit is not None:
+        response["bill_audit"] = bill_audit
     stale_warn = _check_snapshot_staleness(catalog)
     if stale_warn:
         response["snapshot_stale_warning"] = stale_warn
@@ -652,7 +670,7 @@ MCP_TOOLS_SPEC: list[dict[str, Any]] = [
             "properties": {
                 "model_query": {
                     "type": "string",
-                    "description": "Model ID or fuzzy name query (e.g. 'deepseek-v3', 'claude-sonnet-4', 'qwen3', 'gpt-4.1').",
+                    "description": "Model ID or fuzzy name query (e.g. 'deepseek-v3', 'claude-sonnet-4', 'qwen3', or 'auto' when passing a multi-model CSV bill in `usage_snippet`).",
                     "default": "deepseek-v3",
                 },
                 "daily_requests": {
@@ -720,7 +738,7 @@ MCP_TOOLS_SPEC: list[dict[str, Any]] = [
                 },
                 "usage_snippet": {
                     "type": "string",
-                    "description": "Optional raw Claude Code `/cost` output, OpenAI/Bailian/DeepSeek `usage` JSON, or cloud console summary to parse automatically.",
+                    "description": "Optional multi-model OpenRouter/cloud CSV or TSV bill, Claude Code `/cost` output, OpenAI/Bailian/DeepSeek `usage` JSON, or cloud console summary to parse and audit automatically.",
                 },
                 "days_observed": {
                     "type": "number",

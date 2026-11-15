@@ -33,6 +33,238 @@ function parseScaledNumber(rawVal) {
   return Math.max(0, base * (multMap[unit] ?? 1));
 }
 
+function splitDelimitedLine(line, delim) {
+  const cells = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cur += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === delim && !inQuotes) {
+      cells.push(cur.trim());
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  cells.push(cur.trim());
+  return cells;
+}
+
+function parseCurrencyRmb(rawVal, headerCompact, fxRate = 7.2) {
+  const s = String(rawVal ?? "").trim();
+  if (!s || ["-", "n/a", "na", "null", "none"].includes(s.toLowerCase())) return 0;
+  const sLow = s.toLowerCase();
+  let isRmb = false;
+  if (["¥", "￥", "rmb", "cny", "元"].some((sym) => sLow.includes(sym))) isRmb = true;
+  else if (["$", "usd"].some((sym) => sLow.includes(sym))) isRmb = false;
+  else if (["rmb", "cny", "应付金额", "账单金额", "消费金额", "费用", "金额", "花费", "总费用", "元"].some((k) => headerCompact.includes(k))) isRmb = true;
+
+  const cleaned = s
+    .replace(/^(?:usd|rmb|cny|us\$|[$¥￥])\s*/i, "")
+    .replace(/\s*(?:usd|rmb|cny|元)$/i, "")
+    .trim();
+  if (!cleaned) return 0;
+  const val = parseScaledNumber(cleaned);
+  return isRmb ? val : val * fxRate;
+}
+
+function tryParseCsvBill(text, days, fxRate = 7.2) {
+  const rawLines = [];
+  for (const ln of text.split(/\r?\n/)) {
+    const s = ln.trim();
+    if (!s || s.startsWith("#")) continue;
+    if (/^\|?[\s:-]+(?:\|[\s:-]+)+\|?$/.test(s)) continue;
+    rawLines.push(s);
+  }
+  if (rawLines.length < 2) return null;
+
+  const headerLine = rawLines[0];
+  const pipeCount = (headerLine.match(/\|/g) || []).length;
+  const isPipe = pipeCount >= 2;
+  let delim = null;
+  if (isPipe) {
+    delim = "|";
+  } else {
+    const counts = ["\t", ",", ";"].map((d) => [d, headerLine.split(d).length - 1]);
+    counts.sort((a, b) => b[1] - a[1]);
+    if (counts[0][1] >= 1) delim = counts[0][0];
+  }
+  if (!delim) return null;
+
+  const rows = isPipe
+    ? rawLines.map((ln) => ln.replace(/^\|+|\|+$/g, "").split("|").map((c) => c.trim().replace(/^['"]|['"]$/g, "")))
+    : rawLines.map((ln) => splitDelimitedLine(ln, delim));
+  if (rows.length < 2) return null;
+
+  const rawHeaders = rows[0].map((c) => String(c || "").trim().replace(/^\ufeff/, "").replace(/^['"]|['"]$/g, ""));
+  if (rawHeaders.length < 2) return null;
+  if (rawHeaders.some((h) => h && /^[0-9.]+$/.test(h))) return null;
+
+  const compactHeaders = rawHeaders.map((h) => h.toLowerCase().replace(/[\s_\-()/（）]+/g, ""));
+  const modelAliases = new Set(["model", "modelid", "modelname", "modelpermaslug", "modelslug", "permaslug", "endpoint", "模型", "模型名称", "模型id", "调用模型"]);
+  const reqAliases = new Set(["requests", "requestcount", "numrequests", "calls", "apicalls", "totalrequests", "totalcalls", "count", "调用次数", "请求次数", "请求数", "调用量"]);
+  const inAliases = new Set(["tokensprompt", "nativetokensprompt", "prompttokens", "inputtokens", "totalinputtokens", "input", "prompt", "输入token", "输入tokens", "输入token数", "提问token", "入参token"]);
+  const outAliases = new Set(["tokenscompletion", "nativetokenscompletion", "completiontokens", "outputtokens", "totaloutputtokens", "output", "completion", "输出token", "输出tokens", "输出token数", "回答token", "出参token"]);
+  const cachedAliases = new Set(["nativetokenscached", "cachedtokens", "cachedinputtokens", "prompttokenscached", "cachehit", "缓存命中token", "缓存命中tokens", "命中缓存token", "缓存token", "缓存输入token", "命中缓存"]);
+  const cReadAliases = new Set(["cachereadinputtokens", "cachereadtokens", "cacheread"]);
+  const cWriteAliases = new Set(["cachecreationinputtokens", "cachewritetokens", "cachewrite", "缓存写入token"]);
+  const reasonAliases = new Set(["nativetokensreasoning", "reasoningtokens", "thinkingtokens", "思考token", "思考tokens", "推理token"]);
+  const costAliases = new Set(["usage", "cost", "totalcost", "spend", "amount", "bill", "costusd", "spendusd", "costrmb", "costcny", "应付金额", "账单金额", "消费金额", "费用", "金额", "花费", "总费用"]);
+
+  const findCol = (set) => {
+    const idx = compactHeaders.findIndex((ch) => set.has(ch));
+    return idx >= 0 ? idx : null;
+  };
+
+  const colModel = findCol(modelAliases);
+  const colReq = findCol(reqAliases);
+  const colIn = findCol(inAliases);
+  const colOut = findCol(outAliases);
+  const colCached = findCol(cachedAliases);
+  const colCRead = findCol(cReadAliases);
+  const colCWrite = findCol(cWriteAliases);
+  const colReason = findCol(reasonAliases);
+  const colCost = findCol(costAliases);
+
+  if (colIn === null && colOut === null) return null;
+
+  const summaryLabels = new Set(["total", "totals", "sum", "summary", "合计", "总计", "汇总", "小计"]);
+  const groups = new Map();
+  const costHeaderCompact = colCost !== null ? compactHeaders[colCost] : "";
+
+  const cellNum = (r, idx) => {
+    if (idx === null || idx >= r.length) return 0;
+    const v = String(r[idx] ?? "").trim();
+    if (!v || ["-", "n/a", "na", "null", "none"].includes(v.toLowerCase())) return 0;
+    return parseScaledNumber(v);
+  };
+
+  for (const r of rows.slice(1)) {
+    if (!r || r.every((c) => !String(c ?? "").trim())) continue;
+    const firstClean = String(r[0] ?? "").trim().toLowerCase();
+    const modelRaw = colModel !== null && colModel < r.length ? String(r[colModel] ?? "").trim() : "";
+    if (summaryLabels.has(firstClean) || summaryLabels.has(modelRaw.toLowerCase())) continue;
+
+    const inVal = cellNum(r, colIn);
+    const outVal = cellNum(r, colOut);
+    const cachedSubVal = cellNum(r, colCached);
+    const cReadVal = cellNum(r, colCRead);
+    const cWriteVal = cellNum(r, colCWrite);
+    const reasonVal = cellNum(r, colReason);
+
+    let rowIn = 0;
+    let rowCached = 0;
+    if (colCRead !== null || colCWrite !== null) {
+      rowIn = inVal + cReadVal + cWriteVal;
+      rowCached = cReadVal;
+    } else {
+      rowIn = Math.max(inVal, cachedSubVal);
+      rowCached = Math.min(rowIn, cachedSubVal);
+    }
+    if (rowIn <= 0 && outVal <= 0) continue;
+
+    let rowReqs = 1;
+    if (colReq !== null) {
+      const reqVal = cellNum(r, colReq);
+      rowReqs = reqVal > 0 ? reqVal : 1;
+    }
+    const rowCostRmb = colCost !== null && colCost < r.length ? parseCurrencyRmb(r[colCost], costHeaderCompact, fxRate) : 0;
+    const modelLabel = modelRaw || "unknown";
+    const gKey = modelLabel.toLowerCase();
+    if (!groups.has(gKey)) {
+      groups.set(gKey, {
+        model: modelLabel,
+        requests: 0,
+        input_tokens: 0,
+        cached_input_tokens: 0,
+        output_tokens: 0,
+        reasoning_tokens: 0,
+        reported_cost_rmb: 0,
+      });
+    }
+    const grp = groups.get(gKey);
+    grp.requests += rowReqs;
+    grp.input_tokens += rowIn;
+    grp.cached_input_tokens += rowCached;
+    grp.output_tokens += outVal;
+    grp.reasoning_tokens += reasonVal;
+    grp.reported_cost_rmb += rowCostRmb;
+  }
+
+  if (groups.size === 0) {
+    throw new Error("CSV bill contains zero positive token rows");
+  }
+
+  const sortedGroups = Array.from(groups.values()).sort(
+    (a, b) => (b.reported_cost_rmb - a.reported_cost_rmb) || ((b.input_tokens + b.output_tokens) - (a.input_tokens + a.output_tokens))
+  );
+
+  let totalReqs = 0;
+  let totalIn = 0;
+  let totalCached = 0;
+  let totalOut = 0;
+  let totalReason = 0;
+  let totalCostRmb = 0;
+  const modelBreakdown = sortedGroups.map((g) => {
+    const gIn = g.input_tokens;
+    const gCached = Math.min(gIn, Math.max(0, g.cached_input_tokens));
+    totalReqs += g.requests;
+    totalIn += gIn;
+    totalCached += gCached;
+    totalOut += g.output_tokens;
+    totalReason += g.reasoning_tokens;
+    totalCostRmb += g.reported_cost_rmb;
+    return {
+      model: g.model,
+      requests: Math.round(g.requests),
+      input_tokens: Math.round(gIn),
+      cached_input_tokens: Math.round(gCached),
+      output_tokens: Math.round(g.output_tokens),
+      reasoning_tokens: Math.round(g.reasoning_tokens),
+      cache_hit_rate: gIn > 0 ? Math.round((gCached / gIn) * 10000) / 10000 : 0,
+      output_includes_reasoning: g.reasoning_tokens > 0,
+      reported_cost_rmb: Math.round(g.reported_cost_rmb * 10000) / 10000,
+    };
+  });
+
+  const cacheHitRate = totalIn > 0 ? Math.round((totalCached / totalIn) * 10000) / 10000 : 0;
+  const dailyRequests = Math.max(1, Math.round(totalReqs / days));
+  const monthlyRequests = Math.max(1, Math.round((totalReqs / days) * 30));
+  const avgInputTokens = totalIn > 0 ? Math.max(1, Math.round(totalIn / Math.max(1, totalReqs))) : 1500;
+  const avgOutputTokens = totalOut > 0 ? Math.max(1, Math.round(totalOut / Math.max(1, totalReqs))) : 500;
+  const monthlyInputM = Math.round((((totalIn / days) * 30) / 1e6) * 1e6) / 1e6;
+  const monthlyOutputM = Math.round((((totalOut / days) * 30) / 1e6) * 1e6) / 1e6;
+
+  return {
+    detected_format: "csv_multimodel_bill",
+    days_observed: days,
+    distinct_models_count: modelBreakdown.length,
+    total_requests: Math.round(totalReqs),
+    monthly_requests: monthlyRequests,
+    total_input_tokens: Math.round(totalIn),
+    cached_input_tokens: Math.round(totalCached),
+    total_output_tokens: Math.round(totalOut),
+    monthly_input_m: monthlyInputM,
+    monthly_output_m: monthlyOutputM,
+    daily_requests: dailyRequests,
+    avg_input_tokens: avgInputTokens,
+    avg_output_tokens: avgOutputTokens,
+    cache_hit_rate: cacheHitRate,
+    output_includes_reasoning: totalReason > 0,
+    calls_estimated: false,
+    reported_cost_rmb: Math.round((totalCostRmb + Number.EPSILON) * 100) / 100,
+    monthly_reported_cost_rmb: Math.round((((totalCostRmb / days) * 30) + Number.EPSILON) * 100) / 100,
+    model_breakdown: modelBreakdown,
+  };
+}
+
 export function parseUsageSnippet(rawText, daysObserved = 30, defaultTokensPerCall = 4000) {
   const text = String(rawText ?? "").trim();
   if (!text || text.length > 32000) throw new Error("Invalid usage_snippet");
@@ -105,6 +337,8 @@ export function parseUsageSnippet(rawText, daysObserved = 30, defaultTokensPerCa
     const rTok = cDetails.reasoning_tokens ?? oDetails.reasoning_tokens ?? merged.reasoning_tokens;
     if (rTok !== undefined && rTok !== null && parseScaledNumber(rTok) > 0) outputIncludesReasoning = true;
   } else {
+    const csvParsed = tryParseCsvBill(text, days);
+    if (csvParsed) return csvParsed;
     const numPat = "([0-9][0-9,._]*\\s*(?:百万|亿|万|千|[kKmMbBwW])?)";
     const mIn = text.match(new RegExp("(?:total\\s+input(?:\\s+tokens?)?|uncached\\s+input|prompt\\s+tokens?|\\binput(?:\\s+tokens?)?|输入\\s*(?:token|tokens)?)\\s*[:：=]?\\s*" + numPat, "i"));
     const mCacheRead = text.match(new RegExp("(?:cache\\s*read(?:\\s+input)?(?:\\s+tokens?)?|cached(?:\\s+input)?(?:\\s+tokens?)?|缓存命中(?:\\s*token|\\s*tokens|\\s*输入)?|命中缓存)\\s*[:：=]?\\s*" + numPat, "i"));
@@ -227,10 +461,207 @@ export function planCoversModel(plan, model) {
   return false;
 }
 
+export function resolveModelFuzzy(models, rawId) {
+  const strict = resolveCatalogModel(models, rawId);
+  if (strict) return strict;
+  if (!models || models.length === 0) return null;
+  const raw = String(rawId || "deepseek-v3").trim().toLowerCase();
+  const wantsFree = raw.includes("free");
+  const qTokens = raw.replace(/[/-]/g, " ").split(/\s+/).filter(Boolean);
+  let best = null;
+  let bestRank = -1;
+  for (const m of models) {
+    const mid = String(m.id || "").toLowerCase();
+    const apiMid = String(m.api_model_id || "").toLowerCase();
+    const mname = String(m.name || "").toLowerCase();
+    const hay = `${mid} ${apiMid} ${mname} ${String(m.provider || "").toLowerCase()}`;
+    let score = 0;
+    if (mid.includes(raw) || (apiMid && apiMid.includes(raw))) score = 700;
+    else if (mname.includes(raw)) score = 600;
+    else if (qTokens.length > 0 && qTokens.every((tok) => hay.includes(tok))) score = 500;
+    else if (qTokens.length > 0) {
+      const overlap = qTokens.filter((tok) => hay.includes(tok)).length;
+      if (overlap > 0) score = overlap * 120;
+    }
+    if (score > 0) {
+      if (!wantsFree && m.is_free) score -= 50;
+      score += (Number(m.value_score) || 0) * 0.1;
+      if (score > bestRank) {
+        bestRank = score;
+        best = m;
+      }
+    }
+  }
+  return best || models[0];
+}
+
+export function auditCsvBill(catalog, parsedSummary, {usageMode = "interactive_ide", teamSize = 1} = {}) {
+  const models = catalog.models || [];
+  const days = Number(parsedSummary.days_observed || 30);
+  const scale30d = 30 / days;
+  const seats = Math.max(1, Math.min(50, Math.round(Number(teamSize) || 1)));
+  const round2 = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
+
+  const workhorses = models.filter((m) => {
+    if (m.region !== "cn_direct" || m.is_free) return false;
+    if ((Number(m.context_length) || 0) < 64000) return false;
+    const midLow = String(m.id || "").toLowerCase();
+    return !["7b", "8b", "lite", "turbo", "mini", "flash"].some((tok) => midLow.includes(tok));
+  });
+
+  const lineItems = [];
+  let hasGlobalClosed = false;
+
+  for (const grp of parsedSummary.model_breakdown || []) {
+    const rawModel = String(grp.model || "unknown");
+    const rawLow = rawModel.toLowerCase();
+    const mReqs = Math.max(1, Math.round(Number(grp.requests || 0) * scale30d));
+    const mInM = (Number(grp.input_tokens || 0) * scale30d) / 1e6;
+    const mOutM = (Number(grp.output_tokens || 0) * scale30d) / 1e6;
+    const hitRate = Number(grp.cache_hit_rate || 0);
+    const reportedMonthlyRmb = round2(Number(grp.reported_cost_rmb || 0) * scale30d);
+
+    const matched = resolveModelFuzzy(models, rawModel);
+    if (!matched) continue;
+    const matchedIdLow = String(matched.id || "").toLowerCase();
+    if (
+      matched.region === "global" &&
+      ["anthropic", "claude", "openai", "gpt-", "o1", "o3", "o4", "google", "gemini", "x-ai", "grok"].some(
+        (v) => rawLow.includes(v) || matchedIdLow.includes(v)
+      )
+    ) {
+      hasGlobalClosed = true;
+    }
+
+    const mFactor = matched.cache_hit_factor ?? (matched.region === "cn_direct" ? 0.2 : 0.5);
+    const catalogPaygRmb = round2(
+      mInM * ((1 - hitRate) + hitRate * mFactor) * Number(matched.input_rmb_per_1m || 0) +
+      mOutM * Number(matched.output_rmb_per_1m || 0)
+    );
+    const baselineRmb = reportedMonthlyRmb > 0 ? reportedMonthlyRmb : catalogPaygRmb;
+
+    const needsReasoning = Boolean(
+      grp.output_includes_reasoning ||
+      ["-r1", "/r1", "deepseek-r1", "o1", "o3", "o4", "qwq", "hunyuan-t1", "thinking", "reasoner"].some((k) => rawLow.includes(k))
+    );
+    const reqTag = needsReasoning ? "reasoning" : "coding";
+    const taggedPool = workhorses.filter((c) => (c.tags || []).includes(reqTag));
+    const pool = taggedPool.length > 0 ? taggedPool : workhorses;
+
+    let bestCand = null;
+    let bestCandRmb = baselineRmb;
+    let bestCandScore = -1;
+    for (const cand of pool) {
+      const cFactor = cand.cache_hit_factor ?? 0.2;
+      const cRmb = round2(
+        mInM * ((1 - hitRate) + hitRate * cFactor) * Number(cand.input_rmb_per_1m || 0) +
+        mOutM * Number(cand.output_rmb_per_1m || 0)
+      );
+      const cScore = Number(cand.value_score || 0);
+      if (!bestCand || cRmb < bestCandRmb || (cRmb === bestCandRmb && cScore > bestCandScore)) {
+        bestCand = cand;
+        bestCandRmb = cRmb;
+        bestCandScore = cScore;
+      }
+    }
+
+    const recModel = bestCand && bestCandRmb < baselineRmb - 0.005 ? bestCand : matched;
+    const optRmb = bestCand && bestCandRmb < baselineRmb - 0.005 ? round2(bestCandRmb) : round2(baselineRmb);
+    const action = bestCand && bestCandRmb < baselineRmb - 0.005 ? "switch_cn_direct" : "keep_current";
+    const savRmb = round2(Math.max(0, baselineRmb - optRmb));
+    const savPct = baselineRmb > 0 ? Math.round(((savRmb / baselineRmb) * 100) * 10) / 10 : 0;
+
+    lineItems.push({
+      raw_model: rawModel,
+      matched_model_id: matched.id,
+      matched_model_name: matched.name,
+      monthly_requests: mReqs,
+      monthly_input_m: Math.round(mInM * 10000) / 10000,
+      monthly_output_m: Math.round(mOutM * 10000) / 10000,
+      cache_hit_rate: hitRate,
+      reported_monthly_rmb: reportedMonthlyRmb,
+      catalog_payg_rmb: catalogPaygRmb,
+      baseline_monthly_rmb: round2(baselineRmb),
+      recommended_model_id: recModel.id,
+      recommended_model_name: recModel.name,
+      recommended_signup_url: recModel.signup_url || recModel.affiliate_url || "",
+      optimized_payg_rmb: optRmb,
+      savings_rmb: savRmb,
+      savings_pct: savPct,
+      action,
+    });
+  }
+
+  const totalMReqs = lineItems.reduce((acc, x) => acc + x.monthly_requests, 0);
+  const totalBaseRmb = round2(lineItems.reduce((acc, x) => acc + x.baseline_monthly_rmb, 0));
+  const totalCatRmb = round2(lineItems.reduce((acc, x) => acc + x.catalog_payg_rmb, 0));
+  const totalOptRmb = round2(lineItems.reduce((acc, x) => acc + x.optimized_payg_rmb, 0));
+  const totalSavRmb = round2(Math.max(0, totalBaseRmb - totalOptRmb));
+  const totalSavPct = totalBaseRmb > 0 ? Math.round(((totalSavRmb / totalBaseRmb) * 100) * 10) / 10 : 0;
+
+  let codingPlanOption = null;
+  if (usageMode === "interactive_ide") {
+    const subOffers = (catalog.coding_plans || []).filter((p) => p.offer_type === "subscription");
+    if (subOffers.length > 0) {
+      const fitsLite = totalMReqs <= 18000 * seats;
+      const fitsPro = totalMReqs <= 90000 * seats;
+      const targetId = fitsLite ? "tencent-coding-plan" : "aliyun-coding-plan";
+      const chosenOffer = subOffers.find((o) => o.id === targetId) || subOffers[0];
+      const tierId = fitsLite && (chosenOffer.tiers || []).some((t) => t.tier_id === "lite" && t.purchasable) ? "lite" : "pro";
+      const chosenTier = (chosenOffer.tiers || []).find((t) => t.tier_id === tierId) || (chosenOffer.tiers || []).slice(-1)[0];
+      const unitRenew = Number(chosenTier?.renewal_rmb || 200);
+      const unitFirst = chosenTier?.first_month_rmb != null ? Number(chosenTier.first_month_rmb) : unitRenew;
+      const firstRmb = round2(unitFirst * seats);
+      const renewRmb = round2(unitRenew * seats);
+      const capMonthly = Number(chosenTier?.quota_monthly || 90000) * seats;
+      const hasCrossCaveat = Boolean(
+        hasGlobalClosed ||
+        lineItems.some((it) => {
+          const mObj = models.find((m) => m.id === it.matched_model_id);
+          return !planCoversModel(chosenOffer, mObj);
+        })
+      );
+      codingPlanOption = {
+        plan_id: chosenOffer.id,
+        plan_name: chosenOffer.name,
+        official_source_url: chosenOffer.official_source_url || "",
+        team_size: seats,
+        tier_id: tierId,
+        tier_name: chosenTier?.name || "Pro",
+        fits_monthly_cap: fitsPro,
+        combined_monthly_cap: capMonthly,
+        first_month_rmb: firstRmb,
+        renewal_rmb: renewRmb,
+        vs_baseline_renewal_savings_rmb: fitsPro ? round2(totalBaseRmb - renewRmb) : null,
+        cheaper_than_optimized_payg_on_renewal: Boolean(fitsPro && renewRmb < totalOptRmb),
+        has_cross_model_caveat: hasCrossCaveat,
+        caveat_zh: hasCrossCaveat
+          ? "原账单含 Claude/GPT 等海外闭源或非套餐同系模型；国内 Coding Plan 仅覆盖千问/混元/豆包/Kimi/GLM/MiniMax/DeepSeek-V3，切换前请先评估代码质量差异。"
+          : "原账单模型均在国内 Coding Plan 覆盖体系内。",
+      };
+    }
+  }
+
+  return {
+    days_observed: days,
+    usage_mode: usageMode,
+    team_size: seats,
+    line_items: lineItems,
+    totals: {
+      distinct_models_count: lineItems.length,
+      monthly_requests: totalMReqs,
+      baseline_monthly_rmb: totalBaseRmb,
+      catalog_payg_monthly_rmb: totalCatRmb,
+      optimized_payg_monthly_rmb: totalOptRmb,
+      payg_savings_rmb: totalSavRmb,
+      payg_savings_pct: totalSavPct,
+      has_global_closed_models: hasGlobalClosed,
+    },
+    coding_plan_option: codingPlanOption,
+  };
+}
+
 export function calculateBudget(catalog, params) {
-  const id = params.get("model_id");
-  const model = resolveCatalogModel(catalog.models || [], id);
-  if (!model) throw new Error("Unknown model_id; pass an id or api_model_id from /api/models_live.json");
   let daily = number(params, "daily_requests", 1000, 1000000);
   let input = number(params, "avg_input_tokens", 1500, 10000000);
   let output = number(params, "avg_output_tokens", 500, 10000000);
@@ -251,6 +682,7 @@ export function calculateBudget(catalog, params) {
   let exactMonthlyInputM = null;
   let exactMonthlyOutputM = null;
   let parsedUsageSummary = null;
+  let billAudit = null;
 
   if (params.has("usage_snippet")) {
     const rawSnippet = params.get("usage_snippet");
@@ -263,6 +695,10 @@ export function calculateBudget(catalog, params) {
     exactMonthlyInputM = parsedUsageSummary.monthly_input_m;
     exactMonthlyOutputM = parsedUsageSummary.monthly_output_m;
     if (parsedUsageSummary.output_includes_reasoning) includesReasoning = true;
+    if (parsedUsageSummary.detected_format === "csv_multimodel_bill") {
+      explicitMonthlyRequests = parsedUsageSummary.monthly_requests;
+      billAudit = auditCsvBill(catalog, parsedUsageSummary, {usageMode: mode, teamSize: seats});
+    }
   } else if (
     params.has("monthly_requests") ||
     params.has("monthly_input_m") ||
@@ -303,6 +739,20 @@ export function calculateBudget(catalog, params) {
       cache_hit_rate: hit,
     };
   }
+
+  let id = params.get("model_id");
+  let model = null;
+  if (
+    parsedUsageSummary &&
+    parsedUsageSummary.detected_format === "csv_multimodel_bill" &&
+    (!id || id.trim().toLowerCase() === "auto")
+  ) {
+    const firstModel = parsedUsageSummary.model_breakdown?.[0]?.model || "deepseek-v3";
+    model = resolveModelFuzzy(catalog.models || [], firstModel);
+  } else {
+    model = resolveCatalogModel(catalog.models || [], id);
+  }
+  if (!model) throw new Error("Unknown model_id; pass an id or api_model_id from /api/models_live.json");
 
   const monthly = explicitMonthlyRequests ?? (daily * 30);
   const perSeatMonthly = monthly > 0 ? Math.ceil(monthly / seats) : 0;
@@ -471,6 +921,7 @@ export function calculateBudget(catalog, params) {
     quote_verified_date: catalog.quote_verified_date, last_live_verified_at: catalog.last_live_verified_at,
     web_calculator_url: `https://ai-cost-radar-nlu.pages.dev/coding-plan-2026/?${share}`};
   if (parsedUsageSummary) outPayload.parsed_usage_summary = parsedUsageSummary;
+  if (billAudit) outPayload.bill_audit = billAudit;
   return outPayload;
 }
 

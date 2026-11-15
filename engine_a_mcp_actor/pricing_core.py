@@ -865,6 +865,15 @@ def evaluate_coding_plans(
     }
 
 
+def _strip_gateway_model_prefix(raw_model_id: str | None) -> str:
+    val = str(raw_model_id or "qwen3.5-plus").strip() or "qwen3.5-plus"
+    lower = val.lower()
+    for prefix in ("aliyun-bailian/", "tencent-cloud/", "volcengine/", "siliconflow/", "aliyun/", "tencent/"):
+        if lower.startswith(prefix):
+            return val[len(prefix) :]
+    return val
+
+
 def get_client_endpoint_config(
     *,
     vendor_or_plan: str,
@@ -874,12 +883,19 @@ def get_client_endpoint_config(
     fallback_base_url: str | None = None,
 ) -> dict[str, Any]:
     """
-    Return protocol-accurate endpoint & environment variables for (vendor, client_type, billing_mode).
-    Prevents the critical bug where Coding Plan subscribers copy a Pay-As-You-Go endpoint and incur extra bills!
+    Return protocol-accurate endpoint, `~/.claude/settings.json` payload, `unset ANTHROPIC_API_KEY`
+    conflict guard, covered-model remapping, and 1-token connectivity smoke test for (vendor, client, mode).
+    Prevents the critical bug where Coding Plan subscribers copy a Pay-As-You-Go endpoint or leave a global
+    `ANTHROPIC_API_KEY` active and incur unexpected bills.
     """
+    import json
+    import re
+
     vp = str(vendor_or_plan or "").strip().lower()
     client = str(client_type or "claude_code").strip().lower()
     mode = "coding_plan" if str(billing_mode or "").strip().lower() in ("coding_plan", "subscription", "plan") else "payg"
+    raw_mid = str(model_id or "qwen3.5-plus").strip() or "qwen3.5-plus"
+    clean_mid = _strip_gateway_model_prefix(raw_mid)
 
     plan_key: str | None = None
     if "aliyun" in vp or "bailian" in vp or "qwen" in vp:
@@ -898,16 +914,35 @@ def get_client_endpoint_config(
 
     is_anthropic_client = client in ("claude_code", "anthropic")
     if mode == "coding_plan" and offer and offer["offer_type"] == "subscription":
+        covered = [str(m) for m in (offer.get("models_covered") or [])]
+        model_remapped = False
         if plan_key == "tencent-coding-plan":
-            model_id = offer["models_covered"][0]
+            effective_model_id = covered[0] if covered else "tc-code-latest"
+            model_remapped = clean_mid.lower() != effective_model_id.lower()
+        else:
+            norm_cand = clean_mid
+            if re.match(r"^doubao-seed-2[.-]0-pro", norm_cand, flags=re.IGNORECASE):
+                norm_cand = "doubao-seed-2.0-pro"
+            matched_cov = next((c for c in covered if c.lower() == norm_cand.lower()), None)
+            if matched_cov is not None:
+                effective_model_id = matched_cov
+            else:
+                effective_model_id = covered[0] if covered else norm_cand
+                model_remapped = True
+
         endpoints = offer.get("endpoints") or {}
         ep_key = "claude_code" if is_anthropic_client else "openai_compat"
         ep = endpoints.get(ep_key)
         if not ep:
             return {
                 "verified": False,
+                "billing_mode": "coding_plan",
                 "protocol": "official_doc_required",
                 "base_url": "",
+                "effective_model_id": effective_model_id,
+                "model_remapped": model_remapped,
+                "claude_settings_json": None,
+                "smoke_test_cmd": None,
                 "official_doc_url": offer["official_source_url"],
                 "warning_zh": (
                     f"{offer['name']} 在当前客户端（{client_type}）下暂无已核验的专属兼容端点，"
@@ -919,29 +954,58 @@ def get_client_endpoint_config(
 
         base_url = ep["base_url"]
         key_placeholder = f"{ep['key_prefix']}your-coding-plan-key"
+        warning_zh = "⚠️ 已切换为 Coding Plan 包月专属端点与专属 Key（如 sk-sp- 开头）；若误填通用按量端点将继续产生按量扣费！"
+        if model_remapped:
+            warning_zh += f" 原模型 {raw_mid} 不在套餐覆盖列表内，已自动映射为套餐支持的 {effective_model_id}。"
+
         if ep["protocol"] == "anthropic":
+            settings_payload = {
+                "env": {
+                    "ANTHROPIC_BASE_URL": base_url,
+                    "ANTHROPIC_AUTH_TOKEN": key_placeholder,
+                    "ANTHROPIC_MODEL": effective_model_id,
+                    "ANTHROPIC_SMALL_FAST_MODEL": effective_model_id,
+                }
+            }
+            claude_settings_json: str | None = json.dumps(settings_payload, ensure_ascii=False, indent=2)
             gui_snippet = (
                 f"Protocol: Anthropic Messages API (Coding Plan 专属)\n"
                 f"Base URL: {base_url}\n"
                 f"API Key 格式: {key_placeholder} (切勿填入普通按量 Key)\n"
-                f"Model ID: {model_id}"
+                f"Model ID: {effective_model_id}"
             )
             env_snippet = (
+                "unset ANTHROPIC_API_KEY\n"
                 f'export {ep["env_url_name"]}="{base_url}"\n'
                 f'export {ep["env_key_name"]}="{key_placeholder}"\n'
-                f'export {ep["env_model_name"]}="{model_id}"'
+                f'export {ep["env_model_name"]}="{effective_model_id}"\n'
+                f'export ANTHROPIC_SMALL_FAST_MODEL="{effective_model_id}"'
+            )
+            smoke_test_cmd = (
+                f'curl -fsS "{base_url.rstrip("/")}/v1/messages" '
+                f'-H "x-api-key: {key_placeholder}" '
+                '-H "anthropic-version: 2023-06-01" '
+                '-H "content-type: application/json" '
+                f'-d \'{{"model":"{effective_model_id}","max_tokens":1,"messages":[{{"role":"user","content":"ping"}}]}}\''
             )
         else:
+            claude_settings_json = None
             gui_snippet = (
                 f"Protocol: OpenAI Compatible (Coding Plan 专属端点)\n"
                 f"Base URL: {base_url}\n"
                 f"API Key 格式: {key_placeholder}\n"
-                f"Model ID: {model_id}"
+                f"Model ID: {effective_model_id}"
             )
             env_snippet = (
                 f'export {ep["env_url_name"]}="{base_url}"\n'
                 f'export {ep["env_key_name"]}="{key_placeholder}"\n'
-                f'export {ep["env_model_name"]}="{model_id}"'
+                f'export {ep["env_model_name"]}="{effective_model_id}"'
+            )
+            smoke_test_cmd = (
+                f'curl -fsS "{base_url.rstrip("/")}/chat/completions" '
+                f'-H "Authorization: Bearer {key_placeholder}" '
+                '-H "Content-Type: application/json" '
+                f'-d \'{{"model":"{effective_model_id}","max_tokens":1,"messages":[{{"role":"user","content":"ping"}}]}}\''
             )
         return {
             "verified": True,
@@ -949,17 +1013,32 @@ def get_client_endpoint_config(
             "protocol": ep["protocol"],
             "base_url": base_url,
             "key_prefix": ep["key_prefix"],
+            "effective_model_id": effective_model_id,
+            "model_remapped": model_remapped,
+            "claude_settings_json": claude_settings_json,
+            "smoke_test_cmd": smoke_test_cmd,
             "official_doc_url": offer["official_source_url"],
-            "warning_zh": "⚠️ 已切换为 Coding Plan 包月专属端点与专属 Key（如 sk-sp- 开头）；若误填通用按量端点将继续产生按量扣费！",
+            "warning_zh": warning_zh,
             "gui_snippet": gui_snippet,
             "env_snippet": env_snippet,
         }
 
     if mode == "coding_plan" or is_anthropic_client:
         doc = offer["official_source_url"] if offer else "https://openrouter.ai/docs"
-        return {"verified": False, "billing_mode": mode, "protocol": "official_doc_required",
-                "base_url": "", "official_doc_url": doc, "warning_zh": "当前组合缺少已核验的端点。",
-                "gui_snippet": f"请按厂商教程核对配置：{doc}", "env_snippet": "# 请按厂商文档配置。"}
+        return {
+            "verified": False,
+            "billing_mode": mode,
+            "protocol": "official_doc_required",
+            "base_url": "",
+            "effective_model_id": clean_mid,
+            "model_remapped": False,
+            "claude_settings_json": None,
+            "smoke_test_cmd": None,
+            "official_doc_url": doc,
+            "warning_zh": "当前组合缺少已核验的端点。",
+            "gui_snippet": f"请按厂商教程核对配置：{doc}",
+            "env_snippet": "# 请按厂商文档配置。",
+        }
 
     # Pay-As-You-Go mode
     payg_defaults = {
@@ -976,22 +1055,33 @@ def get_client_endpoint_config(
     if fallback_base_url and not plan_key:
         base_url = fallback_base_url
 
+    payg_key_ph = "sk-or-your-openrouter-key" if "openrouter.ai" in base_url else "sk-your-payg-api-key"
     gui_snippet = (
         f"Protocol: OpenAI Compatible (按量付费标准端点)\n"
         f"Base URL: {base_url}\n"
-        f"Model ID: {model_id}"
+        f"Model ID: {clean_mid}"
     )
     env_snippet = (
         f'export OPENAI_BASE_URL="{base_url}"\n'
-        f'export OPENAI_API_KEY="sk-your-payg-api-key"\n'
-        f'export OPENAI_MODEL="{model_id}"'
+        f'export OPENAI_API_KEY="{payg_key_ph}"\n'
+        f'export OPENAI_MODEL="{clean_mid}"'
+    )
+    smoke_test_cmd = (
+        f'curl -fsS "{base_url.rstrip("/")}/chat/completions" '
+        f'-H "Authorization: Bearer {payg_key_ph}" '
+        '-H "Content-Type: application/json" '
+        f'-d \'{{"model":"{clean_mid}","max_tokens":1,"messages":[{{"role":"user","content":"ping"}}]}}\''
     )
     return {
         "verified": True,
         "billing_mode": "payg",
         "protocol": "openai",
         "base_url": base_url,
-        "key_prefix": "sk-",
+        "key_prefix": "sk-or-" if "openrouter.ai" in base_url else "sk-",
+        "effective_model_id": clean_mid,
+        "model_remapped": False,
+        "claude_settings_json": None,
+        "smoke_test_cmd": smoke_test_cmd,
         "official_doc_url": doc_url,
         "warning_zh": "当前为「按量付费 API」通用端点；若您购买了 Coding Plan 包月套餐，请切到「Coding Plan 包月专属」以防产生按量账单。",
         "gui_snippet": gui_snippet,
@@ -1102,6 +1192,509 @@ def _parse_scaled_number(raw_val: Any) -> float:
     return max(0.0, base * mult_map.get(unit, 1.0))
 
 
+def _parse_currency_rmb(raw_val: Any, header_compact: str, fx_rate: float = DEFAULT_FX_USD_TO_RMB) -> float:
+    import re
+
+    s = str(raw_val or "").strip()
+    if not s or s.lower() in ("-", "n/a", "na", "null", "none"):
+        return 0.0
+    s_low = s.lower()
+    if any(sym in s_low for sym in ("¥", "￥", "rmb", "cny", "元")):
+        is_rmb = True
+    elif any(sym in s_low for sym in ("$", "usd")):
+        is_rmb = False
+    elif any(k in header_compact for k in ("rmb", "cny", "应付金额", "账单金额", "消费金额", "费用", "金额", "花费", "总费用", "元")):
+        is_rmb = True
+    else:
+        is_rmb = False
+
+    cleaned = re.sub(r"^(?:usd|rmb|cny|us\$|[$¥￥])\s*", "", s, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*(?:usd|rmb|cny|元)$", "", cleaned, flags=re.IGNORECASE).strip()
+    if not cleaned:
+        return 0.0
+    val = _parse_scaled_number(cleaned)
+    return val if is_rmb else val * fx_rate
+
+
+def _try_parse_csv_bill(
+    text: str,
+    days: float,
+    fx_rate: float = DEFAULT_FX_USD_TO_RMB,
+) -> dict[str, Any] | None:
+    """
+    Detect and parse multi-row CSV / TSV / semicolon / Markdown pipe billing exports
+    (OpenRouter Activity CSV, per-generation CSV, Mainland China cloud console CSV).
+    Returns `None` if `text` is not a tabular CSV/TSV with recognized token headers.
+    Raises `ValueError` if a valid CSV token header is matched by zero positive token rows.
+    """
+    import csv
+    import io
+    import re
+
+    raw_lines = []
+    for ln in text.splitlines():
+        stripped = ln.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if re.match(r"^\|?[\s:\-]+(?:\|[\s:\-]+)+\|?$", stripped):
+            continue
+        raw_lines.append(stripped)
+
+    if len(raw_lines) < 2:
+        return None
+
+    header_line = raw_lines[0]
+    is_pipe = header_line.count("|") >= 2
+    delim: str | None = None
+    if is_pipe:
+        delim = "|"
+    else:
+        counts = [(d, header_line.count(d)) for d in ("\t", ",", ";")]
+        counts.sort(key=lambda x: x[1], reverse=True)
+        if counts[0][1] >= 1:
+            delim = counts[0][0]
+
+    if delim is None:
+        return None
+
+    if is_pipe:
+        rows = [
+            [cell.strip().strip('"').strip("'") for cell in ln.strip("|").split("|")]
+            for ln in raw_lines
+        ]
+    else:
+        rows = list(csv.reader(io.StringIO("\n".join(raw_lines)), delimiter=delim))
+
+    if len(rows) < 2:
+        return None
+
+    raw_headers = [str(c or "").strip().lstrip("\ufeff").strip('"').strip("'") for c in rows[0]]
+    if len(raw_headers) < 2:
+        return None
+    if any(re.match(r"^[0-9.]+$", h) for h in raw_headers if h):
+        return None
+
+    compact_headers = [re.sub(r"[\s_\-()/（）]+", "", h.lower()) for h in raw_headers]
+
+    model_aliases = {
+        "model", "modelid", "modelname", "modelpermaslug", "modelslug", "permaslug", "endpoint",
+        "模型", "模型名称", "模型id", "调用模型",
+    }
+    req_aliases = {
+        "requests", "requestcount", "numrequests", "calls", "apicalls", "totalrequests", "totalcalls", "count",
+        "调用次数", "请求次数", "请求数", "调用量",
+    }
+    in_aliases = {
+        "tokensprompt", "nativetokensprompt", "prompttokens", "inputtokens", "totalinputtokens", "input", "prompt",
+        "输入token", "输入tokens", "输入token数", "提问token", "入参token",
+    }
+    out_aliases = {
+        "tokenscompletion", "nativetokenscompletion", "completiontokens", "outputtokens", "totaloutputtokens", "output", "completion",
+        "输出token", "输出tokens", "输出token数", "回答token", "出参token",
+    }
+    cached_sub_aliases = {
+        "nativetokenscached", "cachedtokens", "cachedinputtokens", "prompttokenscached", "cachehit",
+        "缓存命中token", "缓存命中tokens", "命中缓存token", "缓存token", "缓存输入token", "命中缓存",
+    }
+    cache_read_aliases = {"cachereadinputtokens", "cachereadtokens", "cacheread"}
+    cache_write_aliases = {"cachecreationinputtokens", "cachewritetokens", "cachewrite", "缓存写入token"}
+    reason_aliases = {
+        "nativetokensreasoning", "reasoningtokens", "thinkingtokens",
+        "思考token", "思考tokens", "推理token",
+    }
+    cost_aliases = {
+        "usage", "cost", "totalcost", "spend", "amount", "bill", "costusd", "spendusd", "costrmb", "costcny",
+        "应付金额", "账单金额", "消费金额", "费用", "金额", "花费", "总费用",
+    }
+
+    def _find_col(alias_set: set[str]) -> int | None:
+        for idx, ch in enumerate(compact_headers):
+            if ch in alias_set:
+                return idx
+        return None
+
+    col_model = _find_col(model_aliases)
+    col_req = _find_col(req_aliases)
+    col_in = _find_col(in_aliases)
+    col_out = _find_col(out_aliases)
+    col_cached = _find_col(cached_sub_aliases)
+    col_cread = _find_col(cache_read_aliases)
+    col_cwrite = _find_col(cache_write_aliases)
+    col_reason = _find_col(reason_aliases)
+    col_cost = _find_col(cost_aliases)
+
+    if col_in is None and col_out is None:
+        return None
+
+    summary_labels = {"total", "totals", "sum", "summary", "合计", "总计", "汇总", "小计"}
+    groups: dict[str, dict[str, Any]] = {}
+
+    def _cell_num(r: list[str], idx: int | None) -> float:
+        if idx is None or idx >= len(r):
+            return 0.0
+        v = str(r[idx] or "").strip()
+        if not v or v in ("-", "N/A", "na", "null", "None"):
+            return 0.0
+        return _parse_scaled_number(v)
+
+    cost_header_compact = compact_headers[col_cost] if col_cost is not None else ""
+
+    for r in rows[1:]:
+        if not r or all(not str(c or "").strip() for c in r):
+            continue
+        first_clean = str(r[0] or "").strip().lower()
+        model_raw = str(r[col_model] if (col_model is not None and col_model < len(r)) else "").strip()
+        if first_clean in summary_labels or model_raw.lower() in summary_labels:
+            continue
+
+        in_val = _cell_num(r, col_in)
+        out_val = _cell_num(r, col_out)
+        cached_sub_val = _cell_num(r, col_cached)
+        cread_val = _cell_num(r, col_cread)
+        cwrite_val = _cell_num(r, col_cwrite)
+        reason_val = _cell_num(r, col_reason)
+
+        if col_cread is not None or col_cwrite is not None:
+            row_in = in_val + cread_val + cwrite_val
+            row_cached = cread_val
+        else:
+            row_in = max(in_val, cached_sub_val)
+            row_cached = min(row_in, cached_sub_val)
+
+        if row_in <= 0 and out_val <= 0:
+            continue
+
+        if col_req is not None:
+            req_val = _cell_num(r, col_req)
+            row_reqs = req_val if req_val > 0 else 1.0
+        else:
+            row_reqs = 1.0
+
+        row_cost_rmb = (
+            _parse_currency_rmb(r[col_cost], cost_header_compact, fx_rate=fx_rate)
+            if (col_cost is not None and col_cost < len(r))
+            else 0.0
+        )
+
+        model_label = model_raw or "unknown"
+        g_key = model_label.lower()
+        if g_key not in groups:
+            groups[g_key] = {
+                "model": model_label,
+                "requests": 0.0,
+                "input_tokens": 0.0,
+                "cached_input_tokens": 0.0,
+                "output_tokens": 0.0,
+                "reasoning_tokens": 0.0,
+                "reported_cost_rmb": 0.0,
+            }
+        grp = groups[g_key]
+        grp["requests"] += row_reqs
+        grp["input_tokens"] += row_in
+        grp["cached_input_tokens"] += row_cached
+        grp["output_tokens"] += out_val
+        grp["reasoning_tokens"] += reason_val
+        grp["reported_cost_rmb"] += row_cost_rmb
+
+    if not groups:
+        raise ValueError("CSV bill contains zero positive token rows")
+
+    sorted_groups = sorted(
+        groups.values(),
+        key=lambda g: (g["reported_cost_rmb"], g["input_tokens"] + g["output_tokens"]),
+        reverse=True,
+    )
+
+    model_breakdown: list[dict[str, Any]] = []
+    total_reqs = 0.0
+    total_in = 0.0
+    total_cached = 0.0
+    total_out = 0.0
+    total_reason = 0.0
+    total_cost_rmb = 0.0
+
+    for g in sorted_groups:
+        g_in = g["input_tokens"]
+        g_cached = min(g_in, max(0.0, g["cached_input_tokens"]))
+        total_reqs += g["requests"]
+        total_in += g_in
+        total_cached += g_cached
+        total_out += g["output_tokens"]
+        total_reason += g["reasoning_tokens"]
+        total_cost_rmb += g["reported_cost_rmb"]
+        model_breakdown.append(
+            {
+                "model": g["model"],
+                "requests": int(round(g["requests"])),
+                "input_tokens": int(round(g_in)),
+                "cached_input_tokens": int(round(g_cached)),
+                "output_tokens": int(round(g["output_tokens"])),
+                "reasoning_tokens": int(round(g["reasoning_tokens"])),
+                "cache_hit_rate": round(g_cached / g_in, 4) if g_in > 0 else 0.0,
+                "output_includes_reasoning": bool(g["reasoning_tokens"] > 0),
+                "reported_cost_rmb": round(g["reported_cost_rmb"], 4),
+            }
+        )
+
+    cache_hit_rate = round(total_cached / total_in, 4) if total_in > 0 else 0.0
+    daily_requests = max(1, int(round(total_reqs / days)))
+    monthly_requests = max(1, int(round((total_reqs / days) * 30.0)))
+    avg_input_tokens = max(1, int(round(total_in / max(1.0, total_reqs)))) if total_in > 0 else 1500
+    avg_output_tokens = max(1, int(round(total_out / max(1.0, total_reqs)))) if total_out > 0 else 500
+    monthly_input_m = round(((total_in / days) * 30.0) / 1_000_000.0, 6)
+    monthly_output_m = round(((total_out / days) * 30.0) / 1_000_000.0, 6)
+
+    return {
+        "detected_format": "csv_multimodel_bill",
+        "days_observed": days,
+        "distinct_models_count": len(model_breakdown),
+        "total_requests": int(round(total_reqs)),
+        "monthly_requests": monthly_requests,
+        "total_input_tokens": int(round(total_in)),
+        "cached_input_tokens": int(round(total_cached)),
+        "total_output_tokens": int(round(total_out)),
+        "monthly_input_m": monthly_input_m,
+        "monthly_output_m": monthly_output_m,
+        "daily_requests": daily_requests,
+        "avg_input_tokens": avg_input_tokens,
+        "avg_output_tokens": avg_output_tokens,
+        "cache_hit_rate": cache_hit_rate,
+        "output_includes_reasoning": bool(total_reason > 0),
+        "calls_estimated": False,
+        "reported_cost_rmb": round(total_cost_rmb, 2),
+        "monthly_reported_cost_rmb": round((total_cost_rmb / days) * 30.0, 2),
+        "model_breakdown": model_breakdown,
+    }
+
+
+def _is_workhorse_cn_candidate(model: dict[str, Any]) -> bool:
+    if model.get("region") != "cn_direct" or model.get("is_free"):
+        return False
+    if int(model.get("context_length") or 0) < 64000:
+        return False
+    mid_low = str(model.get("id") or "").lower()
+    if any(tok in mid_low for tok in ("7b", "8b", "lite", "turbo", "mini", "flash")):
+        return False
+    return True
+
+
+def audit_csv_bill(
+    models: list[dict[str, Any]],
+    raw_text: str | dict[str, Any],
+    *,
+    days_observed: float = 30.0,
+    usage_mode: str = "interactive_ide",
+    team_size: int = 1,
+    offers: list[dict[str, Any]] | None = None,
+    fx_rate: float = DEFAULT_FX_USD_TO_RMB,
+) -> dict[str, Any]:
+    """
+    Audit a multi-model CSV/TSV billing statement:
+      1. Extrapolate each model's requests, input/output/cached tokens, and spend to 30 days.
+      2. Match each row against real workhorse Mainland China direct models (>=64K ctx, non-toy),
+         separating reasoning vs coding workloads and never recommending a costlier replacement.
+      3. Evaluate portfolio Coding Plan subscription eligibility & cross-model caveats.
+    """
+    if isinstance(raw_text, dict) and raw_text.get("detected_format") == "csv_multimodel_bill":
+        parsed = raw_text
+    else:
+        parsed = parse_usage_log_snippet(str(raw_text), days_observed=days_observed)
+        if parsed.get("detected_format") != "csv_multimodel_bill":
+            raise ValueError("audit_csv_bill requires a multi-model CSV/TSV snippet")
+
+    days = float(parsed["days_observed"])
+    scale_30d = 30.0 / days
+    seats = max(1, min(50, int(round(float(team_size or 1)))))
+    norm_mode = "automated_backend" if str(usage_mode or "").strip().lower() in (
+        "automated_backend", "backend", "api_service", "batch", "non_interactive"
+    ) else "interactive_ide"
+
+    workhorses = [m for m in models if _is_workhorse_cn_candidate(m)]
+    line_items: list[dict[str, Any]] = []
+    has_global_closed = False
+
+    for grp in parsed.get("model_breakdown", []):
+        raw_model_name = str(grp["model"])
+        raw_low = raw_model_name.lower()
+        m_reqs = max(1, int(round(float(grp["requests"]) * scale_30d)))
+        m_in_m = (float(grp["input_tokens"]) * scale_30d) / 1_000_000.0
+        m_out_m = (float(grp["output_tokens"]) * scale_30d) / 1_000_000.0
+        hit_rate = float(grp["cache_hit_rate"])
+        reported_monthly_rmb = round(float(grp["reported_cost_rmb"]) * scale_30d, 2)
+
+        matched, _ = resolve_model_query(models, raw_model_name)
+        if matched is None:
+            continue
+
+        matched_id_low = str(matched.get("id") or "").lower()
+        if matched.get("region") == "global" and any(
+            v in raw_low or v in matched_id_low
+            for v in ("anthropic", "claude", "openai", "gpt-", "o1", "o3", "o4", "google", "gemini", "x-ai", "grok")
+        ):
+            has_global_closed = True
+
+        m_hit_factor = float(
+            matched.get("cache_hit_factor")
+            if matched.get("cache_hit_factor") is not None
+            else (0.2 if matched.get("region") == "cn_direct" else 0.5)
+        )
+        catalog_payg_rmb = round(
+            calculate_token_bill(
+                monthly_input_m=m_in_m,
+                monthly_output_m=m_out_m,
+                input_price_per_1m=float(matched["input_rmb_per_1m"]),
+                output_price_per_1m=float(matched["output_rmb_per_1m"]),
+                cache_hit_rate=hit_rate,
+                cache_hit_factor=m_hit_factor,
+                reasoning_multiplier=1.0,
+                output_includes_reasoning=True,
+            )["total_cost"],
+            2,
+        )
+        baseline_rmb = reported_monthly_rmb if reported_monthly_rmb > 0 else catalog_payg_rmb
+
+        needs_reasoning = bool(
+            grp.get("output_includes_reasoning")
+            or any(k in raw_low for k in ("-r1", "/r1", "deepseek-r1", "o1", "o3", "o4", "qwq", "hunyuan-t1", "thinking", "reasoner"))
+        )
+        required_tag = "reasoning" if needs_reasoning else "coding"
+        pool = [c for c in workhorses if required_tag in (c.get("tags") or [])] or workhorses
+
+        best_cand: dict[str, Any] | None = None
+        best_cand_rmb = baseline_rmb
+        best_cand_score = -1.0
+        for cand in pool:
+            c_hit_factor = float(
+                cand.get("cache_hit_factor")
+                if cand.get("cache_hit_factor") is not None
+                else 0.2
+            )
+            c_rmb = round(
+                calculate_token_bill(
+                    monthly_input_m=m_in_m,
+                    monthly_output_m=m_out_m,
+                    input_price_per_1m=float(cand["input_rmb_per_1m"]),
+                    output_price_per_1m=float(cand["output_rmb_per_1m"]),
+                    cache_hit_rate=hit_rate,
+                    cache_hit_factor=c_hit_factor,
+                    reasoning_multiplier=1.0,
+                    output_includes_reasoning=True,
+                )["total_cost"],
+                2,
+            )
+            c_score = float(cand.get("value_score") or 0.0)
+            if best_cand is None or (c_rmb < best_cand_rmb) or (c_rmb == best_cand_rmb and c_score > best_cand_score):
+                best_cand = cand
+                best_cand_rmb = c_rmb
+                best_cand_score = c_score
+
+        if best_cand is not None and best_cand_rmb < baseline_rmb - 0.005:
+            rec_model = best_cand
+            opt_rmb = round(best_cand_rmb, 2)
+            action = "switch_cn_direct"
+        else:
+            rec_model = matched
+            opt_rmb = round(baseline_rmb, 2)
+            action = "keep_current"
+
+        sav_rmb = round(max(0.0, baseline_rmb - opt_rmb), 2)
+        sav_pct = round((sav_rmb / baseline_rmb) * 100.0, 1) if baseline_rmb > 0 else 0.0
+        line_items.append(
+            {
+                "raw_model": raw_model_name,
+                "matched_model_id": matched["id"],
+                "matched_model_name": matched["name"],
+                "monthly_requests": m_reqs,
+                "monthly_input_m": round(m_in_m, 4),
+                "monthly_output_m": round(m_out_m, 4),
+                "cache_hit_rate": hit_rate,
+                "reported_monthly_rmb": reported_monthly_rmb,
+                "catalog_payg_rmb": catalog_payg_rmb,
+                "baseline_monthly_rmb": round(baseline_rmb, 2),
+                "recommended_model_id": rec_model["id"],
+                "recommended_model_name": rec_model["name"],
+                "recommended_signup_url": rec_model.get("signup_url") or rec_model.get("affiliate_url") or "",
+                "optimized_payg_rmb": opt_rmb,
+                "savings_rmb": sav_rmb,
+                "savings_pct": sav_pct,
+                "action": action,
+            }
+        )
+
+    total_m_reqs = sum(item["monthly_requests"] for item in line_items)
+    total_base_rmb = round(sum(item["baseline_monthly_rmb"] for item in line_items), 2)
+    total_cat_rmb = round(sum(item["catalog_payg_rmb"] for item in line_items), 2)
+    total_opt_rmb = round(sum(item["optimized_payg_rmb"] for item in line_items), 2)
+    total_sav_rmb = round(max(0.0, total_base_rmb - total_opt_rmb), 2)
+    total_sav_pct = round((total_sav_rmb / total_base_rmb) * 100.0, 1) if total_base_rmb > 0 else 0.0
+
+    coding_plan_option: dict[str, Any] | None = None
+    if norm_mode == "interactive_ide":
+        sub_offers = [
+            o for o in (offers or OFFERS_CATALOG_2026)
+            if isinstance(o, dict) and o.get("offer_type") == "subscription"
+        ] or [o for o in OFFERS_CATALOG_2026 if o["offer_type"] == "subscription"]
+
+        fits_lite = total_m_reqs <= (LITE_MONTHLY_CAP * seats)
+        fits_pro = total_m_reqs <= (PRO_MONTHLY_CAP * seats)
+        target_plan_id = "tencent-coding-plan" if fits_lite else "aliyun-coding-plan"
+        chosen_offer = next((o for o in sub_offers if o["id"] == target_plan_id), sub_offers[0])
+        tier_id = "lite" if (fits_lite and any(t.get("tier_id") == "lite" and t.get("purchasable") for t in chosen_offer.get("tiers", []))) else "pro"
+        chosen_tier = next(
+            (t for t in chosen_offer.get("tiers", []) if t.get("tier_id") == tier_id),
+            (chosen_offer.get("tiers") or [{}])[-1],
+        )
+        raw_first = chosen_tier.get("first_month_rmb")
+        unit_renew = float(chosen_tier.get("renewal_rmb") or 200.0)
+        unit_first = float(raw_first) if raw_first is not None else unit_renew
+        first_rmb = round(unit_first * seats, 2)
+        renew_rmb = round(unit_renew * seats, 2)
+        cap_monthly = int(chosen_tier.get("quota_monthly") or PRO_MONTHLY_CAP) * seats
+
+        has_cross_caveat = bool(
+            has_global_closed
+            or any(not plan_covers_model(chosen_offer, item["matched_model_id"]) for item in line_items)
+        )
+        coding_plan_option = {
+            "plan_id": chosen_offer["id"],
+            "plan_name": chosen_offer["name"],
+            "official_source_url": chosen_offer.get("official_source_url", ""),
+            "team_size": seats,
+            "tier_id": tier_id,
+            "tier_name": chosen_tier.get("name", "Pro"),
+            "fits_monthly_cap": fits_pro,
+            "combined_monthly_cap": cap_monthly,
+            "first_month_rmb": first_rmb,
+            "renewal_rmb": renew_rmb,
+            "vs_baseline_renewal_savings_rmb": round(total_base_rmb - renew_rmb, 2) if fits_pro else None,
+            "cheaper_than_optimized_payg_on_renewal": bool(fits_pro and renew_rmb < total_opt_rmb),
+            "has_cross_model_caveat": has_cross_caveat,
+            "caveat_zh": (
+                "原账单含 Claude/GPT 等海外闭源或非套餐同系模型；国内 Coding Plan 仅覆盖千问/混元/豆包/Kimi/GLM/MiniMax/DeepSeek-V3，切换前请先评估代码质量差异。"
+                if has_cross_caveat
+                else "原账单模型均在国内 Coding Plan 覆盖体系内。"
+            ),
+        }
+
+    return {
+        "days_observed": days,
+        "usage_mode": norm_mode,
+        "team_size": seats,
+        "line_items": line_items,
+        "totals": {
+            "distinct_models_count": len(line_items),
+            "monthly_requests": total_m_reqs,
+            "baseline_monthly_rmb": total_base_rmb,
+            "catalog_payg_monthly_rmb": total_cat_rmb,
+            "optimized_payg_monthly_rmb": total_opt_rmb,
+            "payg_savings_rmb": total_sav_rmb,
+            "payg_savings_pct": total_sav_pct,
+            "has_global_closed_models": has_global_closed,
+        },
+        "coding_plan_option": coding_plan_option,
+    }
+
+
 def parse_usage_log_snippet(
     raw_text: str,
     *,
@@ -1109,12 +1702,13 @@ def parse_usage_log_snippet(
     default_tokens_per_call: int = 4000,
 ) -> dict[str, Any]:
     """
-    Deterministically parse real LLM usage logs or billing summaries into calculator parameters.
+    Deterministically parse real LLM usage logs, multi-model CSV/TSV bills, or billing summaries into calculator parameters.
     Supports:
-      1. Anthropic / Claude Code `/cost` plaintext or JSON (where `input_tokens` and `cache_read` are additive)
-      2. OpenAI / OpenRouter / Bailian / DeepSeek `usage` JSON (where `cached_tokens` is a subset of `prompt_tokens`,
+      1. Multi-model CSV / TSV / pipe-table billing exports (`detected_format="csv_multimodel_bill"`)
+      2. Anthropic / Claude Code `/cost` plaintext or JSON (where `input_tokens` and `cache_read` are additive)
+      3. OpenAI / OpenRouter / Bailian / DeepSeek `usage` JSON (where `cached_tokens` is a subset of `prompt_tokens`,
          and `reasoning_tokens` inside `completion_tokens_details` triggers `output_includes_reasoning=True`)
-      3. Chinese & English cloud console text summaries (`输入 Token 28M（缓存命中 14M），输出 Token 7M`)
+      4. Chinese & English cloud console text summaries (`输入 Token 28M（缓存命中 14M），输出 Token 7M`)
     """
     import json
     import re
@@ -1228,6 +1822,10 @@ def parse_usage_log_snippet(
         if r_tok is not None and _parse_scaled_number(r_tok) > 0:
             output_includes_reasoning = True
     else:
+        csv_parsed = _try_parse_csv_bill(text, days)
+        if csv_parsed is not None:
+            return csv_parsed
+
         num_pat = r"([0-9][0-9,._]*\s*(?:百万|亿|万|千|[kKmMbBwW])?)"
 
         m_in = re.search(

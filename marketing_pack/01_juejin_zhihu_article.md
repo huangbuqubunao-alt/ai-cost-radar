@@ -67,11 +67,13 @@
 以官方文档为准，不同客户端与计费方式的端点是严格区分的：
 
 ### 1. 阿里云百炼 Coding Plan 专属端点
-- **Claude Code（Anthropic 原生协议）**：
+- **Claude Code（Anthropic 原生协议，务必先 `unset ANTHROPIC_API_KEY` 防止旧环境变量抢占，推荐持久化写入 `~/.claude/settings.json`）**：
   ```bash
+  unset ANTHROPIC_API_KEY
   export ANTHROPIC_BASE_URL="https://coding.dashscope.aliyuncs.com/apps/anthropic"
   export ANTHROPIC_AUTH_TOKEN="sk-sp-你的百炼套餐专属Key"
   export ANTHROPIC_MODEL="qwen3.5-plus"
+  export ANTHROPIC_SMALL_FAST_MODEL="qwen3.5-plus"
   ```
 - **Cursor / Cline（OpenAI 兼容协议）**：
   - Base URL：`https://coding.dashscope.aliyuncs.com/v1`（注意不是按量的 `dashscope.aliyuncs.com/compatible-mode/v1`）
@@ -79,9 +81,11 @@
 ### 2. 腾讯云 LKEAP Coding Plan 专属端点
 - **Claude Code（Anthropic 原生协议）**：
   ```bash
+  unset ANTHROPIC_API_KEY
   export ANTHROPIC_BASE_URL="https://api.lkeap.cloud.tencent.com/coding/anthropic"
   export ANTHROPIC_AUTH_TOKEN="sk-sp-你的腾讯套餐专属Key"
   export ANTHROPIC_MODEL="tc-code-latest"
+  export ANTHROPIC_SMALL_FAST_MODEL="tc-code-latest"
   ```
 - **Cursor / Cline / CodeBuddy（OpenAI 兼容协议）**：
   - Base URL：`https://api.lkeap.cloud.tencent.com/coding/v3`（注意不是按量的 `api.lkeap.cloud.tencent.com/v1`）
@@ -89,18 +93,22 @@
 ### 3. 火山方舟 Coding Plan 专属端点
 - **Claude Code（Anthropic 原生协议）**：
   ```bash
+  unset ANTHROPIC_API_KEY
   export ANTHROPIC_BASE_URL="https://ark.cn-beijing.volces.com/api/coding"
   export ANTHROPIC_AUTH_TOKEN="ark-coding-plan-你的火山方舟套餐Key"
   export ANTHROPIC_MODEL="doubao-seed-2.0-code"
+  export ANTHROPIC_SMALL_FAST_MODEL="doubao-seed-2.0-code"
   ```
 - **Cursor / Cline / Trae（OpenAI 兼容协议）**：
   - Base URL：`https://ark.cn-beijing.volces.com/api/coding/v3`（注意不是按量的 `ark.cn-beijing.volces.com/api/v3`）
 
+> **防踩坑加分技巧**：为了避免每次开新终端忘配环境变量、或被残留的 `ANTHROPIC_API_KEY` 覆盖，建议直接在站内端点生成器一键下载 `~/.claude/settings.json`（同时设置 `ANTHROPIC_MODEL` 与后台轻量任务 `ANTHROPIC_SMALL_FAST_MODEL`），并复制运行 `max_tokens: 1` 的连通性自检 `curl` 命令现场确认网关与模型 ID 无误。
+
 ---
 
-## 五、在线自查与复算工具（支持无 JS 静态阅读与参数分享）
+## 五、在线自查与多模型 CSV 账单审计工具（纯本地解析 · 支持无 JS 静态阅读）
 
-我把上面这套公式、三层额度核验、场景排除（交互式 IDE vs 自动化后端）以及专属端点生成器做成了静态页面：
+我把上面这套公式、三层额度核验、场景排除（交互式 IDE vs 自动化后端）、OpenRouter / 云控制台多模型 CSV 账单逐行瘦身审计（纯浏览器内存解析，零上传）以及 `settings.json` 专属端点生成器做成了静态页面：
 
 👉 **https://ai-cost-radar-nlu.pages.dev/coding-plan-2026/**
 
