@@ -585,6 +585,48 @@ def render_html_template(
       line-height: 1.45;
     }}
 
+    .usage-cli-bar {{
+      border-top: 1px dashed var(--border);
+      margin-top: 8px;
+      padding-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+    }}
+
+    .usage-cli-copy {{
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1 1 260px;
+      min-width: 0;
+      max-width: 100%;
+    }}
+
+    .usage-cli-hint {{
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }}
+
+    .usage-cli-code {{
+      display: block;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-family: var(--font-mono);
+      font-size: 0.73rem;
+      color: var(--text-primary);
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      max-width: 100%;
+    }}
+
     .bill-snapshot-banner {{
       border: 1px solid var(--border-strong);
       border-radius: var(--radius-md);
@@ -728,13 +770,24 @@ def render_html_template(
     }}
 
     .usage-bill-breakdown .ssr-table {{
-      min-width: 470px;
-      font-size: 0.77rem;
+      min-width: 440px;
+      width: 100%;
+      font-size: 0.76rem;
+    }}
+
+    .usage-file-drilldown .ssr-table {{
+      min-width: 420px;
+      width: 100%;
     }}
 
     .usage-bill-breakdown .ssr-table th,
     .usage-bill-breakdown .ssr-table td {{
-      padding: 8px 8px;
+      padding: 7px 6px;
+    }}
+
+    .usage-bill-breakdown .ssr-table th {{
+      white-space: normal;
+      line-height: 1.25;
     }}
 
     .usage-bill-breakdown .mono-cell,
@@ -766,10 +819,10 @@ def render_html_template(
     }}
 
     .bill-route-select {{
-      max-width: 220px;
+      max-width: 172px;
       width: 100%;
-      font-size: 0.74rem;
-      padding: 4px 6px;
+      font-size: 0.73rem;
+      padding: 4px 5px;
     }}
 
     .usage-bill-title {{
@@ -783,6 +836,45 @@ def render_html_template(
       color: var(--text-secondary);
       line-height: 1.48;
       margin-top: 8px;
+    }}
+
+    details.usage-file-drilldown {{
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed var(--border);
+      min-width: 0;
+    }}
+
+    details.usage-file-drilldown > summary {{
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      list-style: none;
+      user-select: none;
+    }}
+
+    details.usage-file-drilldown > summary::-webkit-details-marker {{
+      display: none;
+    }}
+
+    details.usage-file-drilldown > summary::after {{
+      content: "+";
+      font-family: var(--font-mono);
+      font-size: 0.98rem;
+      color: var(--emerald-text);
+    }}
+
+    details.usage-file-drilldown[open] > summary {{
+      margin-bottom: 8px;
+    }}
+
+    details.usage-file-drilldown[open] > summary::after {{
+      content: "−";
     }}
 
     .control-group {{
@@ -2129,6 +2221,7 @@ def render_html_template(
       .panel,
       .plan-card,
       .usage-bill-breakdown,
+      details.usage-file-drilldown,
       .selfhost-banner,
       .compare-tray {{
         break-inside: avoid;
@@ -2245,6 +2338,13 @@ def render_html_template(
                     <button type="button" class="usage-import-btn" id="fillSampleLogBtn" data-i18n="fillSampleLogBtn">填入 Claude Code 示例</button>
                   </div>
                   <div class="unit-hint" style="margin-top:6px;" data-i18n="usagePrivacyNote">隐私承诺：账单与日志文件 100% 在本地浏览器内存解析，绝不上传至任何服务器。</div>
+                  <div class="usage-cli-bar" id="localCliAuditBar">
+                    <div class="usage-cli-copy">
+                      <span class="usage-cli-hint" data-i18n="localCliHint">不想手动翻找隐藏目录？终端只读扫描 ~/.claude/projects（零上传）：</span>
+                      <code class="usage-cli-code" id="localCliCmdCode">curl -fsSL https://ai-cost-radar-nlu.pages.dev/audit_local_claude.py | python3 - --days 30</code>
+                    </div>
+                    <button type="button" class="usage-import-btn" id="copyLocalCliCmdBtn" data-i18n="copyLocalCliCmdBtn">复制本地扫描命令</button>
+                  </div>
                 </div>
                 <hr class="usage-import-divider" />
                 <div>
@@ -3207,7 +3307,8 @@ def render_html_template(
           cached_input_tokens: rowCached,
           output_tokens: outVal,
           reasoning_tokens: reasonVal,
-          reported_cost_rmb: rowCostRmb
+          reported_cost_rmb: rowCostRmb,
+          source_file_idx: rec._src_file_idx
         }};
 
         if (dedupeId) {{
@@ -3324,26 +3425,161 @@ def render_html_template(
       return buildMultimodelPortfolioFromEntriesWeb(entries, days, ext.sourceFormat, deduplicatedChunks, null);
     }}
 
-    function mergeUsageFilesWeb(rawTexts, daysObserved = 30) {{
-      const cleaned = (Array.isArray(rawTexts) ? rawTexts : [])
-        .map(s => String(s ?? "").trim())
-        .filter(Boolean);
-      if (cleaned.length === 0) throw new Error("empty_snippet");
+    function sanitizeUsageFileLabelWeb(rawName, fallbackIdx = 1) {{
+      const raw = String(rawName ?? "").trim().replace(/[\\x00-\\x1f\\x7f]+/g, "");
+      if (!raw) return `file_${{fallbackIdx}}`;
+      const norm = raw.replace(/\\\\/g, "/");
+      const isAbsOrHome = norm.startsWith("/") || norm.startsWith("~") || /^[A-Za-z]:(?:\\/|$)/.test(norm);
+      const parts = norm
+        .split("/")
+        .map(p => p.trim())
+        .filter(p => p && p !== "." && p !== ".." && !/^[A-Za-z]:$/.test(p));
+      if (parts.length === 0) return `file_${{fallbackIdx}}`;
+      for (let i = 0; i < parts.length - 1; i++) {{
+        if (parts[i].toLowerCase() === ".claude" && parts[i + 1].toLowerCase() === "projects" && i + 2 < parts.length) {{
+          const tail = parts.slice(i + 2);
+          const lbl = tail.length >= 2 ? tail.slice(-2).join("/") : tail[tail.length - 1];
+          return lbl.slice(0, 80) || `file_${{fallbackIdx}}`;
+        }}
+      }}
+      const hostRoots = new Set(["users", "home", "var", "tmp", "private", "mnt", "opt", "etc", "root", "downloads", "documents", "desktop"]);
+      if (isAbsOrHome || parts.slice(0, -1).some(seg => hostRoots.has(seg.toLowerCase()))) {{
+        return parts[parts.length - 1].slice(0, 80) || `file_${{fallbackIdx}}`;
+      }}
+      const lbl = parts.length >= 2 ? parts.slice(-2).join("/") : parts[0];
+      return lbl.slice(0, 80) || `file_${{fallbackIdx}}`;
+    }}
+
+    function buildFileBreakdownWeb(allEntries, fileLabels, days) {{
+      const scale30d = 30 / days;
+      const round2 = v => Math.round((v + Number.EPSILON) * 100) / 100;
+      const perFile = new Map();
+      fileLabels.forEach((lbl, idx) => {{
+        perFile.set(idx, {{
+          file_name: lbl,
+          requests: 0,
+          input_tokens: 0,
+          cached_input_tokens: 0,
+          output_tokens: 0,
+          reported_cost_rmb: 0,
+          by_model: new Map()
+        }});
+      }});
+
+      for (const ent of allEntries || []) {{
+        const rawIdx = Number.isInteger(ent.source_file_idx) && perFile.has(ent.source_file_idx) ? ent.source_file_idx : 0;
+        const fg = perFile.get(rawIdx);
+        if (!fg) continue;
+        fg.requests += Number(ent.requests || 0);
+        fg.input_tokens += Number(ent.input_tokens || 0);
+        fg.cached_input_tokens += Number(ent.cached_input_tokens || 0);
+        fg.output_tokens += Number(ent.output_tokens || 0);
+        fg.reported_cost_rmb += Number(ent.reported_cost_rmb || 0);
+        const mk = String(ent.model || "unknown").toLowerCase();
+        if (!fg.by_model.has(mk)) {{
+          fg.by_model.set(mk, {{
+            model: String(ent.model || "unknown"),
+            input_tokens: 0,
+            cached_input_tokens: 0,
+            output_tokens: 0,
+            reported_cost_rmb: 0
+          }});
+        }}
+        const sbm = fg.by_model.get(mk);
+        sbm.input_tokens += Number(ent.input_tokens || 0);
+        sbm.cached_input_tokens += Number(ent.cached_input_tokens || 0);
+        sbm.output_tokens += Number(ent.output_tokens || 0);
+        sbm.reported_cost_rmb += Number(ent.reported_cost_rmb || 0);
+      }}
+
+      const breakdown = [];
+      for (const fg of perFile.values()) {{
+        const fIn = fg.input_tokens;
+        const fCached = Math.min(fIn, Math.max(0, fg.cached_input_tokens));
+        const fOut = fg.output_tokens;
+        const fHit = fIn > 0 ? Math.round((fCached / fIn) * 10000) / 10000 : 0;
+        let estMonthlyRmb = 0;
+        let topModel = "-";
+        let topCost = -1;
+        let topTok = -1;
+        for (const sub of fg.by_model.values()) {{
+          const subIn = sub.input_tokens;
+          const subCached = Math.min(subIn, Math.max(0, sub.cached_input_tokens));
+          const subHit = subIn > 0 ? subCached / subIn : 0;
+          let subMRmb = 0;
+          if (sub.reported_cost_rmb > 0) {{
+            subMRmb = sub.reported_cost_rmb * scale30d;
+          }} else {{
+            const matched = resolveModelFuzzyWeb(sub.model);
+            if (matched) {{
+              const cFactor = matched.cache_hit_factor ?? (matched.region === "cn_direct" ? 0.2 : 0.5);
+              subMRmb =
+                ((subIn * scale30d) / 1e6) * ((1 - subHit) + subHit * cFactor) * Number(matched.input_rmb_per_1m || 0) +
+                ((sub.output_tokens * scale30d) / 1e6) * Number(matched.output_rmb_per_1m || 0);
+            }}
+          }}
+          estMonthlyRmb += subMRmb;
+          const subTok = subIn + sub.output_tokens;
+          if (subMRmb > topCost || (subMRmb === topCost && subTok > topTok)) {{
+            topCost = subMRmb;
+            topTok = subTok;
+            topModel = sub.model;
+          }}
+        }}
+        breakdown.push({{
+          file_name: fg.file_name,
+          requests: Math.round(fg.requests),
+          input_tokens: Math.round(fIn),
+          cached_input_tokens: Math.round(fCached),
+          output_tokens: Math.round(fOut),
+          cache_hit_rate: fHit,
+          top_model: topModel,
+          reported_cost_rmb: Math.round(fg.reported_cost_rmb * 10000) / 10000,
+          estimated_monthly_rmb: round2(estMonthlyRmb)
+        }});
+      }}
+      breakdown.sort((a, b) => (b.estimated_monthly_rmb - a.estimated_monthly_rmb) || ((b.input_tokens + b.output_tokens) - (a.input_tokens + a.output_tokens)));
+      return breakdown;
+    }}
+
+    function mergeUsageFilesWeb(rawTexts, daysObserved = 30, fileNames = null) {{
+      const rawArr = Array.isArray(rawTexts) ? rawTexts : [];
+      const namesArr = Array.isArray(fileNames) ? fileNames : [];
+      const cleanedItems = [];
+      const seenLabels = new Map();
+      for (let i = 0; i < rawArr.length; i++) {{
+        const item = rawArr[i];
+        const rawText = item && typeof item === "object" && !Array.isArray(item) ? item.text : item;
+        const rawLbl = item && typeof item === "object" && !Array.isArray(item)
+          ? (item.name ?? namesArr[i])
+          : namesArr[i];
+        const sTrim = String(rawText ?? "").trim();
+        if (!sTrim) continue;
+        const baseLbl = sanitizeUsageFileLabelWeb(rawLbl, cleanedItems.length + 1);
+        const cnt = (seenLabels.get(baseLbl) || 0) + 1;
+        seenLabels.set(baseLbl, cnt);
+        const uniqLbl = cnt > 1 ? `${{baseLbl}} (#${{cnt}})` : baseLbl;
+        cleanedItems.push({{ text: sTrim, label: uniqLbl }});
+      }}
+      if (cleanedItems.length === 0) throw new Error("empty_snippet");
       let days = Number(daysObserved ?? 30);
       if (!Number.isFinite(days) || days <= 0 || days > 365) days = 30;
       const effFx = typeof FX === "number" && FX > 0 ? FX : 7.2;
 
-      if (cleaned.length === 1) {{
-        const single = parseUsageSnippet(cleaned[0], days);
+      if (cleanedItems.length === 1) {{
+        const single = parseUsageSnippet(cleanedItems[0].text, days);
         return {{ ...single, merged_files_count: 1 }};
       }}
 
       const combinedJsonRecords = [];
       const otherEntries = [];
-      for (const snippet of cleaned) {{
+      for (let cleanIdx = 0; cleanIdx < cleanedItems.length; cleanIdx++) {{
+        const snippet = cleanedItems[cleanIdx].text;
         const ext = extractJsonRecordsRawWeb(snippet);
         if (ext) {{
-          combinedJsonRecords.push(...ext.rawRecords);
+          for (const rec of ext.rawRecords) {{
+            combinedJsonRecords.push({{ ...rec, _src_file_idx: cleanIdx }});
+          }}
           continue;
         }}
         let csvParsed = null;
@@ -3361,7 +3597,8 @@ def render_html_template(
               cached_input_tokens: Number(row.cached_input_tokens || 0),
               output_tokens: Number(row.output_tokens || 0),
               reasoning_tokens: Number(row.reasoning_tokens || 0),
-              reported_cost_rmb: Number(row.reported_cost_rmb || 0)
+              reported_cost_rmb: Number(row.reported_cost_rmb || 0),
+              source_file_idx: cleanIdx
             }});
           }}
           continue;
@@ -3374,7 +3611,7 @@ def render_html_template(
         }}
         if (singleParsed.detected_format === "csv_multimodel_bill") {{
           for (const row of (singleParsed.model_breakdown || [])) {{
-            otherEntries.push(row);
+            otherEntries.push({{ ...row, source_file_idx: cleanIdx }});
           }}
         }} else {{
           otherEntries.push({{
@@ -3384,7 +3621,8 @@ def render_html_template(
             cached_input_tokens: Number(singleParsed.cached_input_tokens || 0),
             output_tokens: Number(singleParsed.total_output_tokens || 0),
             reasoning_tokens: singleParsed.output_includes_reasoning ? 1 : 0,
-            reported_cost_rmb: 0
+            reported_cost_rmb: 0,
+            source_file_idx: cleanIdx
           }});
         }}
       }}
@@ -3393,7 +3631,9 @@ def render_html_template(
         ? collectJsonRecordEntriesWeb(combinedJsonRecords, effFx)
         : {{ entries: [], deduplicatedChunks: 0 }};
       const allEntries = [...jsonEntries, ...otherEntries];
-      return buildMultimodelPortfolioFromEntriesWeb(allEntries, days, "multifile_merged", deduplicatedChunks, cleaned.length);
+      const portfolio = buildMultimodelPortfolioFromEntriesWeb(allEntries, days, "multifile_merged", deduplicatedChunks, cleanedItems.length);
+      portfolio.file_breakdown = buildFileBreakdownWeb(allEntries, cleanedItems.map(x => x.label), days);
+      return portfolio;
     }}
 
     function parseUsageSnippet(rawText, daysObserved = 30, defaultTokensPerCall = 4000) {{
@@ -4014,6 +4254,7 @@ def render_html_template(
         usage_mode: state.usageMode,
         team_size: seats,
         line_items: lineItems,
+        file_breakdown: Array.isArray(parsedSummary.file_breakdown) ? parsedSummary.file_breakdown : [],
         totals: {{
           distinct_models_count: lineItems.length,
           monthly_requests: totalMReqs,
@@ -4168,6 +4409,7 @@ def render_html_template(
       const fmtVal = rmb => fmtMoney(rmb / FX, rmb, cur);
       const cp = audit.coding_plan_option;
       const snapDiff = getSavedBaselineDiffInfo(getBaselineModel());
+      const fb = Array.isArray(audit.file_breakdown) ? audit.file_breakdown : [];
 
       if (isEn) {{
         const rows = audit.line_items.map(it => {{
@@ -4176,6 +4418,9 @@ def render_html_template(
             : formatModelTitle(it.recommended_model, true);
           return `| ${{it.raw_model}} | ${{fmtNum(it.monthly_requests)}} / ${{it.monthly_input_m.toFixed(1)}}M in / ${{it.monthly_output_m.toFixed(1)}}M out (${{Math.round(it.cache_hit_rate * 100)}}% cached) | ${{fmtVal(it.baseline_monthly_rmb)}} | ${{recTitle}} | ${{fmtVal(it.optimized_payg_rmb)}} (Save ${{it.savings_pct.toFixed(1)}}%) |`;
         }});
+        const fileLinesEn = fb.length >= 2
+          ? [`- **Top Spend by Session / File Source**: ${{fb.slice(0, 5).map((f, idx) => `${{idx + 1}}. \\`${{f.file_name}}\\` (${{fmtVal(f.estimated_monthly_rmb)}}/mo · ${{fmtNum(f.requests)}} calls)`).join(" · ")}}`]
+          : [];
         let cpLine = "- **Coding Plan Portfolio Check**: Excluded for automated backend workloads.";
         if (cp) {{
           const planEn = (PLAN_EN_TITLES[cp.plan_id] || [cp.plan_name])[0];
@@ -4196,6 +4441,7 @@ def render_html_template(
           ...rows,
           `| **Portfolio Total** | **${{fmtNum(audit.totals.monthly_requests)}} calls/mo** | **${{fmtVal(audit.totals.baseline_monthly_rmb)}}** | **Workhorse CN Direct Routing** | **${{fmtVal(audit.totals.optimized_payg_monthly_rmb)}} (Save ${{fmtVal(audit.totals.payg_savings_rmb)}} · ${{audit.totals.payg_savings_pct.toFixed(1)}}%)** |`,
           ``,
+          ...fileLinesEn,
           cpLine,
           `> Reproducible Audit Link: ${{shareUrl}}`
         ].join("\\n");
@@ -4207,6 +4453,10 @@ def render_html_template(
           : it.recommended_model_name;
         return `| ${{it.raw_model}} | ${{fmtNum(it.monthly_requests)}}次 / 输入${{it.monthly_input_m.toFixed(1)}}M / 输出${{it.monthly_output_m.toFixed(1)}}M (缓存${{Math.round(it.cache_hit_rate * 100)}}%) | ${{fmtVal(it.baseline_monthly_rmb)}} | ${{recTitle}} | ${{fmtVal(it.optimized_payg_rmb)}} (省 ${{it.savings_pct.toFixed(1)}}%) |`;
       }});
+      const topFbZh = fb.slice(0, 5);
+      const fileLinesZh = fb.length >= 2
+        ? [`- **高消耗文件 / 会话来源 Top ${{topFbZh.length}}**：${{topFbZh.map((f, idx) => `${{idx + 1}}. \\`${{f.file_name}}\\`（${{fmtVal(f.estimated_monthly_rmb)}}/月 · ${{fmtNum(f.requests)}} 次）`).join(" · ")}}`]
+        : [];
       let cpLineZh = "- **Coding Plan 组合核对**：非交互式后端场景已自动排除个人包月套餐。";
       if (cp) {{
         cpLineZh = cp.fits_monthly_cap
@@ -4226,6 +4476,7 @@ def render_html_template(
         ...rowsZh,
         `| **组合总计** | **${{fmtNum(audit.totals.monthly_requests)}} 次/月** | **${{fmtVal(audit.totals.baseline_monthly_rmb)}}** | **同档工作流直连瘦身** | **${{fmtVal(audit.totals.optimized_payg_monthly_rmb)}}（月省 ${{fmtVal(audit.totals.payg_savings_rmb)}} · 省 ${{audit.totals.payg_savings_pct.toFixed(1)}}%）** |`,
         ``,
+        ...fileLinesZh,
         cpLineZh,
         `> 一键复算链接：${{shareUrl}}`
       ].join("\\n");
@@ -4311,6 +4562,58 @@ def render_html_template(
         }}
       }}
 
+      const prevDrillOpen = Boolean(document.getElementById("usageFileDrilldown")?.open);
+      const fbRows = Array.isArray(info.parsed.file_breakdown) ? info.parsed.file_breakdown : [];
+      let fileDrilldownHtml = "";
+      if (fbRows.length >= 2) {{
+        const fmtTokShort = n => {{
+          const v = Number(n || 0);
+          if (v >= 1e6) return (v / 1e6).toFixed(2) + "M";
+          if (v >= 1e3) return (v / 1e3).toFixed(1) + "K";
+          return fmtNum(v);
+        }};
+        const fileTrs = fbRows.map((f, idx) => {{
+          const hitPct = Math.round(Number(f.cache_hit_rate || 0) * 100);
+          const subMeta = isEn
+            ? `${{f.top_model || "-"}} · ${{hitPct}}% cached`
+            : `${{f.top_model || "-"}} · 缓存 ${{hitPct}}%`;
+          const callTokTxt = isEn
+            ? `${{fmtNum(f.requests)}} calls · In ${{fmtTokShort(f.input_tokens)}} / Out ${{fmtTokShort(f.output_tokens)}}`
+            : `${{fmtNum(f.requests)}} 次 · 输入 ${{fmtTokShort(f.input_tokens)}} / 输出 ${{fmtTokShort(f.output_tokens)}}`;
+          return `
+            <tr>
+              <td class="mono-cell">${{idx + 1}}</td>
+              <td class="mono-cell"><strong>${{esc(f.file_name)}}</strong><br><span class="table-sub">${{esc(subMeta)}}</span></td>
+              <td class="mono-cell">${{esc(callTokTxt)}}</td>
+              <td class="mono-cell"><strong>${{fmtVal(f.estimated_monthly_rmb)}}</strong></td>
+            </tr>
+          `;
+        }}).join("");
+        const summaryTxt = isEn
+          ? `Spend by Session / File Source (${{fbRows.length}} files · ranked by 30d est. spend)`
+          : `按文件 / 会话来源消耗排行（共 ${{fbRows.length}} 份文件 · 按 30 天折算月费降序）`;
+        fileDrilldownHtml = `
+          <details class="usage-file-drilldown" id="usageFileDrilldown"${{prevDrillOpen ? " open" : ""}}>
+            <summary>${{esc(summaryTxt)}}</summary>
+            <div class="table-scroll" style="padding:0;background:var(--bg-elevated);">
+              <table class="ssr-table" aria-label="${{isEn ? "Spend by Session or File Source" : "按文件或会话来源消耗排行"}}">
+                <thead>
+                  <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">${{isEn ? "Session / File & Top Model" : "文件 / 会话来源与主力模型"}}</th>
+                    <th scope="col">${{isEn ? "Window Calls & Tokens" : "周期调用与 Token"}}</th>
+                    <th scope="col">${{isEn ? "Est. 30d Spend" : "折算月消耗"}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${{fileTrs}}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        `;
+      }}
+
       el.hidden = false;
       el.innerHTML = `
         <div class="usage-bill-head">
@@ -4338,12 +4641,13 @@ def render_html_template(
                 <td class="mono-cell"><strong>${{fmtNum(audit.totals.monthly_requests)}} ${{isEn ? "calls/mo" : "次/月"}}</strong></td>
                 <td class="mono-cell"><strong>${{fmtVal(audit.totals.baseline_monthly_rmb)}}</strong></td>
                 <td><strong>${{isEn ? `Save ${{fmtVal(audit.totals.payg_savings_rmb)}}/mo` : `月净省 ${{fmtVal(audit.totals.payg_savings_rmb)}}`}}</strong></td>
-                <td class="mono-cell"><strong>${{fmtVal(audit.totals.optimized_payg_monthly_rmb)}}</strong> <span class="badge badge-save">${{isEn ? `Save ${{audit.totals.payg_savings_pct.toFixed(1)}}%` : `省 ${{audit.totals.payg_savings_pct.toFixed(1)}}%`}}</span></td>
+                <td class="mono-cell"><strong>${{fmtVal(audit.totals.optimized_payg_rmb || audit.totals.optimized_payg_monthly_rmb)}}</strong> <span class="badge badge-save">${{isEn ? `Save ${{audit.totals.payg_savings_pct.toFixed(1)}}%` : `省 ${{audit.totals.payg_savings_pct.toFixed(1)}}%`}}</span></td>
               </tr>
             </tbody>
           </table>
         </div>
         <div class="usage-bill-note">${{esc(cpNote)}}</div>
+        ${{fileDrilldownHtml}}
       `;
     }}
 
@@ -6726,6 +7030,9 @@ def render_html_template(
       fillSampleJsonlBtn: "Fill Claude Code JSONL Sample",
       fillSampleLogBtn: "Fill Claude Code Sample",
       usagePrivacyNote: "Privacy: Bills & logs are parsed 100% locally in browser memory and never uploaded to any server.",
+      localCliHint: "Skip hunting hidden folders — read-only local ~/.claude/projects terminal audit (zero upload):",
+      copyLocalCliCmdBtn: "Copy Local CLI Command",
+      copiedLocalCliToast: "Local CLI Command Copied",
       usageMonthlyQuickLabel: "Option 2: Convert Monthly Bill Totals (auto-computes daily calls, per-call avg & cache hit %)",
       labelMonthlyCallsQuick: "Monthly API Calls (30-day total)",
       labelMonthlyInputMQuick: "Monthly Input (Million M Tokens)",
@@ -7148,20 +7455,41 @@ def render_html_template(
         }});
       }};
 
+      const copyLocalCliCmdBtn = document.getElementById("copyLocalCliCmdBtn");
+      const usageDaysSelEl = document.getElementById("usageDaysSelect");
+      if (usageDaysSelEl) {{
+        usageDaysSelEl.addEventListener("change", () => {{
+          const codeEl = document.getElementById("localCliCmdCode");
+          const dVal = Number(usageDaysSelEl.value || 30) || 30;
+          if (codeEl) {{
+            codeEl.textContent = `curl -fsSL https://ai-cost-radar-nlu.pages.dev/audit_local_claude.py | python3 - --days ${{dVal}}`;
+          }}
+        }});
+      }}
+      if (copyLocalCliCmdBtn) {{
+        copyLocalCliCmdBtn.addEventListener("click", e => {{
+          const dVal = Number(document.getElementById("usageDaysSelect")?.value || 30) || 30;
+          const cmd = document.getElementById("localCliCmdCode")?.textContent || `curl -fsSL https://ai-cost-radar-nlu.pages.dev/audit_local_claude.py | python3 - --days ${{dVal}}`;
+          trackEvent("share_copy", {{ slot_id: "copy_local_cli_cmd" }});
+          copyTextWithFeedback(cmd, e.currentTarget, state.lang === "en" ? I18N_EN.copiedLocalCliToast : "已复制本地扫描命令");
+        }});
+      }}
+
       const handleUsageFileBatch = (fileList, sourceSlot) => {{
         const files = Array.from(fileList || []).filter(Boolean).slice(0, 30);
         if (files.length === 0) return;
         Promise.all(files.map(readLocalUsageFileText))
           .then(texts => {{
+            const fileNames = files.map((f, idx) => f.webkitRelativePath || f.name || `file_${{idx + 1}}`);
             const ta = document.getElementById("usageLogTextarea");
             if (ta) {{
               ta.value = files.length === 1
                 ? String(texts[0] || "")
-                : files.map((f, idx) => `# --- File ${{idx + 1}}: ${{f.name || "snippet"}} ---\\n${{String(texts[idx] || "").trim()}}`).join("\\n\\n");
+                : files.map((f, idx) => `# --- File ${{idx + 1}}: ${{fileNames[idx]}} ---\\n${{String(texts[idx] || "").trim()}}`).join("\\n\\n");
             }}
             const daysVal = Number(document.getElementById("usageDaysSelect")?.value || 30) || 30;
             const parsed = files.length > 1
-              ? mergeUsageFilesWeb(texts, daysVal)
+              ? mergeUsageFilesWeb(texts, daysVal, fileNames)
               : parseUsageSnippet(String(texts[0] || ""), daysVal);
             const slotId = files.length > 1
               ? (sourceSlot === "drop" ? "multifile_drop" : "multifile_upload")
@@ -7223,11 +7551,25 @@ def render_html_template(
           const rawText = document.getElementById("usageLogTextarea")?.value || "";
           const daysVal = Number(document.getElementById("usageDaysSelect")?.value || 30) || 30;
           try {{
-            const fileBlocks = rawText.includes("# --- File ")
-              ? rawText.split(/^# --- File \\d+:[^\\n]*---\\r?\\n?/m).map(s => s.trim()).filter(Boolean)
-              : [];
+            let fileBlocks = [];
+            let blockNames = [];
+            if (rawText.includes("# --- File ")) {{
+              const headerRe = /^# --- File \\d+:\\s*([^\\r\\n]*?)\\s*---\\r?\\n?/gm;
+              const matches = Array.from(rawText.matchAll(headerRe));
+              if (matches.length > 1) {{
+                for (let i = 0; i < matches.length; i++) {{
+                  const start = matches[i].index + matches[i][0].length;
+                  const end = i + 1 < matches.length ? matches[i + 1].index : rawText.length;
+                  const chunk = rawText.slice(start, end).trim();
+                  if (chunk) {{
+                    fileBlocks.push(chunk);
+                    blockNames.push(matches[i][1] || `file_${{fileBlocks.length}}`);
+                  }}
+                }}
+              }}
+            }}
             const parsed = fileBlocks.length > 1
-              ? mergeUsageFilesWeb(fileBlocks, daysVal)
+              ? mergeUsageFilesWeb(fileBlocks, daysVal, blockNames)
               : parseUsageSnippet(rawText, daysVal);
             applyParsedUsageSnippet(parsed);
           }} catch (_) {{

@@ -1712,6 +1712,7 @@ def _collect_json_record_entries(
             "output_tokens": out_val,
             "reasoning_tokens": reason_val,
             "reported_cost_rmb": row_cost_rmb,
+            "source_file_idx": rec.get("_src_file_idx"),
         }
         if dedupe_id is not None:
             if dedupe_id in deduped_entries:
@@ -2467,35 +2468,280 @@ def parse_usage_log_snippet(
     }
 
 
+_CACHED_DEFAULT_MODELS: list[dict[str, Any]] | None = None
+
+
+def _load_default_models_for_pricing() -> list[dict[str, Any]]:
+    global _CACHED_DEFAULT_MODELS
+    if _CACHED_DEFAULT_MODELS is not None:
+        return _CACHED_DEFAULT_MODELS
+    import json as _json
+    from pathlib import Path as _Path
+
+    here = _Path(__file__).resolve().parent
+    for cand in (here.parent / "shared_data" / "models_live.json", here / "models_live.json"):
+        if cand.is_file():
+            try:
+                data = _json.loads(cand.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and isinstance(data.get("models"), list) and data["models"]:
+                    _CACHED_DEFAULT_MODELS = data["models"]
+                    return _CACHED_DEFAULT_MODELS
+            except (OSError, ValueError):
+                continue
+
+    _CACHED_DEFAULT_MODELS = [
+        {
+            "id": "anthropic/claude-opus-5.5",
+            "api_model_id": "anthropic/claude-opus-5.5",
+            "name": "Anthropic: Claude Opus 5.5",
+            "provider": "OpenRouter",
+            "region": "global",
+            "input_rmb_per_1m": 28.80,
+            "output_rmb_per_1m": 144.00,
+            "cache_hit_factor": 0.50,
+            "is_free": False,
+            "value_score": 82.0,
+        },
+        {
+            "id": "anthropic/claude-sonnet-5.5",
+            "api_model_id": "anthropic/claude-sonnet-5.5",
+            "name": "Anthropic: Claude Sonnet 5.5",
+            "provider": "OpenRouter",
+            "region": "global",
+            "input_rmb_per_1m": 14.40,
+            "output_rmb_per_1m": 72.00,
+            "cache_hit_factor": 0.50,
+            "is_free": False,
+            "value_score": 88.0,
+        },
+        {
+            "id": "tencent-cloud/deepseek-r1",
+            "api_model_id": "deepseek-r1",
+            "name": "腾讯云 · DeepSeek-R1",
+            "provider": "腾讯云",
+            "region": "cn_direct",
+            "input_rmb_per_1m": 4.00,
+            "output_rmb_per_1m": 16.00,
+            "cache_hit_factor": 0.20,
+            "is_free": False,
+            "value_score": 93.0,
+        },
+        {
+            "id": "tencent-cloud/deepseek-v3",
+            "api_model_id": "deepseek-v3",
+            "name": "腾讯云 · DeepSeek-V3",
+            "provider": "腾讯云",
+            "region": "cn_direct",
+            "input_rmb_per_1m": 2.00,
+            "output_rmb_per_1m": 8.00,
+            "cache_hit_factor": 0.20,
+            "is_free": False,
+            "value_score": 94.0,
+        },
+    ]
+    return _CACHED_DEFAULT_MODELS
+
+
+def sanitize_usage_file_label(raw_name: Any, fallback_idx: int = 1) -> str:
+    """
+    Sanitize an uploaded/scanned file path so OS usernames and host home prefixes never leak:
+      - `.../.claude/projects/<project>/<session>.jsonl` -> `<project>/<session>.jsonl`
+      - Any other absolute/home/drive path (`/Users/alice/...`, `C:\\Users\\alice\\...`) -> `<basename>`
+      - Relative 1-2 segment labels (`alpha/sess1.jsonl`) -> preserved safely
+    """
+    import re as _re
+
+    raw = str(raw_name or "").strip()
+    raw = _re.sub(r"[\x00-\x1f\x7f]+", "", raw)
+    if not raw:
+        return f"file_{fallback_idx}"
+
+    norm = raw.replace("\\", "/")
+    is_abs_or_home = bool(
+        norm.startswith(("/", "~"))
+        or _re.match(r"^[A-Za-z]:(?:/|$)", norm)
+    )
+    parts = [
+        p.strip()
+        for p in norm.split("/")
+        if p.strip() and p.strip() not in (".", "..") and not _re.match(r"^[A-Za-z]:$", p.strip())
+    ]
+    if not parts:
+        return f"file_{fallback_idx}"
+
+    for idx in range(len(parts) - 1):
+        if parts[idx].lower() == ".claude" and parts[idx + 1].lower() == "projects" and (idx + 2) < len(parts):
+            tail = parts[idx + 2 :]
+            label = "/".join(tail[-2:]) if len(tail) >= 2 else tail[-1]
+            return label[:80] or f"file_{fallback_idx}"
+
+    host_roots = {"users", "home", "var", "tmp", "private", "mnt", "opt", "etc", "root", "downloads", "documents", "desktop"}
+    if is_abs_or_home or any(seg.lower() in host_roots for seg in parts[:-1]):
+        return parts[-1][:80] or f"file_{fallback_idx}"
+
+    label = "/".join(parts[-2:]) if len(parts) >= 2 else parts[-1]
+    return label[:80] or f"file_{fallback_idx}"
+
+
+def _build_file_breakdown(
+    all_entries: list[dict[str, Any]],
+    *,
+    file_labels: list[str],
+    days: float,
+    models: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    catalog_models = models if (isinstance(models, list) and models) else _load_default_models_for_pricing()
+    scale_30d = 30.0 / days
+
+    per_file: dict[int, dict[str, Any]] = {
+        idx: {
+            "file_name": label,
+            "requests": 0.0,
+            "input_tokens": 0.0,
+            "cached_input_tokens": 0.0,
+            "output_tokens": 0.0,
+            "reported_cost_rmb": 0.0,
+            "by_model": {},
+        }
+        for idx, label in enumerate(file_labels)
+    }
+
+    for ent in all_entries:
+        raw_idx = ent.get("source_file_idx")
+        f_idx = int(raw_idx) if isinstance(raw_idx, int) and raw_idx in per_file else 0
+        fg = per_file[f_idx]
+        fg["requests"] += float(ent["requests"])
+        fg["input_tokens"] += float(ent["input_tokens"])
+        fg["cached_input_tokens"] += float(ent["cached_input_tokens"])
+        fg["output_tokens"] += float(ent["output_tokens"])
+        fg["reported_cost_rmb"] += float(ent.get("reported_cost_rmb") or 0.0)
+        mk = str(ent["model"]).lower()
+        if mk not in fg["by_model"]:
+            fg["by_model"][mk] = {
+                "model": str(ent["model"]),
+                "input_tokens": 0.0,
+                "cached_input_tokens": 0.0,
+                "output_tokens": 0.0,
+                "reported_cost_rmb": 0.0,
+            }
+        sbm = fg["by_model"][mk]
+        sbm["input_tokens"] += float(ent["input_tokens"])
+        sbm["cached_input_tokens"] += float(ent["cached_input_tokens"])
+        sbm["output_tokens"] += float(ent["output_tokens"])
+        sbm["reported_cost_rmb"] += float(ent.get("reported_cost_rmb") or 0.0)
+
+    breakdown: list[dict[str, Any]] = []
+    for fg in per_file.values():
+        f_in = fg["input_tokens"]
+        f_cached = min(f_in, max(0.0, fg["cached_input_tokens"]))
+        f_out = fg["output_tokens"]
+        f_hit = round(f_cached / f_in, 4) if f_in > 0 else 0.0
+
+        est_monthly_rmb = 0.0
+        top_model = "-"
+        top_weight = (-1.0, -1.0)
+        for sub in fg["by_model"].values():
+            sub_in = sub["input_tokens"]
+            sub_cached = min(sub_in, max(0.0, sub["cached_input_tokens"]))
+            sub_hit = (sub_cached / sub_in) if sub_in > 0 else 0.0
+            if sub["reported_cost_rmb"] > 0:
+                sub_m_rmb = sub["reported_cost_rmb"] * scale_30d
+            else:
+                matched, _ = resolve_model_query(catalog_models, sub["model"])
+                if matched is not None:
+                    m_hit = float(
+                        matched.get("cache_hit_factor")
+                        if matched.get("cache_hit_factor") is not None
+                        else (0.2 if matched.get("region") == "cn_direct" else 0.5)
+                    )
+                    sub_m_rmb = calculate_token_bill(
+                        monthly_input_m=(sub_in * scale_30d) / 1_000_000.0,
+                        monthly_output_m=(sub["output_tokens"] * scale_30d) / 1_000_000.0,
+                        input_price_per_1m=float(matched["input_rmb_per_1m"]),
+                        output_price_per_1m=float(matched["output_rmb_per_1m"]),
+                        cache_hit_rate=sub_hit,
+                        cache_hit_factor=m_hit,
+                        reasoning_multiplier=1.0,
+                        output_includes_reasoning=True,
+                    )["total_cost"]
+                else:
+                    sub_m_rmb = 0.0
+            est_monthly_rmb += sub_m_rmb
+            w = (sub_m_rmb, sub_in + sub["output_tokens"])
+            if w > top_weight:
+                top_weight = w
+                top_model = sub["model"]
+
+        breakdown.append(
+            {
+                "file_name": fg["file_name"],
+                "requests": int(round(fg["requests"])),
+                "input_tokens": int(round(f_in)),
+                "cached_input_tokens": int(round(f_cached)),
+                "output_tokens": int(round(f_out)),
+                "cache_hit_rate": f_hit,
+                "top_model": top_model,
+                "reported_cost_rmb": round(fg["reported_cost_rmb"], 4),
+                "estimated_monthly_rmb": round(est_monthly_rmb, 2),
+            }
+        )
+
+    breakdown.sort(
+        key=lambda x: (x["estimated_monthly_rmb"], x["input_tokens"] + x["output_tokens"]),
+        reverse=True,
+    )
+    return breakdown
+
+
 def merge_usage_log_snippets(
     snippets: list[str],
     *,
     days_observed: float = 30.0,
     default_tokens_per_call: int = 4000,
     fx_rate: float = DEFAULT_FX_USD_TO_RMB,
+    file_names: list[str] | None = None,
+    models: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """
     Merge 1..50 local session transcripts or billing files (Claude Code `~/.claude/projects/*.jsonl`,
     OpenAI Batch `.jsonl`, OpenRouter/Cloud `.csv`/`.tsv` bills, or `/cost` summaries) into a single
-    unified `csv_multimodel_bill` portfolio with cross-file `message.id`/`request_id` deduplication.
+    unified `csv_multimodel_bill` portfolio with cross-file `message.id`/`request_id` deduplication
+    and per-file `file_breakdown` cost ranking.
     """
     if not isinstance(snippets, list):
         raise ValueError("usage_snippets must be a list of strings")
-    cleaned = [str(s or "").strip() for s in snippets if str(s or "").strip()]
-    if not cleaned or len(cleaned) > 50:
+
+    raw_names = list(file_names) if isinstance(file_names, list) else []
+    cleaned_items: list[tuple[str, str]] = []
+    seen_labels: dict[str, int] = {}
+    for raw_idx, raw_s in enumerate(snippets):
+        s_trim = str(raw_s or "").strip()
+        if not s_trim:
+            continue
+        raw_lbl = raw_names[raw_idx] if raw_idx < len(raw_names) else None
+        base_lbl = sanitize_usage_file_label(raw_lbl, len(cleaned_items) + 1)
+        if base_lbl in seen_labels:
+            seen_labels[base_lbl] += 1
+            uniq_lbl = f"{base_lbl} (#{seen_labels[base_lbl]})"
+        else:
+            seen_labels[base_lbl] = 1
+            uniq_lbl = base_lbl
+        cleaned_items.append((s_trim, uniq_lbl))
+
+    if not cleaned_items or len(cleaned_items) > 50:
         raise ValueError("usage_snippets must contain between 1 and 50 non-empty items")
 
     days = float(days_observed if days_observed is not None else 30.0)
     if not math.isfinite(days) or days <= 0 or days > 365:
         raise ValueError("Invalid days_observed (must be between 0.1 and 365)")
 
-    total_chars = sum(len(s) for s in cleaned)
-    if total_chars > 1_000_000 or any(len(s) > 250_000 for s in cleaned):
+    total_chars = sum(len(s) for s, _ in cleaned_items)
+    if total_chars > 1_000_000 or any(len(s) > 250_000 for s, _ in cleaned_items):
         raise ValueError("Oversized usage_snippets payload")
 
-    if len(cleaned) == 1:
+    if len(cleaned_items) == 1:
         single = parse_usage_log_snippet(
-            cleaned[0],
+            cleaned_items[0][0],
             days_observed=days,
             default_tokens_per_call=default_tokens_per_call,
         )
@@ -2504,11 +2750,12 @@ def merge_usage_log_snippets(
     combined_json_records: list[dict[str, Any]] = []
     other_entries: list[dict[str, Any]] = []
 
-    for snippet in cleaned:
+    for clean_idx, (snippet, _file_lbl) in enumerate(cleaned_items):
         extracted = _extract_json_records_raw(snippet)
         if extracted is not None:
             recs, _fmt = extracted
-            combined_json_records.extend(recs)
+            for rec in recs:
+                combined_json_records.append({**rec, "_src_file_idx": clean_idx})
             continue
 
         try:
@@ -2526,6 +2773,7 @@ def merge_usage_log_snippets(
                         "output_tokens": float(row["output_tokens"]),
                         "reasoning_tokens": float(row.get("reasoning_tokens") or 0),
                         "reported_cost_rmb": float(row.get("reported_cost_rmb") or 0.0),
+                        "source_file_idx": clean_idx,
                     }
                 )
             continue
@@ -2550,6 +2798,7 @@ def merge_usage_log_snippets(
                         "output_tokens": float(row["output_tokens"]),
                         "reasoning_tokens": float(row.get("reasoning_tokens") or 0),
                         "reported_cost_rmb": float(row.get("reported_cost_rmb") or 0.0),
+                        "source_file_idx": clean_idx,
                     }
                 )
         else:
@@ -2563,6 +2812,7 @@ def merge_usage_log_snippets(
                     "output_tokens": float(single_parsed.get("total_output_tokens") or 0),
                     "reasoning_tokens": 1.0 if single_parsed.get("output_includes_reasoning") else 0.0,
                     "reported_cost_rmb": 0.0,
+                    "source_file_idx": clean_idx,
                 }
             )
 
@@ -2575,10 +2825,17 @@ def merge_usage_log_snippets(
     if not all_entries:
         raise ValueError("Merged usage_snippets contain zero positive token records")
 
-    return _build_multimodel_portfolio_from_entries(
+    portfolio = _build_multimodel_portfolio_from_entries(
         all_entries,
         days=days,
         source_format="multifile_merged",
         deduplicated_chunks=dedup_cnt,
-        merged_files_count=len(cleaned),
+        merged_files_count=len(cleaned_items),
     )
+    portfolio["file_breakdown"] = _build_file_breakdown(
+        all_entries,
+        file_labels=[lbl for _, lbl in cleaned_items],
+        days=days,
+        models=models,
+    )
+    return portfolio

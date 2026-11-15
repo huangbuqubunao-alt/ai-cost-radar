@@ -188,6 +188,11 @@
                     "items": { "type": "string" },
                     "description": "可选：传入多个 Claude Code .jsonl 会话文件与 CSV 账单文本列表，自动跨文件按 message.id 去重合并为统一 30 天多模型审计报表"
                   },
+                  "usage_file_names": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "可选：与 usage_snippets 对齐的文件名或会话标签列表，用于生成按文件消耗排行 file_breakdown（自动过滤本地用户名路径）"
+                  },
                   "days_observed": {
                     "type": "number",
                     "description": "可选：usage_snippet 对应的统计天数（默认 30 天，如近 7 天日志可传 7）",

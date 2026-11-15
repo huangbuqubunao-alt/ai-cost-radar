@@ -1215,6 +1215,7 @@ def _try_parse_json_records_bill(text: str, days: float, fx_rate: float = DEFAUL
             "output_tokens": out_val,
             "reasoning_tokens": reason_val,
             "reported_cost_rmb": row_cost_rmb,
+            "source_file_idx": rec.get("_src_file_idx"),
         }
         if dedupe_id:
             if dedupe_id in deduped:
@@ -1308,6 +1309,7 @@ def _try_parse_json_records_bill(text: str, days: float, fx_rate: float = DEFAUL
         "reported_cost_rmb": round(total_cost_rmb, 2),
         "monthly_reported_cost_rmb": round((total_cost_rmb / days) * 30.0, 2),
         "model_breakdown": model_breakdown,
+        "_raw_entries": all_ent,
     }
 
 
@@ -1693,6 +1695,7 @@ def _parse_usage_snippet(raw_text: str, days_observed: float = 30.0) -> dict[str
 
     json_rec_parsed = _try_parse_json_records_bill(text, days)
     if json_rec_parsed is not None:
+        json_rec_parsed.pop("_raw_entries", None)
         return json_rec_parsed
 
     total_input = 0.0
@@ -1837,46 +1840,100 @@ def _parse_usage_snippet(raw_text: str, days_observed: float = 30.0) -> dict[str
     }
 
 
+def _sanitize_file_label_coze(raw_name: Any, fallback_idx: int = 1) -> str:
+    import re as _re
+
+    raw = _re.sub(r"[\x00-\x1f\x7f]+", "", str(raw_name or "")).strip()
+    if not raw:
+        return f"file_{fallback_idx}"
+    norm = raw.replace("\\", "/")
+    is_abs = bool(norm.startswith(("/", "~")) or _re.match(r"^[A-Za-z]:(?:/|$)", norm))
+    parts = [p.strip() for p in norm.split("/") if p.strip() and p.strip() not in (".", "..") and not _re.match(r"^[A-Za-z]:$", p.strip())]
+    if not parts:
+        return f"file_{fallback_idx}"
+    for idx in range(len(parts) - 1):
+        if parts[idx].lower() == ".claude" and parts[idx + 1].lower() == "projects" and (idx + 2) < len(parts):
+            tail = parts[idx + 2 :]
+            lbl = "/".join(tail[-2:]) if len(tail) >= 2 else tail[-1]
+            return lbl[:80] or f"file_{fallback_idx}"
+    host_roots = {"users", "home", "var", "tmp", "private", "mnt", "opt", "etc", "root", "downloads", "documents", "desktop"}
+    if is_abs or any(seg.lower() in host_roots for seg in parts[:-1]):
+        return parts[-1][:80] or f"file_{fallback_idx}"
+    lbl = "/".join(parts[-2:]) if len(parts) >= 2 else parts[-1]
+    return lbl[:80] or f"file_{fallback_idx}"
+
+
 def _merge_usage_snippets_coze(
     snippets: list[Any],
     *,
     days_observed: float = 30.0,
     fx_rate: float = DEFAULT_FX_USD_TO_RMB,
+    file_names: list[Any] | None = None,
+    models: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    cleaned = [str(s or "").strip() for s in snippets if str(s or "").strip()]
-    if not cleaned or len(cleaned) > 50:
+    raw_names = list(file_names) if isinstance(file_names, list) else []
+    cleaned_items: list[tuple[str, str]] = []
+    seen_labels: dict[str, int] = {}
+    for raw_idx, raw_s in enumerate(snippets):
+        s_trim = str(raw_s or "").strip()
+        if not s_trim:
+            continue
+        base_lbl = _sanitize_file_label_coze(raw_names[raw_idx] if raw_idx < len(raw_names) else None, len(cleaned_items) + 1)
+        if base_lbl in seen_labels:
+            seen_labels[base_lbl] += 1
+            uniq_lbl = f"{base_lbl} (#{seen_labels[base_lbl]})"
+        else:
+            seen_labels[base_lbl] = 1
+            uniq_lbl = base_lbl
+        cleaned_items.append((s_trim, uniq_lbl))
+
+    if not cleaned_items or len(cleaned_items) > 50:
         raise ValueError("Invalid usage_snippets")
     days = float(days_observed if days_observed is not None else 30.0)
     if not math.isfinite(days) or days <= 0 or days > 365:
         days = 30.0
-    if len(cleaned) == 1:
-        single = _parse_usage_snippet(cleaned[0], days_observed=days)
+    if len(cleaned_items) == 1:
+        single = _parse_usage_snippet(cleaned_items[0][0], days_observed=days)
         return {**single, "merged_files_count": 1}
 
     json_lines_combined: list[str] = []
     other_rows: list[dict[str, Any]] = []
-    for s in cleaned:
+    for clean_idx, (s, _lbl) in enumerate(cleaned_items):
         if s.startswith("[") and s.endswith("]"):
             try:
                 arr = json.loads(s)
                 if isinstance(arr, list):
                     for item in arr:
                         if isinstance(item, dict):
-                            json_lines_combined.append(json.dumps(item, ensure_ascii=False))
+                            json_lines_combined.append(json.dumps({**item, "_src_file_idx": clean_idx}, ensure_ascii=False))
                     continue
             except json.JSONDecodeError:
                 pass
         lines = [ln.strip() for ln in s.splitlines() if ln.strip() and not ln.strip().startswith("#")]
         if lines and all(ln.startswith("{") and ln.endswith("}") for ln in lines):
-            json_lines_combined.extend(lines)
-            continue
+            tagged_ok = True
+            tagged_batch: list[str] = []
+            for ln in lines:
+                try:
+                    obj = json.loads(ln)
+                    if isinstance(obj, dict):
+                        tagged_batch.append(json.dumps({**obj, "_src_file_idx": clean_idx}, ensure_ascii=False))
+                    else:
+                        tagged_ok = False
+                        break
+                except json.JSONDecodeError:
+                    tagged_ok = False
+                    break
+            if tagged_ok and tagged_batch:
+                json_lines_combined.extend(tagged_batch)
+                continue
         try:
             p = _parse_usage_snippet(s, days_observed=days)
         except ValueError:
             continue
         if p.get("detected_format") == "csv_multimodel_bill":
             for r in p.get("model_breakdown", []):
-                other_rows.append(dict(r))
+                other_rows.append({**dict(r), "source_file_idx": clean_idx})
         else:
             est_reqs = max(1, int(round(float(p.get("daily_requests") or 1) * days)))
             m_in = int(round((float(p.get("monthly_input_m") or 0.0) * 1_000_000.0 * days) / 30.0))
@@ -1890,11 +1947,13 @@ def _merge_usage_snippets_coze(
                     "output_tokens": m_out,
                     "reasoning_tokens": 1 if p.get("output_includes_reasoning") else 0,
                     "reported_cost_rmb": 0.0,
+                    "source_file_idx": clean_idx,
                 }
             )
 
     dedup_cnt = 0
     groups: dict[str, dict[str, Any]] = {}
+    all_entries_for_files: list[dict[str, Any]] = list(other_rows)
     if json_lines_combined:
         try:
             jp = _try_parse_json_records_bill("\n".join(json_lines_combined), days, fx_rate=fx_rate)
@@ -1902,6 +1961,8 @@ def _merge_usage_snippets_coze(
             jp = None
         if jp is not None:
             dedup_cnt = int(jp.get("deduplicated_chunks") or 0)
+            raw_ents = jp.get("_raw_entries") or []
+            all_entries_for_files = list(raw_ents) + list(other_rows)
             for r in jp.get("model_breakdown", []):
                 other_rows.append(dict(r))
 
@@ -1958,12 +2019,99 @@ def _merge_usage_snippets_coze(
             }
         )
 
+    scale_30d = 30.0 / days
+    per_file: dict[int, dict[str, Any]] = {
+        idx: {
+            "file_name": lbl,
+            "requests": 0.0,
+            "input_tokens": 0.0,
+            "cached_input_tokens": 0.0,
+            "output_tokens": 0.0,
+            "reported_cost_rmb": 0.0,
+            "by_model": {},
+        }
+        for idx, (_s, lbl) in enumerate(cleaned_items)
+    }
+    for ent in all_entries_for_files:
+        raw_fidx = ent.get("source_file_idx")
+        f_idx = int(raw_fidx) if isinstance(raw_fidx, int) and raw_fidx in per_file else 0
+        fg = per_file[f_idx]
+        fg["requests"] += float(ent["requests"])
+        fg["input_tokens"] += float(ent["input_tokens"])
+        fg["cached_input_tokens"] += float(ent["cached_input_tokens"])
+        fg["output_tokens"] += float(ent["output_tokens"])
+        fg["reported_cost_rmb"] += float(ent.get("reported_cost_rmb") or 0.0)
+        mk = str(ent["model"]).lower()
+        if mk not in fg["by_model"]:
+            fg["by_model"][mk] = {
+                "model": str(ent["model"]),
+                "input_tokens": 0.0,
+                "cached_input_tokens": 0.0,
+                "output_tokens": 0.0,
+                "reported_cost_rmb": 0.0,
+            }
+        sbm = fg["by_model"][mk]
+        sbm["input_tokens"] += float(ent["input_tokens"])
+        sbm["cached_input_tokens"] += float(ent["cached_input_tokens"])
+        sbm["output_tokens"] += float(ent["output_tokens"])
+        sbm["reported_cost_rmb"] += float(ent.get("reported_cost_rmb") or 0.0)
+
+    file_breakdown: list[dict[str, Any]] = []
+    for fg in per_file.values():
+        f_in = fg["input_tokens"]
+        f_cached = min(f_in, max(0.0, fg["cached_input_tokens"]))
+        f_out = fg["output_tokens"]
+        f_hit = round(f_cached / f_in, 4) if f_in > 0 else 0.0
+        est_m = 0.0
+        top_m = "-"
+        top_w = (-1.0, -1.0)
+        for sub in fg["by_model"].values():
+            sub_in = sub["input_tokens"]
+            sub_cached = min(sub_in, max(0.0, sub["cached_input_tokens"]))
+            sub_hit = (sub_cached / sub_in) if sub_in > 0 else 0.0
+            if sub["reported_cost_rmb"] > 0:
+                sub_rmb = sub["reported_cost_rmb"] * scale_30d
+            elif models:
+                matched = _match_model_in_catalog(models, sub["model"])
+                m_hit = float(matched.get("cache_hit_factor") if matched.get("cache_hit_factor") is not None else (0.2 if matched.get("region") == "cn_direct" else 0.5))
+                sub_rmb = _calc_token_bill(
+                    (sub_in * scale_30d) / 1_000_000.0,
+                    (sub["output_tokens"] * scale_30d) / 1_000_000.0,
+                    float(matched["input_rmb_per_1m"]),
+                    float(matched["output_rmb_per_1m"]),
+                    sub_hit,
+                    m_hit,
+                    1.0,
+                    True,
+                )["total_cost"]
+            else:
+                sub_rmb = 0.0
+            est_m += sub_rmb
+            w = (sub_rmb, sub_in + sub["output_tokens"])
+            if w > top_w:
+                top_w = w
+                top_m = sub["model"]
+        file_breakdown.append(
+            {
+                "file_name": fg["file_name"],
+                "requests": int(round(fg["requests"])),
+                "input_tokens": int(round(f_in)),
+                "cached_input_tokens": int(round(f_cached)),
+                "output_tokens": int(round(f_out)),
+                "cache_hit_rate": f_hit,
+                "top_model": top_m,
+                "reported_cost_rmb": round(fg["reported_cost_rmb"], 4),
+                "estimated_monthly_rmb": round(est_m, 2),
+            }
+        )
+    file_breakdown.sort(key=lambda x: (x["estimated_monthly_rmb"], x["input_tokens"] + x["output_tokens"]), reverse=True)
+
     daily_requests = max(1, int(round(total_reqs / days)))
     monthly_requests = max(1, int(round((total_reqs / days) * 30.0)))
     return {
         "detected_format": "csv_multimodel_bill",
         "source_format": "multifile_merged",
-        "merged_files_count": len(cleaned),
+        "merged_files_count": len(cleaned_items),
         "deduplicated_chunks": dedup_cnt,
         "days_observed": days,
         "distinct_models_count": len(model_breakdown),
@@ -1983,6 +2131,7 @@ def _merge_usage_snippets_coze(
         "reported_cost_rmb": round(total_cost_rmb, 2),
         "monthly_reported_cost_rmb": round((total_cost_rmb / days) * 30.0, 2),
         "model_breakdown": model_breakdown,
+        "file_breakdown": file_breakdown,
     }
 
 
@@ -2000,6 +2149,7 @@ def _run_budget(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, Any],
 
     raw_snippet = _get_param(inp, "usage_snippet", None)
     raw_snippets = _get_param(inp, "usage_snippets", None)
+    raw_file_names = _get_param(inp, "usage_file_names", None)
     raw_days = float(_get_param(inp, "days_observed", 30.0))
     raw_m_reqs = _get_param(inp, "monthly_requests", None)
     raw_m_in = _get_param(inp, "monthly_input_m", None)
@@ -2016,12 +2166,15 @@ def _run_budget(catalog: dict[str, Any], inp: Any) -> tuple[str, dict[str, Any],
     if has_multi_snippets or (raw_snippet is not None and str(raw_snippet).strip() != ""):
         if has_multi_snippets:
             merged_items = list(raw_snippets)
+            merged_names = list(raw_file_names) if isinstance(raw_file_names, list) else None
             if raw_snippet is not None and str(raw_snippet).strip() != "":
                 merged_items.append(str(raw_snippet))
             parsed_usage_summary = _merge_usage_snippets_coze(
                 merged_items,
                 days_observed=raw_days,
                 fx_rate=float(catalog.get("fx_rate_usd_to_rmb", DEFAULT_FX_USD_TO_RMB)),
+                file_names=merged_names,
+                models=models,
             )
         else:
             parsed_usage_summary = _parse_usage_snippet(str(raw_snippet), days_observed=raw_days)

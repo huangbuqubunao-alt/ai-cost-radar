@@ -65,6 +65,10 @@ def main():
     assert isinstance(catalog.get("official_rule_audit"), dict), "Missing official_rule_audit in catalog"
     atom_xml = (DIST / "feeds/price-changes.xml").read_text()
     assert '<feed xmlns="http://www.w3.org/2005/Atom">' in atom_xml, "Invalid Atom XML feed"
+    cli_dist = DIST / "audit_local_claude.py"
+    cli_src = ROOT / "engine_a_mcp_actor" / "audit_local_claude.py"
+    assert cli_dist.is_file(), "Missing dist/audit_local_claude.py"
+    assert cli_dist.read_bytes() == cli_src.read_bytes(), "dist/audit_local_claude.py differs from engine_a_mcp_actor/audit_local_claude.py"
     if args.remote:
         import http.client
         import time
@@ -152,7 +156,10 @@ def main():
                 "qwen3-coder-next,5,25000,5000,10000,0,$0.02\n"
             )
             st_multi, body_multi = request_remote(
-                f"api/budget?model_id=auto&usage_snippet={quote(jsonl_sample, safe='')}&usage_snippet={quote(csv_part, safe='')}&days_observed=1&team_size=1"
+                f"api/budget?model_id=auto"
+                f"&usage_snippet={quote(jsonl_sample, safe='')}&usage_file={quote('/Users/alice/.claude/projects/proj-alpha/sess1.jsonl', safe='')}"
+                f"&usage_snippet={quote(csv_part, safe='')}&usage_file={quote('C:\\Users\\alice\\Downloads\\cloud.csv', safe='')}"
+                f"&days_observed=1&team_size=1"
             )
             assert st_multi == 200, f"/api/budget multi-file merge returned HTTP {st_multi}: {body_multi}"
             multi_budget = json.loads(body_multi)
@@ -162,6 +169,14 @@ def main():
             )
             assert multi_summary.get("merged_files_count") == 2, (
                 f"Unexpected merged_files_count: {multi_summary}"
+            )
+            fb_live = multi_summary.get("file_breakdown", [])
+            assert len(fb_live) == 2 and all("alice" not in str(x.get("file_name", "")).lower() for x in fb_live), (
+                f"Unexpected multi-file file_breakdown: {multi_summary}"
+            )
+            st_cli, body_cli = request_remote("audit_local_claude.py")
+            assert st_cli == 200 and "scan_claude_projects_dir" in body_cli, (
+                f"/audit_local_claude.py returned HTTP {st_cli}"
             )
             st_feed, body_feed = request_remote("feeds/price-changes.xml")
             assert st_feed == 200 and "<feed" in body_feed, f"/feeds/price-changes.xml returned HTTP {st_feed}"

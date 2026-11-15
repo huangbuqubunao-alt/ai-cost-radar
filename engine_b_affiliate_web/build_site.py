@@ -1501,6 +1501,11 @@ def build_site(
     coze_spec = PROJECT_ROOT / "engine_a_mcp_actor/publish_bundles/coze_cn_bundle/openapi_coze_live.json"
     (api_dir / "openapi.json").write_text(coze_spec.read_text(encoding="utf-8"), encoding="utf-8")
 
+    # Standalone read-only local ~/.claude/projects CLI scanner script
+    cli_scanner_src = PROJECT_ROOT / "engine_a_mcp_actor/audit_local_claude.py"
+    cli_scanner_dst = target_dist / "audit_local_claude.py"
+    cli_scanner_dst.write_bytes(cli_scanner_src.read_bytes())
+
     # Embeddable SVG status badge + Atom price-change feed
     badges_dir = target_dist / "badges"
     badges_dir.mkdir(parents=True, exist_ok=True)

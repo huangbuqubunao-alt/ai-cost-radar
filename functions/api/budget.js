@@ -441,6 +441,7 @@ function collectJsonRecordEntries(rawRecords, fxRate = 7.2) {
       output_tokens: outVal,
       reasoning_tokens: reasonVal,
       reported_cost_rmb: rowCostRmb,
+      source_file_idx: rec._src_file_idx ?? null,
     };
 
     if (dedupeId) {
@@ -554,27 +555,168 @@ export function tryParseJsonRecordsBill(text, days, fxRate = 7.2) {
   return buildMultimodelPortfolioFromEntries(entries, days, extracted.sourceFormat, deduplicatedChunks);
 }
 
-export function mergeUsageSnippets(snippets, daysObserved = 30, fxRate = 7.2) {
+export function sanitizeUsageFileLabel(rawName, fallbackIdx = 1) {
+  const raw = String(rawName ?? "").replace(/[\x00-\x1f\x7f]+/g, "").trim();
+  if (!raw) return `file_${fallbackIdx}`;
+  const norm = raw.replace(/\\/g, "/");
+  const isAbsOrHome = norm.startsWith("/") || norm.startsWith("~") || /^[A-Za-z]:(?:\/|$)/.test(norm);
+  const parts = norm
+    .split("/")
+    .map((p) => p.trim())
+    .filter((p) => p && p !== "." && p !== ".." && !/^[A-Za-z]:$/.test(p));
+  if (parts.length === 0) return `file_${fallbackIdx}`;
+
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    if (parts[i].toLowerCase() === ".claude" && parts[i + 1].toLowerCase() === "projects" && i + 2 < parts.length) {
+      const tail = parts.slice(i + 2);
+      const lbl = (tail.length >= 2 ? tail.slice(-2).join("/") : tail[tail.length - 1]).slice(0, 80);
+      return lbl || `file_${fallbackIdx}`;
+    }
+  }
+
+  const hostRoots = new Set(["users", "home", "var", "tmp", "private", "mnt", "opt", "etc", "root", "downloads", "documents", "desktop"]);
+  if (isAbsOrHome || parts.slice(0, -1).some((seg) => hostRoots.has(seg.toLowerCase()))) {
+    return parts[parts.length - 1].slice(0, 80) || `file_${fallbackIdx}`;
+  }
+  const lbl = (parts.length >= 2 ? parts.slice(-2).join("/") : parts[parts.length - 1]).slice(0, 80);
+  return lbl || `file_${fallbackIdx}`;
+}
+
+function buildFileBreakdownFromEntries(allEntries, fileLabels, days, catalogModels = []) {
+  const scale30d = 30 / days;
+  const perFile = new Map();
+  fileLabels.forEach((lbl, idx) => {
+    perFile.set(idx, {
+      file_name: lbl,
+      requests: 0,
+      input_tokens: 0,
+      cached_input_tokens: 0,
+      output_tokens: 0,
+      reported_cost_rmb: 0,
+      byModel: new Map(),
+    });
+  });
+
+  for (const ent of allEntries) {
+    const fIdx = Number.isInteger(ent.source_file_idx) && perFile.has(ent.source_file_idx) ? ent.source_file_idx : 0;
+    const fg = perFile.get(fIdx);
+    fg.requests += Number(ent.requests || 0);
+    fg.input_tokens += Number(ent.input_tokens || 0);
+    fg.cached_input_tokens += Number(ent.cached_input_tokens || 0);
+    fg.output_tokens += Number(ent.output_tokens || 0);
+    fg.reported_cost_rmb += Number(ent.reported_cost_rmb || 0);
+    const mk = String(ent.model || "unknown").toLowerCase();
+    if (!fg.byModel.has(mk)) {
+      fg.byModel.set(mk, {
+        model: String(ent.model || "unknown"),
+        input_tokens: 0,
+        cached_input_tokens: 0,
+        output_tokens: 0,
+        reported_cost_rmb: 0,
+      });
+    }
+    const sub = fg.byModel.get(mk);
+    sub.input_tokens += Number(ent.input_tokens || 0);
+    sub.cached_input_tokens += Number(ent.cached_input_tokens || 0);
+    sub.output_tokens += Number(ent.output_tokens || 0);
+    sub.reported_cost_rmb += Number(ent.reported_cost_rmb || 0);
+  }
+
+  const breakdown = [];
+  for (const fg of perFile.values()) {
+    const fIn = fg.input_tokens;
+    const fCached = Math.min(fIn, Math.max(0, fg.cached_input_tokens));
+    const fOut = fg.output_tokens;
+    const fHit = fIn > 0 ? Math.round((fCached / fIn) * 10000) / 10000 : 0;
+
+    let estMonthly = 0;
+    let topModel = "-";
+    let topWeightCost = -1;
+    let topWeightToks = -1;
+
+    for (const sub of fg.byModel.values()) {
+      const sIn = sub.input_tokens;
+      const sCached = Math.min(sIn, Math.max(0, sub.cached_input_tokens));
+      const sHit = sIn > 0 ? sCached / sIn : 0;
+      let subMRmb = 0;
+      if (sub.reported_cost_rmb > 0) {
+        subMRmb = sub.reported_cost_rmb * scale30d;
+      } else if (Array.isArray(catalogModels) && catalogModels.length > 0) {
+        const matched = resolveModelFuzzy(catalogModels, sub.model);
+        if (matched) {
+          const hitFactor = matched.cache_hit_factor ?? (matched.region === "cn_direct" ? 0.2 : 0.5);
+          const mInM = (sIn * scale30d) / 1e6;
+          const mOutM = (sub.output_tokens * scale30d) / 1e6;
+          subMRmb = mInM * Number(matched.input_rmb_per_1m || 0) * ((1 - sHit) + sHit * hitFactor) +
+            mOutM * Number(matched.output_rmb_per_1m || 0);
+        }
+      }
+      estMonthly += subMRmb;
+      const sToks = sIn + sub.output_tokens;
+      if (subMRmb > topWeightCost || (subMRmb === topWeightCost && sToks > topWeightToks)) {
+        topWeightCost = subMRmb;
+        topWeightToks = sToks;
+        topModel = sub.model;
+      }
+    }
+
+    breakdown.push({
+      file_name: fg.file_name,
+      requests: Math.round(fg.requests),
+      input_tokens: Math.round(fIn),
+      cached_input_tokens: Math.round(fCached),
+      output_tokens: Math.round(fOut),
+      cache_hit_rate: fHit,
+      top_model: topModel,
+      reported_cost_rmb: Math.round((fg.reported_cost_rmb + Number.EPSILON) * 10000) / 10000,
+      estimated_monthly_rmb: Math.round((estMonthly + Number.EPSILON) * 100) / 100,
+    });
+  }
+
+  breakdown.sort((a, b) => (b.estimated_monthly_rmb - a.estimated_monthly_rmb) || ((b.input_tokens + b.output_tokens) - (a.input_tokens + a.output_tokens)));
+  return breakdown;
+}
+
+export function mergeUsageSnippets(snippets, daysObserved = 30, fxRate = 7.2, fileNames = null, catalogModels = []) {
   if (!Array.isArray(snippets)) throw new Error("usage_snippets must be an array");
-  const cleaned = snippets.map((s) => String(s ?? "").trim()).filter(Boolean);
-  if (cleaned.length === 0 || cleaned.length > 50) throw new Error("Invalid usage_snippets");
+  const rawNames = Array.isArray(fileNames) ? fileNames : [];
+  const cleanedItems = [];
+  const seenLabels = new Map();
+  snippets.forEach((rawS, rawIdx) => {
+    const sTrim = String(rawS ?? "").trim();
+    if (!sTrim) return;
+    const baseLbl = sanitizeUsageFileLabel(rawIdx < rawNames.length ? rawNames[rawIdx] : null, cleanedItems.length + 1);
+    let uniqLbl = baseLbl;
+    if (seenLabels.has(baseLbl)) {
+      const nextCnt = seenLabels.get(baseLbl) + 1;
+      seenLabels.set(baseLbl, nextCnt);
+      uniqLbl = `${baseLbl} (#${nextCnt})`;
+    } else {
+      seenLabels.set(baseLbl, 1);
+    }
+    cleanedItems.push({snippet: sTrim, label: uniqLbl});
+  });
+
+  if (cleanedItems.length === 0 || cleanedItems.length > 50) throw new Error("Invalid usage_snippets");
   const days = Number(daysObserved ?? 30);
   if (!Number.isFinite(days) || days <= 0 || days > 365) throw new Error("Invalid days_observed");
-  const totalChars = cleaned.reduce((acc, s) => acc + s.length, 0);
-  if (totalChars > 500000 || cleaned.some((s) => s.length > 120000)) throw new Error("Oversized usage_snippets");
+  const totalChars = cleanedItems.reduce((acc, item) => acc + item.snippet.length, 0);
+  if (totalChars > 500000 || cleanedItems.some((item) => item.snippet.length > 120000)) throw new Error("Oversized usage_snippets");
 
-  if (cleaned.length === 1) {
-    const single = parseUsageSnippet(cleaned[0], days);
+  if (cleanedItems.length === 1) {
+    const single = parseUsageSnippet(cleanedItems[0].snippet, days);
     return {...single, merged_files_count: 1};
   }
 
   const combinedJsonRecords = [];
   const otherEntries = [];
-  for (const snippet of cleaned) {
+  cleanedItems.forEach(({snippet}, cleanIdx) => {
     const ext = extractJsonRecordsRaw(snippet);
     if (ext) {
-      combinedJsonRecords.push(...ext.rawRecords);
-      continue;
+      for (const rec of ext.rawRecords) {
+        combinedJsonRecords.push({...rec, _src_file_idx: cleanIdx});
+      }
+      return;
     }
     let csvParsed = null;
     try {
@@ -592,19 +734,20 @@ export function mergeUsageSnippets(snippets, daysObserved = 30, fxRate = 7.2) {
           output_tokens: Number(row.output_tokens || 0),
           reasoning_tokens: Number(row.reasoning_tokens || 0),
           reported_cost_rmb: Number(row.reported_cost_rmb || 0),
+          source_file_idx: cleanIdx,
         });
       }
-      continue;
+      return;
     }
     let singleParsed = null;
     try {
       singleParsed = parseUsageSnippet(snippet, days);
     } catch {
-      continue;
+      return;
     }
     if (singleParsed.detected_format === "csv_multimodel_bill") {
       for (const row of (singleParsed.model_breakdown || [])) {
-        otherEntries.push(row);
+        otherEntries.push({...row, source_file_idx: cleanIdx});
       }
     } else {
       otherEntries.push({
@@ -615,16 +758,24 @@ export function mergeUsageSnippets(snippets, daysObserved = 30, fxRate = 7.2) {
         output_tokens: Number(singleParsed.total_output_tokens || 0),
         reasoning_tokens: singleParsed.output_includes_reasoning ? 1 : 0,
         reported_cost_rmb: 0,
+        source_file_idx: cleanIdx,
       });
     }
-  }
+  });
 
   const {entries: jsonEntries, deduplicatedChunks} = combinedJsonRecords.length > 0
     ? collectJsonRecordEntries(combinedJsonRecords, fxRate)
     : {entries: [], deduplicatedChunks: 0};
   const allEntries = [...jsonEntries, ...otherEntries];
   if (allEntries.length === 0) throw new Error("Merged usage_snippets contain zero positive token records");
-  return buildMultimodelPortfolioFromEntries(allEntries, days, "multifile_merged", deduplicatedChunks, cleaned.length);
+  const portfolio = buildMultimodelPortfolioFromEntries(allEntries, days, "multifile_merged", deduplicatedChunks, cleanedItems.length);
+  portfolio.file_breakdown = buildFileBreakdownFromEntries(
+    allEntries,
+    cleanedItems.map((x) => x.label),
+    days,
+    catalogModels
+  );
+  return portfolio;
 }
 
 export function parseUsageSnippet(rawText, daysObserved = 30, defaultTokensPerCall = 4000) {
@@ -1197,7 +1348,9 @@ export function calculateBudget(catalog, params) {
     const daysObs = params.has("days_observed") ? number(params, "days_observed", 30, 365) : 30;
     const fxRate = Number(catalog.fx_rate_usd_to_rmb || 7.2);
     const repeatedSnippets = params.getAll("usage_snippet");
+    const repeatedFileNames = params.getAll("usage_file");
     let jsonArraySnippets = [];
+    let jsonArrayFileNames = [];
     if (params.has("usage_snippets")) {
       let parsedArr;
       try {
@@ -1208,9 +1361,20 @@ export function calculateBudget(catalog, params) {
       if (!Array.isArray(parsedArr)) throw new Error("Invalid usage_snippets JSON array");
       jsonArraySnippets = parsedArr.map((x) => String(x ?? ""));
     }
+    if (params.has("usage_file_names")) {
+      let parsedNames;
+      try {
+        parsedNames = JSON.parse(params.get("usage_file_names"));
+      } catch {
+        throw new Error("Invalid usage_file_names JSON array");
+      }
+      if (!Array.isArray(parsedNames)) throw new Error("Invalid usage_file_names JSON array");
+      jsonArrayFileNames = parsedNames.map((x) => String(x ?? ""));
+    }
     const allSnippets = [...jsonArraySnippets, ...repeatedSnippets];
+    const allFileNames = [...jsonArrayFileNames, ...repeatedFileNames];
     if (allSnippets.length > 1 || params.has("usage_snippets")) {
-      parsedUsageSummary = mergeUsageSnippets(allSnippets, daysObs, fxRate);
+      parsedUsageSummary = mergeUsageSnippets(allSnippets, daysObs, fxRate, allFileNames.length > 0 ? allFileNames : null, catalog.models || []);
     } else {
       const rawSnippet = params.get("usage_snippet");
       parsedUsageSummary = parseUsageSnippet(rawSnippet, daysObs);

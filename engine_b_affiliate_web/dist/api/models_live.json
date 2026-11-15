@@ -7,11 +7,11 @@
   "build_date": "2026-11-15",
   "updated_at": "2026-11-15",
   "quote_verified_date": "2026-11-13",
-  "last_live_verified_at": "2026-11-15 06:08:39",
+  "last_live_verified_at": "2026-11-15 07:13:04",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
   "official_rule_audit": {
-    "checked_at": "2026-11-15T06:08:39Z",
+    "checked_at": "2026-11-15T07:13:04Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -23,7 +23,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-15T06:08:39Z",
+        "last_verified_at": "2026-11-15T07:13:04Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -33,10 +33,15 @@
       {
         "plan_id": "tencent-coding-plan",
         "url": "https://cloud.tencent.com/document/product/1823/130092",
-        "status": "csr_shell_manual_check",
-        "matched_groups": [],
+        "status": "verified_markers",
+        "matched_groups": [
+          "lite_monthly_cap_18k",
+          "lite_renewal_40",
+          "pro_monthly_cap_90k",
+          "pro_renewal_200"
+        ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-15T06:05:45Z",
+        "last_verified_at": "2026-11-15T07:13:04Z",
         "last_verified_groups": [
           "lite_monthly_cap_18k",
           "lite_renewal_40",
@@ -55,7 +60,7 @@
           "interactive_ide_only"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-15T06:08:39Z",
+        "last_verified_at": "2026-11-15T07:13:04Z",
         "last_verified_groups": [
           "tiers_lite_pro",
           "quota_window_5h",
@@ -66,6 +71,14 @@
     ]
   },
   "price_changes": [
+    {
+      "detected_at": "2026-11-15T07:13:04Z",
+      "entity_type": "model",
+      "id": "deepseek/deepseek-v4.1-flash-1017",
+      "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
+      "change_type": "price_update",
+      "summary_zh": "输入单价 $0.038 -> $0.15 / 1M，输出单价 $0.5 -> $0.6 / 1M"
+    },
     {
       "detected_at": "2026-11-15T02:01:59Z",
       "entity_type": "model",
@@ -585,41 +598,6 @@
       "signup_url": "https://openrouter.ai"
     },
     {
-      "id": "deepseek/deepseek-v4.1-flash-1017",
-      "anchor_id": "model-deepseek-deepseek-v4-1-flash-1017",
-      "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "deepseek/deepseek-v4.1-flash-1017",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "affiliate_url": "https://openrouter.ai",
-      "region": "global",
-      "input_usd_per_1m": 0.038,
-      "output_usd_per_1m": 0.5,
-      "input_rmb_per_1m": 0.2736,
-      "output_rmb_per_1m": 3.6,
-      "blended_usd_per_1m": 0.1535,
-      "blended_rmb_per_1m": 1.1052,
-      "context_length": 1048576,
-      "supports_tools": true,
-      "is_free": false,
-      "has_free_quota": false,
-      "is_batch": false,
-      "open_weights": true,
-      "value_score": 93.8,
-      "tags": [
-        "cheap",
-        "coding",
-        "global",
-        "reasoning"
-      ],
-      "bonus_note": "统一多模型按量网关",
-      "bonus_note_en": "Unified Multi-LLM API",
-      "signup_url": "https://openrouter.ai"
-    },
-    {
       "id": "aliyun-bailian/qwen3.5-plus",
       "anchor_id": "model-aliyun-bailian-qwen3-5-plus",
       "name": "阿里云百炼: Qwen3.5-Plus (百万长文本全能旗舰)",
@@ -882,6 +860,41 @@
       "output_rmb_per_1m": 1.296,
       "blended_usd_per_1m": 0.09,
       "blended_rmb_per_1m": 0.648,
+      "context_length": 1048576,
+      "supports_tools": true,
+      "is_free": false,
+      "has_free_quota": false,
+      "is_batch": false,
+      "open_weights": true,
+      "value_score": 92.1,
+      "tags": [
+        "cheap",
+        "coding",
+        "global",
+        "reasoning"
+      ],
+      "bonus_note": "统一多模型按量网关",
+      "bonus_note_en": "Unified Multi-LLM API",
+      "signup_url": "https://openrouter.ai"
+    },
+    {
+      "id": "deepseek/deepseek-v4.1-flash-1017",
+      "anchor_id": "model-deepseek-deepseek-v4-1-flash-1017",
+      "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "deepseek/deepseek-v4.1-flash-1017",
+      "cache_hit_factor": 0.5,
+      "perf_note": "",
+      "affiliate_url": "https://openrouter.ai",
+      "region": "global",
+      "input_usd_per_1m": 0.15,
+      "output_usd_per_1m": 0.6,
+      "input_rmb_per_1m": 1.08,
+      "output_rmb_per_1m": 4.32,
+      "blended_usd_per_1m": 0.2625,
+      "blended_rmb_per_1m": 1.89,
       "context_length": 1048576,
       "supports_tools": true,
       "is_free": false,

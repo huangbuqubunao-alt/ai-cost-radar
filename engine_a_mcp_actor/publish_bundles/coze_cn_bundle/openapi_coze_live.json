@@ -465,7 +465,16 @@
             "name": "usage_snippet",
             "in": "query",
             "required": false,
-            "description": "可选：OpenRouter Activity 多模型 CSV/TSV/JSON/JSONL 账单（含 Claude Code .jsonl 与 OpenAI Batch .jsonl）、Claude Code /cost 日志、usage JSON 或统计文本（自动返回 bill_audit 多模型降本审计与零改代码 LiteLLM 迁移配置）",
+            "description": "可选：OpenRouter Activity 多模型 CSV/TSV/JSON/JSONL 账单（含 Claude Code .jsonl 与 OpenAI Batch .jsonl，支持重复传参合并多文件）、Claude Code /cost 日志、usage JSON 或统计文本（自动返回 bill_audit 多模型降本审计与零改代码 LiteLLM 迁移配置）",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "usage_file",
+            "in": "query",
+            "required": false,
+            "description": "可选：与多份 usage_snippet 顺序对应的会话/账单文件名标签，用于返回按文件消耗排行 file_breakdown（自动脱敏本地用户名路径）",
             "schema": {
               "type": "string"
             }

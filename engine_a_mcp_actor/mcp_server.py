@@ -290,13 +290,14 @@ def calculate_api_budget(
     cached_input_m: float | None = None,
     usage_snippet: str | None = None,
     usage_snippets: list[str] | None = None,
+    usage_file_names: list[str] | None = None,
     days_observed: float = 30.0,
 ) -> dict[str, Any]:
     """
     Calculate daily/monthly/annual USD & RMB API budget for a given model, evaluate Coding Plan quotas
     & renewal breakeven, and suggest cheaper alternatives.
     Supports direct monthly bill totals (`monthly_requests`, `monthly_input_m`, `monthly_output_m`, `cached_input_m`)
-    and deterministic single/multi-file log parsing (`usage_snippet`, `usage_snippets`, `days_observed`).
+    and deterministic single/multi-file log parsing (`usage_snippet`, `usage_snippets`, `usage_file_names`, `days_observed`).
     """
     catalog = load_models_catalog()
     models: list[dict[str, Any]] = catalog.get("models", [])
@@ -317,12 +318,15 @@ def calculate_api_budget(
         obs_days = float(days_observed if days_observed is not None else 30.0)
         if has_multi_snippets:
             merged_list = list(usage_snippets or [])
+            merged_names = list(usage_file_names or []) if isinstance(usage_file_names, list) else []
             if usage_snippet is not None and str(usage_snippet).strip() != "":
                 merged_list.append(str(usage_snippet))
             parsed_usage_summary = pricing_core.merge_usage_log_snippets(
                 merged_list,
                 days_observed=obs_days,
                 fx_rate=float(catalog.get("fx_rate_usd_to_rmb", 7.20)),
+                file_names=merged_names if merged_names else None,
+                models=models,
             )
         else:
             parsed_usage_summary = pricing_core.parse_usage_log_snippet(
@@ -757,6 +761,11 @@ MCP_TOOLS_SPEC: list[dict[str, Any]] = [
                     "items": {"type": "string"},
                     "description": "Optional array of multiple `.jsonl` session transcripts (`~/.claude/projects/*.jsonl`) and/or `.csv` billing files to merge with cross-file `message.id` deduplication.",
                 },
+                "usage_file_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional file/session labels aligned with `usage_snippets` to populate per-file `file_breakdown` cost ranking.",
+                },
                 "days_observed": {
                     "type": "number",
                     "description": "Observation window in days for `usage_snippet` (default 30; e.g. 7 for a 7-day log).",
@@ -816,6 +825,7 @@ def dispatch_tool_call(tool_name: str, arguments: dict[str, Any] | None) -> dict
             cached_input_m=args.get("cached_input_m"),
             usage_snippet=args.get("usage_snippet"),
             usage_snippets=args.get("usage_snippets"),
+            usage_file_names=args.get("usage_file_names"),
             days_observed=args.get("days_observed", 30.0),
         )
     if tool_name == "list_free_and_ultra_cheap_models":
@@ -1137,6 +1147,7 @@ class ModelRouterHTTPHandler(BaseHTTPRequestHandler):
                     else None
                 )
                 snippet_vals = [s for s in raw_qs.get("usage_snippet", []) if str(s or "").strip()]
+                file_vals = [f for f in raw_qs.get("usage_file", []) if str(f or "").strip()]
                 res = calculate_api_budget(
                     model_query=qs.get("model_query") or qs.get("model_id") or "deepseek-v3",
                     daily_requests=int(float(qs.get("daily_requests", 1000))),
@@ -1154,6 +1165,7 @@ class ModelRouterHTTPHandler(BaseHTTPRequestHandler):
                     cached_input_m=c_in_val,
                     usage_snippet=qs.get("usage_snippet") if len(snippet_vals) <= 1 else None,
                     usage_snippets=snippet_vals if len(snippet_vals) > 1 else None,
+                    usage_file_names=file_vals if len(snippet_vals) > 1 and file_vals else None,
                     days_observed=float(qs.get("days_observed", 30.0)),
                 )
                 self._send_json(200, res)

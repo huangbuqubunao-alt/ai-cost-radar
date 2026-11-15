@@ -17,9 +17,10 @@
 - 开源仓库与 JSON 数据源：https://github.com/huangbuqubunao-alt/ai-cost-radar
 
 ### 目前做对的几件事：
-- **首月价与续费原价拆开算**：比如百炼 Pro 新客首月 ¥39.90、续费 ¥200/月，同一组调用量分别给出首月省多少、续费月还划不划算。
+- **首月价与续费原价拆开算**：比如百炼 Pro 新客首月 ¥39.90、续费 ¥200/月，同一组调用量分别给出首月省多少、续费月还划不划算（超 9 万次时还支持 `N×Pro 打底 + 溢出按量` 混合拆单）。
+- **本地多文件账单/会话合并与一行 CLI 扫描**：支持直接把多份 OpenRouter CSV 或 Claude Code `.jsonl` 会话拖进浏览器纯本地内存去重合并（含按会话消耗排行与零改代码 `LiteLLM config.yaml` 导出），也支持终端一行只读扫描本地 `~/.claude/projects`（零上传）：`curl -fsSL https://ai-cost-radar-nlu.pages.dev/audit_local_claude.py | python3 - --days 30`。
 - **自动排除违规场景**：勾选「非交互式后端 / 批处理 API」时直接排除三家仅限交互式 IDE 的个人 Coding Plan。
-- **专属端点防呆弹窗**：选 `腾讯 Coding Plan + Claude Code` 生成 `https://api.lkeap.cloud.tencent.com/coding/anthropic`（`ANTHROPIC_BASE_URL` + `sk-sp-`），选按量则生成标准 OpenAI 兼容端点，避免买了套餐却继续扣按量余额。
+- **专属端点防呆弹窗**：选 `腾讯 Coding Plan + Claude Code` 生成 `https://api.lkeap.cloud.tencent.com/coding/anthropic`（`ANTHROPIC_BASE_URL` + `sk-sp-`），选按量则生成标准 OpenAI 兼容端点，并可一键下载 `~/.claude/settings.json`，避免买了套餐却继续扣按量余额。
 
 ### 透明说明：
 - 页面内阿里云/腾讯云/硅基流动入口带有官方联盟推广参数（不影响官方价格，无已核验配置项均直接跳官方文档）。
