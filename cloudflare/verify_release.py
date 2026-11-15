@@ -69,6 +69,10 @@ def main():
     cli_src = ROOT / "engine_a_mcp_actor" / "audit_local_claude.py"
     assert cli_dist.is_file(), "Missing dist/audit_local_claude.py"
     assert cli_dist.read_bytes() == cli_src.read_bytes(), "dist/audit_local_claude.py differs from engine_a_mcp_actor/audit_local_claude.py"
+    cli_dist_txt = cli_dist.read_text(encoding="utf-8")
+    assert "def scan_claude_projects_dir(" in cli_dist_txt and "def scan_local_coding_logs(" in cli_dist_txt, (
+        "dist/audit_local_claude.py missing expected CLI entrypoints"
+    )
     if args.remote:
         import http.client
         import time
@@ -99,7 +103,7 @@ def main():
                     raise
             raise RuntimeError("unreachable")
 
-        try:
+        def run_remote_assertions() -> None:
             for file in pages:
                 path = file.relative_to(DIST).as_posix().removesuffix("index.html")
                 status, body = request_remote(path)
@@ -191,13 +195,27 @@ def main():
                 "alice" not in str(x.get("file_name", "")).lower() for x in codex_fb
             ), f"Unexpected Codex CLI file_breakdown: {codex_summary}"
             st_cli, body_cli = request_remote("audit_local_claude.py")
-            assert st_cli == 200 and "scan_claude_projects_dir" in body_cli and "scan_local_coding_clients" in body_cli, (
+            assert st_cli == 200 and "scan_claude_projects_dir" in body_cli and "scan_local_coding_logs" in body_cli, (
                 f"/audit_local_claude.py returned HTTP {st_cli}"
             )
             st_feed, body_feed = request_remote("feeds/price-changes.xml")
             assert st_feed == 200 and "<feed" in body_feed, f"/feeds/price-changes.xml returned HTTP {st_feed}"
             st_admin, _ = request_remote("admin/stats")
             assert st_admin == 401, f"Admin must fail closed; got {st_admin}"
+
+        try:
+            for remote_attempt in range(4):
+                try:
+                    run_remote_assertions()
+                    break
+                except AssertionError:
+                    if conn is not None:
+                        conn.close()
+                        conn = None
+                    if remote_attempt < 3:
+                        time.sleep(2.5)
+                        continue
+                    raise
         finally:
             if conn is not None:
                 conn.close()

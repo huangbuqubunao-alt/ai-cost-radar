@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-15T17:19:36Z",
-  "last_live_verified_at": "2026-11-15T17:19:36Z",
+  "updated_at": "2026-11-15T17:33:20Z",
+  "last_live_verified_at": "2026-11-15T17:33:20Z",
   "quote_verified_date": "2026-11-13",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
@@ -10,7 +10,7 @@
     "global": 66
   },
   "official_rule_audit": {
-    "checked_at": "2026-11-15T17:19:36Z",
+    "checked_at": "2026-11-15T17:33:20Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -22,7 +22,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-15T17:19:36Z",
+        "last_verified_at": "2026-11-15T17:33:20Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -40,7 +40,7 @@
           "pro_renewal_200"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-15T17:19:36Z",
+        "last_verified_at": "2026-11-15T17:33:20Z",
         "last_verified_groups": [
           "lite_monthly_cap_18k",
           "lite_renewal_40",
@@ -59,7 +59,7 @@
           "interactive_ide_only"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-15T17:19:36Z",
+        "last_verified_at": "2026-11-15T17:33:20Z",
         "last_verified_groups": [
           "tiers_lite_pro",
           "quota_window_5h",
@@ -71,7 +71,7 @@
   },
   "price_changes": [
     {
-      "detected_at": "2026-11-15T17:19:36Z",
+      "detected_at": "2026-11-15T17:33:20Z",
       "entity_type": "model",
       "id": "deepseek/deepseek-v4.1-flash-1017",
       "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
@@ -79,7 +79,7 @@
       "summary_zh": "输入单价 $0.15 -> $0.02 / 1M，输出单价 $0.6 -> $0.108 / 1M"
     },
     {
-      "detected_at": "2026-11-15T17:19:36Z",
+      "detected_at": "2026-11-15T17:33:20Z",
       "entity_type": "model",
       "id": "deepseek/deepseek-v4-flash-0731",
       "name": "DeepSeek: DeepSeek V4 Flash 0731",
@@ -675,17 +675,17 @@
       "affiliate_url": "https://openrouter.ai",
       "model_page_url": "https://openrouter.ai/qwen/qwen3.5-9b",
       "region": "global",
-      "input_usd_per_1m": 0.05,
-      "output_usd_per_1m": 0.073,
-      "input_rmb_per_1m": 0.36,
-      "output_rmb_per_1m": 0.5256,
-      "blended_usd_per_1m": 0.0558,
-      "blended_rmb_per_1m": 0.4018,
+      "input_usd_per_1m": 0.038,
+      "output_usd_per_1m": 0.056,
+      "input_rmb_per_1m": 0.2736,
+      "output_rmb_per_1m": 0.4032,
+      "blended_usd_per_1m": 0.0425,
+      "blended_rmb_per_1m": 0.306,
       "context_length": 262144,
       "supports_tools": true,
       "modality": "text+image+video->text",
       "is_free": false,
-      "value_score": 93.3,
+      "value_score": 93.6,
       "tags": [
         "coding",
         "reasoning",

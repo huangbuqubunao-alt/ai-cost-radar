@@ -4,7 +4,7 @@
   <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml</id>
   <link href="https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml" rel="self" type="application/atom+xml"/>
   <link href="https://ai-cost-radar-nlu.pages.dev/" rel="alternate" type="text/html"/>
-  <updated>2026-11-15T17:19:36Z</updated>
+  <updated>2026-11-15T17:33:20Z</updated>
   <author>
     <name>AI Cost Radar</name>
   </author>
@@ -12,14 +12,14 @@
     <title>[价格异动 2026-11-15] DeepSeek: DeepSeek V4.1 Flash 1017 (deepseek/deepseek-v4.1-flash-1017)</title>
     <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-0-deepseek-deepseek-v4.1-flash-1017-2026-11-15</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/#model-deepseek-deepseek-v4-1-flash-1017"/>
-    <updated>2026-11-15T17:19:36Z</updated>
+    <updated>2026-11-15T17:33:20Z</updated>
     <summary>输入单价 $0.15 -&gt; $0.02 / 1M，输出单价 $0.6 -&gt; $0.108 / 1M</summary>
   </entry>
   <entry>
     <title>[价格异动 2026-11-15] DeepSeek: DeepSeek V4 Flash 0731 (deepseek/deepseek-v4-flash-0731)</title>
     <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-1-deepseek-deepseek-v4-flash-0731-2026-11-15</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/#model-deepseek-deepseek-v4-flash-0731"/>
-    <updated>2026-11-15T17:19:36Z</updated>
+    <updated>2026-11-15T17:33:20Z</updated>
     <summary>输入单价 $0.06 -&gt; $0.0434 / 1M，输出单价 $0.18 -&gt; $0.3 / 1M</summary>
   </entry>
   <entry>

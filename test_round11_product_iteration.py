@@ -911,7 +911,11 @@ console.log(JSON.stringify({
         self.assertRegex(prepare_release.PUBLIC_README, r"\b(?:1[5-9]|[2-9]\d)\s*套验收测试\b")
 
         verify_txt = (ROOT / "cloudflare" / "verify_release.py").read_text(encoding="utf-8")
+        cli_src_txt = (ROOT / "engine_a_mcp_actor" / "audit_local_claude.py").read_text(encoding="utf-8")
         self.assertIn("token_usage_record", verify_txt)
+        self.assertIn("scan_local_coding_logs", verify_txt)
+        self.assertNotIn("scan_local_coding_clients", verify_txt)
+        self.assertIn("def scan_local_coding_logs(", cli_src_txt)
 
         if (ROOT / "sync_config_to_cloud.sh").is_file():
             sync_txt = (ROOT / "sync_config_to_cloud.sh").read_text(encoding="utf-8")
