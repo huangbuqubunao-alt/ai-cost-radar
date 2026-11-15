@@ -585,6 +585,46 @@ console.log(JSON.stringify(outputs));
             self.assertEqual(compat_rep["total_requests"], 2)
             self.assertEqual(compat_rep["total_input_tokens"], 40_000)
 
+            # 5. Flat token_usage_record schema parity + response_id deduplication in audit_local_claude.py
+            flat_dir = fake_home / "codex_flat_only"
+            flat_dir.mkdir(parents=True)
+            (flat_dir / "rollout-flat.jsonl").write_text(
+                "\n".join(
+                    [
+                        json.dumps({"type": "turn_context", "payload": {"model": "gpt-6-astra"}}),
+                        json.dumps(
+                            {
+                                "type": "token_usage_record",
+                                "response_id": "resp_flat_01",
+                                "input_tokens": 15000,
+                                "cached_input_tokens": 5000,
+                                "output_tokens": 800,
+                                "reasoning_output_tokens": 100,
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "type": "token_usage_record",
+                                "response_id": "resp_flat_01",
+                                "input_tokens": 15000,
+                                "cached_input_tokens": 5000,
+                                "output_tokens": 800,
+                                "reasoning_output_tokens": 100,
+                            }
+                        ),
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            flat_rep = audit_local_claude.scan_claude_projects_dir(flat_dir, days=10.0, seats=1, offline=True)
+            self.assertEqual(flat_rep["active_files_count"], 1)
+            self.assertEqual(flat_rep["total_requests"], 1)
+            self.assertEqual(flat_rep["deduplicated_chunks"], 1)
+            self.assertEqual(flat_rep["total_input_tokens"], 15_000)
+            self.assertEqual(flat_rep["cached_input_tokens"], 5_000)
+            self.assertEqual(flat_rep["total_output_tokens"], 800)
+
 
 class Round11Batch2WebOutlierFilterAndNode24CiTests(unittest.TestCase):
     @classmethod

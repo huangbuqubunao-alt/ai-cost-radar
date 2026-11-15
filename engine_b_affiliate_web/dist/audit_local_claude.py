@@ -661,8 +661,13 @@ def _scan_roots_internal(
 
             if rec_type_low == "token_usage_record":
                 payload = rec.get("payload") if isinstance(rec.get("payload"), dict) else {}
-                u_codex = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
-                m_codex = str(_first_scalar(payload, ("model", "model_id")) or sticky_codex_model or "gpt-5-codex").strip() or "gpt-5-codex"
+                u_nested = (
+                    payload.get("usage")
+                    if isinstance(payload.get("usage"), dict)
+                    else (rec.get("usage") if isinstance(rec.get("usage"), dict) else {})
+                )
+                u_codex = {**rec, **payload, **u_nested}
+                m_codex = str(_first_scalar(u_codex, ("model", "model_id")) or sticky_codex_model or "gpt-5-codex").strip() or "gpt-5-codex"
                 in_v = _safe_float(u_codex.get("input_tokens"))
                 c_v = _safe_float(u_codex.get("cached_input_tokens"))
                 row_in = max(in_v, c_v)
@@ -671,7 +676,7 @@ def _scan_roots_internal(
                 reason_val = _safe_float(_first_scalar(u_codex, ("reasoning_output_tokens", "reasoning_tokens")))
                 if row_in <= 0 and out_val <= 0:
                     continue
-                resp_id = _first_scalar(payload, ("response_id", "id"))
+                resp_id = _first_scalar(u_codex, ("response_id", "id"))
                 _push_entry(
                     {
                         "client": client_prefix or "codex",
