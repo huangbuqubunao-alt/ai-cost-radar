@@ -73,6 +73,20 @@ export async function onRequestGet(context) {
     .bind(day)
     .all();
 
+  const featureRows = await db
+    .prepare(
+      `SELECT
+         event_name,
+         COALESCE(NULLIF(slot_id, ''), 'unspecified') AS slot_id,
+         COUNT(DISTINCT browser_day_id) AS unique_users
+       FROM telemetry_events
+       WHERE day_bucket = ?1 AND event_name IN ('usage_import', 'share_copy', 'share_summary', 'share_open')
+       GROUP BY event_name, COALESCE(NULLIF(slot_id, ''), 'unspecified')
+       ORDER BY unique_users DESC, event_name ASC, slot_id ASC`
+    )
+    .bind(day)
+    .all();
+
   const offers = (offerRows.results || []).map((r) => ({
     offer_id: r.offer_id,
     unique_viewers: Number(r.unique_viewers || 0),
@@ -98,6 +112,11 @@ export async function onRequestGet(context) {
     shares_copied_uv: Number(kpiRows?.shares_copied_uv || 0),
     share_opens_uv: Number(kpiRows?.share_opens_uv || 0),
     offers,
+    feature_funnel: (featureRows.results || []).map((r) => ({
+      event_name: r.event_name,
+      slot_id: r.slot_id || "unspecified",
+      unique_users: Number(r.unique_users || 0),
+    })),
     traffic: trafficRows.results,
     placements: placements.results.map(row => ({
       ...row,

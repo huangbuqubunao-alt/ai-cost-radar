@@ -738,7 +738,7 @@ MCP_TOOLS_SPEC: list[dict[str, Any]] = [
                 },
                 "usage_snippet": {
                     "type": "string",
-                    "description": "Optional multi-model OpenRouter/cloud CSV or TSV bill, Claude Code `/cost` output, OpenAI/Bailian/DeepSeek `usage` JSON, or cloud console summary to parse and audit automatically.",
+                    "description": "Optional multi-model OpenRouter/cloud CSV, TSV, JSON array, or JSONL bill (incl. Claude Code `.jsonl` & OpenAI Batch `.jsonl`), `/cost` output, `usage` JSON, or cloud console summary to parse and audit (`bill_audit` + `migration_litellm_config`).",
                 },
                 "days_observed": {
                     "type": "number",

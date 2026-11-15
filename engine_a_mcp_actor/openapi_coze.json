@@ -181,7 +181,7 @@
                   },
                   "usage_snippet": {
                     "type": "string",
-                    "description": "可选：粘贴 OpenRouter Activity 多模型 CSV/TSV 账单、云控制台 CSV 导出、Claude Code /cost 输出、OpenAI/百炼/DeepSeek usage JSON 或统计摘要，自动解析用量并生成多模型降本审计 (bill_audit)"
+                    "description": "可选：粘贴 OpenRouter Activity 多模型 CSV/TSV/JSON/JSONL 账单（含 Claude Code .jsonl 会话与 OpenAI Batch .jsonl）、Claude Code /cost 输出、usage JSON 或统计摘要，自动解析并返回 bill_audit 与零改代码 LiteLLM 迁移配置 (migration_litellm_config)"
                   },
                   "days_observed": {
                     "type": "number",

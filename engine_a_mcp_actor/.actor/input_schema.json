@@ -109,9 +109,9 @@
       "description": "Optional monthly cached input tokens in millions to compute exact cache_hit_rate."
     },
     "usage_snippet": {
-      "title": "Optional Multi-Model CSV Bill / Raw Usage Log / JSON Snippet",
+      "title": "Optional Multi-Model CSV/JSONL Bill / Raw Usage Log / JSON Snippet",
       "type": "string",
-      "description": "Paste an OpenRouter Activity CSV, cloud console CSV/TSV bill, Claude Code `/cost` output, OpenAI/Bailian `usage` JSON, or cloud console summary to auto-parse usage and generate `bill_audit`.",
+      "description": "Paste an OpenRouter Activity CSV, cloud console CSV/TSV/JSON/JSONL bill (incl. Claude Code `.jsonl` & OpenAI Batch `.jsonl`), Claude Code `/cost` output, `usage` JSON, or cloud console summary to auto-parse usage and generate `bill_audit` + `migration_litellm_config`.",
       "editor": "textarea"
     },
     "days_observed": {

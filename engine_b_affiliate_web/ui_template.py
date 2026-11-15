@@ -114,7 +114,7 @@ def render_html_template(
       --accent-soft: rgba(79, 70, 229, 0.1);
       --emerald: #059669;
       --emerald-soft: rgba(5, 150, 105, 0.1);
-      --emerald-text: #047857;
+      --emerald-text: #065f46;
       --amber: #d97706;
       --amber-soft: rgba(217, 119, 6, 0.1);
       --amber-text: #92400e;
@@ -664,6 +664,7 @@ def render_html_template(
       font-variant-numeric: tabular-nums;
       min-width: 0;
       max-width: 100%;
+      scroll-margin-top: 148px;
     }}
 
     .usage-bill-breakdown .ssr-table {{
@@ -695,6 +696,20 @@ def render_html_template(
       gap: 8px;
       flex-wrap: wrap;
       margin-bottom: 8px;
+    }}
+
+    .usage-bill-actions {{
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }}
+
+    .bill-route-select {{
+      max-width: 220px;
+      width: 100%;
+      font-size: 0.74rem;
+      padding: 4px 6px;
     }}
 
     .usage-bill-title {{
@@ -1938,7 +1953,7 @@ def render_html_template(
       color: var(--text-primary);
       overflow-x: auto;
       white-space: pre-wrap;
-      word-break: break-all;
+      overflow-wrap: anywhere;
       margin: 8px 0 12px;
     }}
 
@@ -1950,6 +1965,114 @@ def render_html_template(
       border: 1px dashed var(--border-strong);
       border-radius: var(--radius-lg);
       color: var(--text-secondary);
+    }}
+
+    .print-audit-stamp {{
+      display: none;
+    }}
+
+    @media print {{
+      :root,
+      [data-theme="dark"],
+      [data-theme="light"],
+      body {{
+        --bg-page: #ffffff;
+        --bg-elevated: #f8fafc;
+        --bg-card: #ffffff;
+        --bg-card-hover: #f1f5f9;
+        --bg-input: #f1f5f9;
+        --bg-subtle: rgba(79, 70, 229, 0.06);
+        --border: #cbd5e1;
+        --border-strong: #94a3b8;
+        --text-primary: #0f172a;
+        --text-secondary: #334155;
+        --text-muted: #475569;
+        --accent: #4f46e5;
+        --accent-hover: #4338ca;
+        --accent-soft: rgba(79, 70, 229, 0.1);
+        --emerald: #059669;
+        --emerald-soft: rgba(5, 150, 105, 0.1);
+        --emerald-text: #065f46;
+        --amber: #d97706;
+        --amber-soft: rgba(217, 119, 6, 0.1);
+        --amber-text: #92400e;
+        --rose-soft: rgba(225, 29, 72, 0.09);
+        --rose-text: #be123c;
+        --cyan: #0e7490;
+        --cyan-soft: rgba(8, 145, 178, 0.1);
+        --shadow-card: none;
+        background: #ffffff !important;
+        color: #0f172a !important;
+      }}
+
+      .topbar {{
+        position: static !important;
+        backdrop-filter: none !important;
+        background: #ffffff !important;
+        border-bottom: 1px solid #cbd5e1 !important;
+      }}
+
+      .print-audit-stamp {{
+        display: block !important;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin: 8px 0 14px;
+        background: #f8fafc;
+        color: #0f172a;
+        font-size: 0.78rem;
+        line-height: 1.55;
+      }}
+
+      .topbar .nav-actions,
+      .seo-topic-bar,
+      .quick-jumps,
+      #presetBar,
+      #promptToCallsBar,
+      #promptCustomRow,
+      .slider-input-wrap input[type="range"],
+      .verdict-share-row,
+      .usage-import-drawer:not(.has-bill-audit),
+      .usage-import-drawer.has-bill-audit > summary,
+      .usage-import-drawer.has-bill-audit .usage-import-fields,
+      .usage-bill-actions,
+      #openHybridConfigBtn,
+      .card-ctas,
+      #modelsSection,
+      #subsidyMatrix,
+      #faqSection,
+      .cfg-modal-backdrop {{
+        display: none !important;
+      }}
+
+      .simulator-grid {{
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+      }}
+
+      .coding-plan-grid {{
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 10px !important;
+      }}
+
+      .table-scroll {{
+        overflow: visible !important;
+        max-width: none !important;
+      }}
+
+      .usage-bill-breakdown .ssr-table {{
+        min-width: 0 !important;
+        width: 100% !important;
+      }}
+
+      .panel,
+      .plan-card,
+      .usage-bill-breakdown,
+      .selfhost-banner,
+      .compare-tray {{
+        break-inside: avoid;
+        box-shadow: none !important;
+      }}
     }}
   </style>
 </head>
@@ -1999,6 +2122,7 @@ def render_html_template(
     </div>
 
     <div class="stale-quote-banner" id="staleQuoteBanner" role="status"></div>
+    <div class="print-audit-stamp" id="printAuditStamp"></div>
 
     <section class="hero">
       <div class="hero-top">
@@ -2037,53 +2161,56 @@ def render_html_template(
           </div>
 
           <details class="usage-import-drawer" id="usageImportDrawer">
-            <summary data-i18n="usageImportSummary">从真实日志或多模型 CSV 账单导入（支持 OpenRouter/云账单 CSV、Claude Code /cost、usage JSON）</summary>
+            <summary data-i18n="usageImportSummary">从真实日志或多模型 CSV/JSONL 账单导入（支持 OpenRouter/云账单 CSV、Claude Code .jsonl 会话与 /cost）</summary>
             <div class="usage-import-body">
-              <div>
-                <label class="usage-import-subhead" for="usageLogTextarea" data-i18n="usageLogLabel">方式一：上传本地 CSV/TSV/JSON 账单，或粘贴 Claude Code /cost 与 usage JSON</label>
-                <textarea id="usageLogTextarea" class="usage-import-textarea" rows="3" placeholder="示例：Input: 1.6M tokens / Cache read: 2.4M tokens / Output: 600k tokens / Requests: 1,200"></textarea>
-                <div class="usage-import-actions">
-                  <label for="usageDaysSelect" style="font-size:0.76rem;color:var(--text-secondary);font-weight:600;" data-i18n="usageDaysLabel">日志统计周期:</label>
-                  <select id="usageDaysSelect" class="select-sm" aria-label="Usage Observation Window">
-                    <option value="1">近 1 天 (24h)</option>
-                    <option value="7">近 7 天</option>
-                    <option value="14">近 14 天</option>
-                    <option value="30" selected>近 30 天 (整月)</option>
-                  </select>
-                  <button type="button" class="usage-import-btn primary" id="applyUsageLogBtn" data-i18n="applyUsageLogBtn">解析并填入测算器</button>
-                  <label for="usageFileInput" class="usage-import-btn" tabindex="0" role="button" data-i18n="usageFileBtn">选择本地账单 (.csv/.tsv/.json)</label>
-                  <input type="file" id="usageFileInput" accept=".csv,.tsv,.json,.txt,.log" hidden />
-                  <button type="button" class="usage-import-btn" id="fillSampleCsvBtn" data-i18n="fillSampleCsvBtn">填入多模型 CSV 账单示例</button>
-                  <button type="button" class="usage-import-btn" id="fillSampleLogBtn" data-i18n="fillSampleLogBtn">填入 Claude Code 示例</button>
+              <div class="usage-import-fields">
+                <div>
+                  <label class="usage-import-subhead" for="usageLogTextarea" data-i18n="usageLogLabel">方式一：上传本地 CSV/TSV/JSON/JSONL 账单，或粘贴 Claude Code /cost 与 usage JSON</label>
+                  <textarea id="usageLogTextarea" class="usage-import-textarea" rows="3" placeholder="示例：Input: 1.6M tokens / Cache read: 2.4M tokens / Output: 600k tokens / Requests: 1,200"></textarea>
+                  <div class="usage-import-actions">
+                    <label for="usageDaysSelect" style="font-size:0.76rem;color:var(--text-secondary);font-weight:600;" data-i18n="usageDaysLabel">日志统计周期:</label>
+                    <select id="usageDaysSelect" class="select-sm" aria-label="Usage Observation Window">
+                      <option value="1">近 1 天 (24h)</option>
+                      <option value="7">近 7 天</option>
+                      <option value="14">近 14 天</option>
+                      <option value="30" selected>近 30 天 (整月)</option>
+                    </select>
+                    <button type="button" class="usage-import-btn primary" id="applyUsageLogBtn" data-i18n="applyUsageLogBtn">解析并填入测算器</button>
+                    <label for="usageFileInput" class="usage-import-btn" tabindex="0" role="button" data-i18n="usageFileBtn">选择本地账单 (.csv/.tsv/.json/.jsonl)</label>
+                    <input type="file" id="usageFileInput" accept=".csv,.tsv,.json,.jsonl,.txt,.log" hidden />
+                    <button type="button" class="usage-import-btn" id="fillSampleCsvBtn" data-i18n="fillSampleCsvBtn">填入多模型 CSV 账单示例</button>
+                    <button type="button" class="usage-import-btn" id="fillSampleJsonlBtn" data-i18n="fillSampleJsonlBtn">填入 Claude Code JSONL 示例</button>
+                    <button type="button" class="usage-import-btn" id="fillSampleLogBtn" data-i18n="fillSampleLogBtn">填入 Claude Code 示例</button>
+                  </div>
+                  <div class="unit-hint" style="margin-top:6px;" data-i18n="usagePrivacyNote">隐私承诺：账单与日志文件 100% 在本地浏览器内存解析，绝不上传至任何服务器。</div>
                 </div>
-                <div class="unit-hint" style="margin-top:6px;" data-i18n="usagePrivacyNote">隐私承诺：账单与日志文件 100% 在本地浏览器内存解析，绝不上传至任何服务器。</div>
+                <hr class="usage-import-divider" />
+                <div>
+                  <div class="usage-import-subhead" data-i18n="usageMonthlyQuickLabel">方式二：按月度总账单逆向折算（自动换算日均调用、单次均值与缓存命中率）</div>
+                  <div class="usage-quick-grid">
+                    <div class="usage-quick-field">
+                      <label for="monthlyCallsQuick" data-i18n="labelMonthlyCallsQuick">月总请求数 (次/30天)</label>
+                      <input type="number" class="num-input" id="monthlyCallsQuick" min="1" max="60000000" step="100" placeholder="90000" />
+                    </div>
+                    <div class="usage-quick-field">
+                      <label for="monthlyInputMQuick" data-i18n="labelMonthlyInputMQuick">月总输入 (百万 M Tokens)</label>
+                      <input type="number" class="num-input" id="monthlyInputMQuick" min="0" max="1000000" step="0.1" placeholder="360" />
+                    </div>
+                    <div class="usage-quick-field">
+                      <label for="monthlyOutputMQuick" data-i18n="labelMonthlyOutputMQuick">月总输出 (百万 M Tokens)</label>
+                      <input type="number" class="num-input" id="monthlyOutputMQuick" min="0" max="1000000" step="0.1" placeholder="90" />
+                    </div>
+                    <div class="usage-quick-field">
+                      <label for="monthlyCachedMQuick" data-i18n="labelMonthlyCachedMQuick">其中缓存命中输入 (M, 可选)</label>
+                      <input type="number" class="num-input" id="monthlyCachedMQuick" min="0" max="1000000" step="0.1" placeholder="180" />
+                    </div>
+                  </div>
+                  <div class="usage-import-actions">
+                    <button type="button" class="usage-import-btn" id="applyMonthlyTotalsBtn" data-i18n="applyMonthlyTotalsBtn">按月度总额折算填入</button>
+                  </div>
+                </div>
+                <div class="usage-import-status" id="usageImportStatus" role="status" hidden></div>
               </div>
-              <hr class="usage-import-divider" />
-              <div>
-                <div class="usage-import-subhead" data-i18n="usageMonthlyQuickLabel">方式二：按月度总账单逆向折算（自动换算日均调用、单次均值与缓存命中率）</div>
-                <div class="usage-quick-grid">
-                  <div class="usage-quick-field">
-                    <label for="monthlyCallsQuick" data-i18n="labelMonthlyCallsQuick">月总请求数 (次/30天)</label>
-                    <input type="number" class="num-input" id="monthlyCallsQuick" min="1" max="60000000" step="100" placeholder="90000" />
-                  </div>
-                  <div class="usage-quick-field">
-                    <label for="monthlyInputMQuick" data-i18n="labelMonthlyInputMQuick">月总输入 (百万 M Tokens)</label>
-                    <input type="number" class="num-input" id="monthlyInputMQuick" min="0" max="1000000" step="0.1" placeholder="360" />
-                  </div>
-                  <div class="usage-quick-field">
-                    <label for="monthlyOutputMQuick" data-i18n="labelMonthlyOutputMQuick">月总输出 (百万 M Tokens)</label>
-                    <input type="number" class="num-input" id="monthlyOutputMQuick" min="0" max="1000000" step="0.1" placeholder="90" />
-                  </div>
-                  <div class="usage-quick-field">
-                    <label for="monthlyCachedMQuick" data-i18n="labelMonthlyCachedMQuick">其中缓存命中输入 (M, 可选)</label>
-                    <input type="number" class="num-input" id="monthlyCachedMQuick" min="0" max="1000000" step="0.1" placeholder="180" />
-                  </div>
-                </div>
-                <div class="usage-import-actions">
-                  <button type="button" class="usage-import-btn" id="applyMonthlyTotalsBtn" data-i18n="applyMonthlyTotalsBtn">按月度总额折算填入</button>
-                </div>
-              </div>
-              <div class="usage-import-status" id="usageImportStatus" role="status" hidden></div>
               <div class="usage-bill-breakdown" id="usageBillBreakdown" hidden></div>
             </div>
           </details>
@@ -2242,6 +2369,7 @@ def render_html_template(
             <div class="verdict-share-btns">
               <button type="button" class="icon-btn" id="copySummaryBtn" data-i18n="copySummaryBtn">复制对账结论单</button>
               <button type="button" class="icon-btn" id="copyMarkdownBtn" data-i18n="copyMarkdownBtn">复制 Markdown 选型表</button>
+              <button type="button" class="icon-btn" id="printAuditBtn" data-i18n="printAuditBtn">打印 / 导出 PDF 立项单</button>
             </div>
           </div>
         </div>
@@ -2374,6 +2502,7 @@ def render_html_template(
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
         <button type="button" class="cta-copy-cfg" id="copyGuiBtn" style="flex:1 1 180px;" data-i18n="copyGuiBtn">复制协议地址与模型参数</button>
         <button type="button" class="cta-copy-cfg" id="downloadSettingsJsonBtn" style="flex:1 1 180px;display:none;" data-i18n="downloadSettingsJsonBtn">下载 settings.json 配置文件</button>
+        <button type="button" class="cta-copy-cfg" id="downloadConfigYamlBtn" style="flex:1 1 180px;display:none;" data-i18n="downloadConfigYamlBtn">下载 config.yaml 网关配置</button>
       </div>
 
       <div id="cfgEnvHeadingEl" style="font-size:0.8rem;font-weight:700;color:var(--text-primary);" data-i18n="cfgEnvHeading">终端环境变量一键导出命令</div>
@@ -2551,8 +2680,10 @@ def render_html_template(
       modalFallbackBaseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
       modalOfficialCtaUrl: AFF.aliyun_bailian_url || "https://bailian.console.aliyun.com/",
       modalCurrentSettingsJson: null,
+      modalCurrentConfigYaml: null,
       semanticCacheHitRate: 0.35,
       gpuMonthlyHours: 240,
+      billRowOverrides: {{}},
       lastUsageImport: null
     }};
 
@@ -2782,6 +2913,8 @@ def render_html_template(
 
       return {{
         detected_format: "csv_multimodel_bill",
+        source_format: "csv_multimodel",
+        deduplicated_chunks: 0,
         days_observed: days,
         distinct_models_count: modelBreakdown.length,
         total_requests: Math.round(totalReqs),
@@ -2803,11 +2936,286 @@ def render_html_template(
       }};
     }}
 
+    function tryParseJsonRecordsBill(text, days, fxRate = 7.2) {{
+      let rawRecords = null;
+      let sourceFormat = null;
+
+      if (text.startsWith("[") && text.endsWith("]")) {{
+        try {{
+          const parsed = JSON.parse(text);
+          if (Array.isArray(parsed)) {{
+            rawRecords = parsed.filter(x => x && typeof x === "object" && !Array.isArray(x));
+            sourceFormat = "json_array_multimodel";
+          }}
+        }} catch (_) {{
+          rawRecords = null;
+        }}
+      }} else if (text.startsWith("{{") && text.endsWith("}}")) {{
+        try {{
+          const single = JSON.parse(text);
+          if (single && typeof single === "object" && !Array.isArray(single)) {{
+            for (const listKey of ["data", "records", "logs", "items", "generations"]) {{
+              const cand = single[listKey];
+              if (Array.isArray(cand) && cand.some(x => x && typeof x === "object" && !Array.isArray(x))) {{
+                rawRecords = cand.filter(x => x && typeof x === "object" && !Array.isArray(x));
+                sourceFormat = "json_array_multimodel";
+                break;
+              }}
+            }}
+            if (!rawRecords) {{
+              const msgObj = single.message;
+              const respObj = single.response;
+              if (
+                (msgObj && typeof msgObj === "object" && ((msgObj.usage && typeof msgObj.usage === "object") || ["user", "assistant", "summary", "system"].includes(single.type))) ||
+                (respObj && typeof respObj === "object" && respObj.body && typeof respObj.body === "object")
+              ) {{
+                rawRecords = [single];
+                sourceFormat = "jsonl_multimodel";
+              }}
+            }}
+          }}
+        }} catch (_) {{
+          const lines = text
+            .split(/\\r?\\n/)
+            .map(ln => ln.trim())
+            .filter(ln => ln && !ln.startsWith("#"));
+          if (lines.length >= 2) {{
+            const parsedLines = [];
+            let allJsonLines = true;
+            for (const ln of lines) {{
+              if (ln.startsWith("{{") && ln.endsWith("}}")) {{
+                try {{
+                  const obj = JSON.parse(ln);
+                  if (obj && typeof obj === "object" && !Array.isArray(obj)) parsedLines.push(obj);
+                  else allJsonLines = false;
+                }} catch (_) {{
+                  allJsonLines = false;
+                }}
+              }} else {{
+                allJsonLines = false;
+              }}
+            }}
+            if (parsedLines.length >= 2 || (allJsonLines && parsedLines.length >= 1)) {{
+              rawRecords = parsedLines;
+              sourceFormat = "jsonl_multimodel";
+            }}
+          }}
+        }}
+      }}
+
+      if (!rawRecords || !sourceFormat) return null;
+
+      const safeNum = v => {{
+        if (v === undefined || v === null || typeof v === "object" || typeof v === "boolean") return 0;
+        try {{
+          return parseScaledNumber(v);
+        }} catch (_) {{
+          return 0;
+        }}
+      }};
+      const firstVal = (obj, keys) => {{
+        if (!obj || typeof obj !== "object") return null;
+        for (const k of keys) {{
+          const val = obj[k];
+          if (val !== undefined && val !== null && typeof val !== "object" && typeof val !== "boolean") return val;
+        }}
+        return null;
+      }};
+
+      const skipTypes = new Set(["user", "summary", "system", "file-history-snapshot", "queue-operation"]);
+      const summaryLabels = new Set(["total", "totals", "sum", "summary", "合计", "总计", "汇总", "小计"]);
+      const dedupedEntries = new Map();
+      const anonEntries = [];
+      let deduplicatedChunks = 0;
+
+      for (const rec of rawRecords) {{
+        if (skipTypes.has(String(rec.type || "").trim().toLowerCase())) continue;
+        const msg = rec.message && typeof rec.message === "object" ? rec.message : {{}};
+        const resp = rec.response && typeof rec.response === "object" ? rec.response : {{}};
+        const body = resp.body && typeof resp.body === "object" ? resp.body : {{}};
+        const u =
+          (msg.usage && typeof msg.usage === "object" ? msg.usage : null) ||
+          (body.usage && typeof body.usage === "object" ? body.usage : null) ||
+          (rec.usage && typeof rec.usage === "object" ? rec.usage : null) ||
+          {{}};
+
+        const modelRaw =
+          firstVal(rec, ["model_permaslug", "model", "model_id", "model_name", "api_model_id"]) ||
+          firstVal(msg, ["model", "model_id"]) ||
+          firstVal(body, ["model", "model_id"]) ||
+          "unknown";
+        const modelLabel = String(modelRaw).trim() || "unknown";
+        if (summaryLabels.has(modelLabel.toLowerCase())) continue;
+
+        const merged = {{ ...rec, ...body, ...msg, ...u }};
+        let rowIn = 0;
+        let rowCached = 0;
+        if ("cache_read_input_tokens" in merged || "cache_creation_input_tokens" in merged) {{
+          const uncached = safeNum(merged.input_tokens);
+          const cRead = safeNum(merged.cache_read_input_tokens);
+          const cWrite = safeNum(merged.cache_creation_input_tokens);
+          rowIn = uncached + cRead + cWrite;
+          rowCached = cRead;
+        }} else {{
+          const pDet = merged.prompt_tokens_details && typeof merged.prompt_tokens_details === "object" ? merged.prompt_tokens_details : {{}};
+          const inDet = merged.input_tokens_details && typeof merged.input_tokens_details === "object" ? merged.input_tokens_details : {{}};
+          const inVal = safeNum(firstVal(merged, ["prompt_tokens", "native_tokens_prompt", "tokens_prompt", "input_tokens", "total_input_tokens"]));
+          const cRaw = pDet.cached_tokens ?? inDet.cached_tokens ?? firstVal(merged, ["native_tokens_cached", "cached_tokens", "cached_input_tokens", "cache_hit_tokens"]);
+          const cVal = safeNum(cRaw);
+          rowIn = Math.max(inVal, cVal);
+          rowCached = Math.min(rowIn, cVal);
+        }}
+
+        const outVal = safeNum(firstVal(merged, ["completion_tokens", "native_tokens_completion", "tokens_completion", "output_tokens", "total_output_tokens"]));
+        const cDet = merged.completion_tokens_details && typeof merged.completion_tokens_details === "object" ? merged.completion_tokens_details : {{}};
+        const oDet = merged.output_tokens_details && typeof merged.output_tokens_details === "object" ? merged.output_tokens_details : {{}};
+        const rRaw = cDet.reasoning_tokens ?? oDet.reasoning_tokens ?? firstVal(merged, ["native_tokens_reasoning", "reasoning_tokens", "thinking_tokens"]);
+        const reasonVal = safeNum(rRaw);
+
+        if (rowIn <= 0 && outVal <= 0) continue;
+
+        const reqRaw = firstVal(rec, ["requests", "total_requests", "calls", "api_calls", "num_requests", "request_count"]);
+        const rowReqs = reqRaw !== null ? Math.max(1, safeNum(reqRaw)) : 1;
+
+        const rmbCostRaw = firstVal(rec, ["cost_rmb", "spend_rmb", "cost_cny", "应付金额", "账单金额"]);
+        let usdCostRaw = firstVal(rec, ["spend", "response_cost", "cost_usd", "costUSD", "total_cost", "cost"]);
+        if (usdCostRaw === null && rec.usage !== undefined && rec.usage !== null && typeof rec.usage !== "object" && typeof rec.usage !== "boolean") {{
+          usdCostRaw = rec.usage;
+        }}
+        const rowCostRmb = rmbCostRaw !== null
+          ? parseCurrencyRmb(rmbCostRaw, "costrmb", fxRate)
+          : (usdCostRaw !== null ? parseCurrencyRmb(usdCostRaw, "costusd", fxRate) : 0);
+
+        let dedupeId = null;
+        if (reqRaw === null) {{
+          if (msg.id) dedupeId = `msg:${{msg.id}}`;
+          else if (body.id) dedupeId = `body:${{body.id}}`;
+          else if (rec.generation_id) dedupeId = `gen:${{rec.generation_id}}`;
+          else if (rec.request_id) dedupeId = `req:${{rec.request_id}}`;
+          else if (rec.id) dedupeId = `id:${{rec.id}}`;
+        }}
+
+        const entry = {{
+          model: modelLabel,
+          requests: rowReqs,
+          input_tokens: rowIn,
+          cached_input_tokens: rowCached,
+          output_tokens: outVal,
+          reasoning_tokens: reasonVal,
+          reported_cost_rmb: rowCostRmb
+        }};
+
+        if (dedupeId) {{
+          if (dedupedEntries.has(dedupeId)) {{
+            deduplicatedChunks += 1;
+            const prev = dedupedEntries.get(dedupeId);
+            for (const k of ["requests", "input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "reported_cost_rmb"]) {{
+              prev[k] = Math.max(prev[k], entry[k]);
+            }}
+            if (prev.model === "unknown" && entry.model !== "unknown") prev.model = entry.model;
+          }} else {{
+            dedupedEntries.set(dedupeId, entry);
+          }}
+        }} else {{
+          anonEntries.push(entry);
+        }}
+      }}
+
+      const allEntries = [...dedupedEntries.values(), ...anonEntries];
+      if (allEntries.length === 0) throw new Error("no_tokens");
+
+      const groups = new Map();
+      for (const ent of allEntries) {{
+        const gKey = ent.model.toLowerCase();
+        if (!groups.has(gKey)) {{
+          groups.set(gKey, {{
+            model: ent.model,
+            requests: 0,
+            input_tokens: 0,
+            cached_input_tokens: 0,
+            output_tokens: 0,
+            reasoning_tokens: 0,
+            reported_cost_rmb: 0
+          }});
+        }}
+        const grp = groups.get(gKey);
+        grp.requests += ent.requests;
+        grp.input_tokens += ent.input_tokens;
+        grp.cached_input_tokens += ent.cached_input_tokens;
+        grp.output_tokens += ent.output_tokens;
+        grp.reasoning_tokens += ent.reasoning_tokens;
+        grp.reported_cost_rmb += ent.reported_cost_rmb;
+      }}
+
+      const sortedGroups = Array.from(groups.values()).sort(
+        (a, b) => (b.reported_cost_rmb - a.reported_cost_rmb) || ((b.input_tokens + b.output_tokens) - (a.input_tokens + a.output_tokens))
+      );
+
+      let totalReqs = 0;
+      let totalIn = 0;
+      let totalCached = 0;
+      let totalOut = 0;
+      let totalReason = 0;
+      let totalCostRmb = 0;
+      const modelBreakdown = sortedGroups.map(g => {{
+        const gIn = g.input_tokens;
+        const gCached = Math.min(gIn, Math.max(0, g.cached_input_tokens));
+        totalReqs += g.requests;
+        totalIn += gIn;
+        totalCached += gCached;
+        totalOut += g.output_tokens;
+        totalReason += g.reasoning_tokens;
+        totalCostRmb += g.reported_cost_rmb;
+        return {{
+          model: g.model,
+          requests: Math.round(g.requests),
+          input_tokens: Math.round(gIn),
+          cached_input_tokens: Math.round(gCached),
+          output_tokens: Math.round(g.output_tokens),
+          reasoning_tokens: Math.round(g.reasoning_tokens),
+          cache_hit_rate: gIn > 0 ? Math.round((gCached / gIn) * 10000) / 10000 : 0,
+          output_includes_reasoning: g.reasoning_tokens > 0,
+          reported_cost_rmb: Math.round(g.reported_cost_rmb * 10000) / 10000
+        }};
+      }});
+
+      const cacheHitRate = totalIn > 0 ? Math.round((totalCached / totalIn) * 10000) / 10000 : 0;
+      const dailyRequests = Math.max(1, Math.round(totalReqs / days));
+      const monthlyRequests = Math.max(1, Math.round((totalReqs / days) * 30));
+
+      return {{
+        detected_format: "csv_multimodel_bill",
+        source_format: sourceFormat,
+        deduplicated_chunks: deduplicatedChunks,
+        days_observed: days,
+        distinct_models_count: modelBreakdown.length,
+        total_requests: Math.round(totalReqs),
+        monthly_requests: monthlyRequests,
+        total_input_tokens: Math.round(totalIn),
+        cached_input_tokens: Math.round(totalCached),
+        total_output_tokens: Math.round(totalOut),
+        monthly_input_m: Math.round((((totalIn / days) * 30) / 1e6) * 1e6) / 1e6,
+        monthly_output_m: Math.round((((totalOut / days) * 30) / 1e6) * 1e6) / 1e6,
+        daily_requests: dailyRequests,
+        avg_input_tokens: totalIn > 0 ? Math.max(1, Math.round(totalIn / Math.max(1, totalReqs))) : 1500,
+        avg_output_tokens: totalOut > 0 ? Math.max(1, Math.round(totalOut / Math.max(1, totalReqs))) : 500,
+        cache_hit_rate: cacheHitRate,
+        output_includes_reasoning: totalReason > 0,
+        calls_estimated: false,
+        reported_cost_rmb: Math.round((totalCostRmb + Number.EPSILON) * 100) / 100,
+        monthly_reported_cost_rmb: Math.round((((totalCostRmb / days) * 30) + Number.EPSILON) * 100) / 100,
+        model_breakdown: modelBreakdown
+      }};
+    }}
+
     function parseUsageSnippet(rawText, daysObserved = 30, defaultTokensPerCall = 4000) {{
       const text = String(rawText ?? "").trim();
-      if (!text || text.length > 32000) throw new Error("empty_snippet");
+      if (!text || text.length > 5000000) throw new Error("empty_snippet");
       let days = Number(daysObserved ?? 30);
       if (!Number.isFinite(days) || days <= 0 || days > 365) days = 30;
+      const effFxTop = typeof FX === "number" && FX > 0 ? FX : 7.2;
+      const jsonRecordsParsed = tryParseJsonRecordsBill(text, days, effFxTop);
+      if (jsonRecordsParsed) return jsonRecordsParsed;
 
       let totalInput = 0;
       let cachedInput = 0;
@@ -2987,8 +3395,8 @@ def render_html_template(
             : "请填写大于 0 的月总请求数以及月总输入/输出百万 Token（其中缓存命中不可超过月总输入）。";
         }} else {{
           el.textContent = isEn
-            ? "Could not detect token counts in the input. Upload or paste an OpenRouter/cloud CSV bill, Claude Code /cost output, or usage JSON."
-            : "未识别到有效的输入/输出 Token 数值。请上传或粘贴多模型 CSV/TSV 账单、Claude Code /cost 输出或 usage JSON。";
+            ? "Could not detect token counts in the input. Upload or paste an OpenRouter/cloud CSV or JSONL bill, Claude Code .jsonl / /cost output, or usage JSON."
+            : "未识别到有效的输入/输出 Token 数值。请上传或粘贴多模型 CSV/TSV/JSONL 账单、Claude Code .jsonl 会话 / /cost 输出或 usage JSON。";
         }}
         return;
       }}
@@ -3001,15 +3409,27 @@ def render_html_template(
           : `已按月度账单折算填入：月总 ${{fmtNum(p.monthly_requests)}} 次 → 日均 ${{fmtNum(p.daily_requests)}} 次 · 单次均值 ${{fmtNum(p.avg_input_tokens)}} 输入 / ${{fmtNum(p.avg_output_tokens)}} 输出 Token · 缓存命中率 ${{hitPct}}%。`;
         return;
       }}
+      const dedupeEn = p.deduplicated_chunks > 0 ? `, deduped ${{p.deduplicated_chunks}} streaming chunks` : "";
+      const dedupeZh = p.deduplicated_chunks > 0 ? `，已去重 ${{p.deduplicated_chunks}} 条流式分片` : "";
+      const billLabelEn = p.source_format === "jsonl_multimodel"
+        ? `Multi-model JSONL log (${{p.distinct_models_count || 1}} models${{dedupeEn}})`
+        : (p.source_format === "json_array_multimodel"
+            ? `Multi-model JSON array (${{p.distinct_models_count || 1}} models)`
+            : `Multi-model CSV bill (${{p.distinct_models_count || 1}} models)`);
+      const billLabelZh = p.source_format === "jsonl_multimodel"
+        ? `多模型 JSONL 日志（共 ${{p.distinct_models_count || 1}} 款模型${{dedupeZh}}）`
+        : (p.source_format === "json_array_multimodel"
+            ? `多模型 JSON 数组账单（共 ${{p.distinct_models_count || 1}} 款模型）`
+            : `多模型 CSV 账单（共 ${{p.distinct_models_count || 1}} 款模型）`);
       const fmtMapEn = {{
-        csv_multimodel_bill: `Multi-model CSV bill (${{p.distinct_models_count || 1}} models)`,
+        csv_multimodel_bill: billLabelEn,
         claude_code_cost: "Claude Code /cost (additive cache)",
         anthropic_usage_json: "Anthropic JSON (additive cache)",
         openai_usage_json: "OpenAI / CN JSON",
         text_summary: "Console summary"
       }};
       const fmtMapZh = {{
-        csv_multimodel_bill: `多模型 CSV 账单（共 ${{p.distinct_models_count || 1}} 款模型）`,
+        csv_multimodel_bill: billLabelZh,
         claude_code_cost: "Claude Code /cost（未命中+缓存读取累加）",
         anthropic_usage_json: "Anthropic JSON（未命中+缓存读取累加）",
         openai_usage_json: "OpenAI / 国产兼容 JSON",
@@ -3024,38 +3444,64 @@ def render_html_template(
         : `已导入 ${{fmtMapZh[p.detected_format] || p.detected_format}}（按 ${{p.days_observed}} 天折算）：日均 ${{fmtNum(p.daily_requests)}} 次调用${{callNoteZh}} · 单次 ${{fmtNum(p.avg_input_tokens)}} 输入 / ${{fmtNum(p.avg_output_tokens)}} 输出 · 缓存命中率 ${{hitPct}}%${{reasonNoteZh}}。`;
     }}
 
-    function resolveModelFuzzyWeb(rawId) {{
+    function resolveCatalogStrictWeb(rawId) {{
       const raw = String(rawId || "").trim();
-      if (!MODELS || MODELS.length === 0) return null;
-      if (raw) {{
-        const exact = MODELS.find(m => m.id === raw);
-        if (exact) return exact;
-        const normalized = raw
-          .replace(/^aliyun\\//i, "aliyun-bailian/")
-          .replace(/^tencent\\//i, "tencent-cloud/")
-          .toLowerCase();
-        const ciExact = MODELS.find(m => String(m.id || "").toLowerCase() === normalized);
-        if (ciExact) return ciExact;
-        const rawLower = raw.toLowerCase();
-        const suffixMatches = MODELS.filter(m => {{
-          const idLower = String(m.id || "").toLowerCase();
-          const apiLower = String(m.api_model_id || "").toLowerCase();
-          return apiLower === rawLower || idLower.endsWith("/" + rawLower);
+      if (!raw || !MODELS || MODELS.length === 0) return null;
+      const exact = MODELS.find(m => m.id === raw);
+      if (exact) return exact;
+      const normalized = raw
+        .replace(/^aliyun\\//i, "aliyun-bailian/")
+        .replace(/^tencent\\//i, "tencent-cloud/")
+        .toLowerCase();
+      const ciExact = MODELS.find(m => String(m.id || "").toLowerCase() === normalized);
+      if (ciExact) return ciExact;
+      const rawLower = raw.toLowerCase();
+      const suffixMatches = MODELS.filter(m => {{
+        const idLower = String(m.id || "").toLowerCase();
+        const apiLower = String(m.api_model_id || "").toLowerCase();
+        return apiLower === rawLower || idLower.endsWith("/" + rawLower);
+      }});
+      if (suffixMatches.length > 0) {{
+        suffixMatches.sort((a, b) => {{
+          const aCn = a.region === "cn_direct" ? 1 : 0;
+          const bCn = b.region === "cn_direct" ? 1 : 0;
+          if (aCn !== bCn) return bCn - aCn;
+          const aPaid = a.is_free ? 0 : 1;
+          const bPaid = b.is_free ? 0 : 1;
+          if (aPaid !== bPaid) return bPaid - aPaid;
+          return (Number(b.value_score) || 0) - (Number(a.value_score) || 0);
         }});
-        if (suffixMatches.length > 0) {{
-          suffixMatches.sort((a, b) => {{
-            const aCn = a.region === "cn_direct" ? 1 : 0;
-            const bCn = b.region === "cn_direct" ? 1 : 0;
-            if (aCn !== bCn) return bCn - aCn;
-            const aPaid = a.is_free ? 0 : 1;
-            const bPaid = b.is_free ? 0 : 1;
-            if (aPaid !== bPaid) return bPaid - aPaid;
-            return (Number(b.value_score) || 0) - (Number(a.value_score) || 0);
-          }});
-          return suffixMatches[0];
-        }}
+        return suffixMatches[0];
       }}
-      const q = (raw || "deepseek-v3").toLowerCase();
+      return null;
+    }}
+
+    function resolveModelFuzzyWeb(rawId) {{
+      if (!MODELS || MODELS.length === 0) return null;
+      const strict = resolveCatalogStrictWeb(rawId);
+      if (strict) return strict;
+      const q = String(rawId || "deepseek-v3").trim().toLowerCase();
+      const stripped = q.replace(/-(?:20\\d{{2}}-\\d{{2}}-\\d{{2}}|20\\d{{6}}|\\d{{4}})$/, "");
+      const slugBase = stripped.split("/").slice(-1)[0];
+      const aliasCands = [];
+      if (stripped !== q) aliasCands.push(stripped, slugBase);
+      if (slugBase === "deepseek-reasoner" || slugBase === "r1") aliasCands.push("deepseek-r1");
+      else if (slugBase === "deepseek-chat" || slugBase === "v3") aliasCands.push("deepseek-v3");
+      else if (["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1-nano", "o1-mini", "o3-mini", "o4-mini"].includes(slugBase)) {{
+        aliasCands.push("openai/gpt-5.4-mini", "openai/gpt-5-mini");
+      }} else if (slugBase.startsWith("gpt-4") || slugBase.startsWith("chatgpt-4o") || ["o1", "o3", "o3-pro"].includes(slugBase)) {{
+        aliasCands.push("openai/gpt-5.4", "openai/gpt-5.5");
+      }} else if (slugBase.includes("claude") && slugBase.includes("sonnet")) {{
+        aliasCands.push("anthropic/claude-sonnet-5.5", "anthropic/claude-sonnet-5");
+      }} else if (slugBase.includes("claude") && slugBase.includes("opus")) {{
+        aliasCands.push("anthropic/claude-opus-5.5", "anthropic/claude-opus-5");
+      }} else if (slugBase.includes("claude") && slugBase.includes("haiku")) {{
+        aliasCands.push("anthropic/claude-haiku-5.5");
+      }}
+      for (const ca of aliasCands) {{
+        const hit = resolveCatalogStrictWeb(ca);
+        if (hit) return hit;
+      }}
       const wantsFree = q.includes("free");
       const qTokens = q.replace(/[/-]/g, " ").split(/\\s+/).filter(Boolean);
       let best = null;
@@ -3085,6 +3531,104 @@ def render_html_template(
       return best || MODELS[0];
     }}
 
+    function resolveModelEnvKeyVarWeb(model) {{
+      const pkey = String(model?.provider_config_key || "").toLowerCase();
+      const base = String(model?.api_base_url || "").toLowerCase();
+      if (pkey === "aliyun_bailian_url" || base.includes("dashscope.aliyuncs.com")) return "DASHSCOPE_API_KEY";
+      if (pkey === "tencent_cps_url" || base.includes("lkeap.cloud.tencent.com")) return "TENCENT_LKEAP_API_KEY";
+      if (pkey === "volcengine_ark_url" || base.includes("volces.com")) return "VOLCENGINE_ARK_API_KEY";
+      if (pkey === "siliconflow_invite_url" || base.includes("siliconflow.cn")) return "SILICONFLOW_API_KEY";
+      return "OPENROUTER_API_KEY";
+    }}
+
+    function resolveModelApiBaseWeb(model) {{
+      const base = String(model?.api_base_url || "").trim();
+      if (base) return base;
+      return model?.region === "global" ? "https://openrouter.ai/api/v1" : "https://dashscope.aliyuncs.com/compatible-mode/v1";
+    }}
+
+    function findSameFamilyCnCandidatesWeb(rawModelName, workhorses) {{
+      const rawLow = String(rawModelName || "").toLowerCase();
+      if (rawLow.includes("deepseek-r1") || rawLow.includes("deepseek-reasoner") || rawLow.endsWith("/r1")) {{
+        return workhorses.filter(c => String(c.id || "").toLowerCase().includes("deepseek-r1"));
+      }}
+      if (rawLow.includes("deepseek-v3") || rawLow.includes("deepseek-chat")) {{
+        return workhorses.filter(c => String(c.id || "").toLowerCase().includes("deepseek-v3"));
+      }}
+      if (rawLow.includes("qwen3-coder") || rawLow.includes("qwen-coder")) {{
+        return workhorses.filter(c => {{
+          const idLow = String(c.id || "").toLowerCase();
+          return idLow.includes("qwen") && idLow.includes("coder");
+        }});
+      }}
+      if (rawLow.includes("qwen")) return workhorses.filter(c => String(c.id || "").toLowerCase().includes("qwen"));
+      if (rawLow.includes("glm")) return workhorses.filter(c => String(c.id || "").toLowerCase().includes("glm"));
+      if (rawLow.includes("kimi") || rawLow.includes("moonshot")) return workhorses.filter(c => String(c.id || "").toLowerCase().includes("kimi"));
+      if (rawLow.includes("minimax")) return workhorses.filter(c => String(c.id || "").toLowerCase().includes("minimax"));
+      if (rawLow.includes("doubao")) return workhorses.filter(c => String(c.id || "").toLowerCase().includes("doubao"));
+      if (rawLow.includes("hunyuan")) return workhorses.filter(c => String(c.id || "").toLowerCase().includes("hunyuan"));
+      return [];
+    }}
+
+    function buildBillMigrationLiteLlmConfig(lineItems) {{
+      const isEn = state.lang === "en";
+      const yamlLines = [
+        "# AI Cost Radar — Zero-Code Multi-Model Bill Migration (LiteLLM Proxy)",
+        "# Compliance: Use standard Pay-As-You-Go API keys ONLY (NEVER use sk-sp- Coding Plan keys).",
+        "model_list:"
+      ];
+      const requiredEnvVars = [];
+      for (const item of lineItems) {{
+        const aliasEsc = String(item.raw_model || "default").replace(/\\\\/g, "\\\\\\\\").replace(/"/g, '\\"');
+        const apiMid = String(item.recommended_api_model_id || item.recommended_model_id || "deepseek-v3");
+        const apiBase = String(item.recommended_api_base_url || "https://dashscope.aliyuncs.com/compatible-mode/v1");
+        const envVar = String(item.recommended_env_key_var || "DASHSCOPE_API_KEY");
+        if (!requiredEnvVars.includes(envVar)) requiredEnvVars.push(envVar);
+        yamlLines.push(
+          `  - model_name: "${{aliasEsc}}"`,
+          "    litellm_params:",
+          `      model: openai/${{apiMid}}`,
+          `      api_base: ${{apiBase}}`,
+          `      api_key: os.environ/${{envVar}}`
+        );
+      }}
+      yamlLines.push(
+        "",
+        "router_settings:",
+        "  routing_strategy: simple-shuffle",
+        "  num_retries: 2",
+        "  timeout: 60"
+      );
+      const envLines = requiredEnvVars.map(
+        v => `export ${{v}}="sk-your-${{v.toLowerCase().replace("_api_key", "")}}-payg-key"`
+      );
+      envLines.push(
+        'export LITELLM_MASTER_KEY="sk-local-bill-migration-proxy"',
+        "",
+        isEn
+          ? "# Launch zero-code migration proxy (keep existing model names; point OPENAI_BASE_URL=http://127.0.0.1:4000/v1)"
+          : "# 启动本地零改代码迁移网关（业务代码无需改 model 名，仅需设 OPENAI_BASE_URL=http://127.0.0.1:4000/v1）",
+        "uvx --from 'litellm[proxy]' litellm --config config.yaml --port 4000"
+      );
+      const probeModel = String(lineItems[0]?.raw_model || "deepseek-v3").replace(/\\\\/g, "\\\\\\\\").replace(/"/g, '\\"');
+      const smokeTestCmd =
+        `curl -fsS "http://127.0.0.1:4000/v1/chat/completions" ` +
+        `-H "Authorization: Bearer sk-local-bill-migration-proxy" ` +
+        `-H "Content-Type: application/json" ` +
+        `-d '{{"model":"${{probeModel}}","max_tokens":1,"messages":[{{"role":"user","content":"ping"}}]}}'`;
+
+      return {{
+        config_yaml: yamlLines.join("\\n"),
+        env_snippet: envLines.join("\\n"),
+        smoke_test_cmd: smokeTestCmd,
+        required_env_vars: requiredEnvVars,
+        distinct_providers_count: requiredEnvVars.length,
+        compliance_warning: isEn
+          ? "Compliance Rule: Enter standard Pay-As-You-Go API keys (sk-...) ONLY. NEVER put personal Coding Plan subscription keys (sk-sp-...) into a LiteLLM proxy or shared team backend."
+          : "合规红线：此网关配置仅限填入各厂商标准「按量付费 API Key」（sk-...）；严禁将个人 Coding Plan 包月专属密钥（sk-sp-...）填入 LiteLLM 网关或团队共享服务。"
+      }};
+    }}
+
     function auditCsvBillWeb(parsedSummary) {{
       const days = Number(parsedSummary.days_observed || 30);
       const scale30d = 30 / days;
@@ -3097,6 +3641,14 @@ def render_html_template(
         const midLow = String(m.id || "").toLowerCase();
         return !["7b", "8b", "lite", "turbo", "mini", "flash"].some(tok => midLow.includes(tok));
       }});
+
+      const calcCandMonthly = (cand, mInM, mOutM, hitRate) => {{
+        const cFactor = cand.cache_hit_factor ?? (cand.region === "cn_direct" ? 0.2 : 0.5);
+        return round2(
+          mInM * ((1 - hitRate) + hitRate * cFactor) * Number(cand.input_rmb_per_1m || 0) +
+          mOutM * Number(cand.output_rmb_per_1m || 0)
+        );
+      }};
 
       const lineItems = [];
       let hasGlobalClosed = false;
@@ -3122,11 +3674,7 @@ def render_html_template(
           hasGlobalClosed = true;
         }}
 
-        const mFactor = matched.cache_hit_factor ?? (matched.region === "cn_direct" ? 0.2 : 0.5);
-        const catalogPaygRmb = round2(
-          mInM * ((1 - hitRate) + hitRate * mFactor) * Number(matched.input_rmb_per_1m || 0) +
-          mOutM * Number(matched.output_rmb_per_1m || 0)
-        );
+        const catalogPaygRmb = calcCandMonthly(matched, mInM, mOutM, hitRate);
         const baselineRmb = reportedMonthlyRmb > 0 ? reportedMonthlyRmb : catalogPaygRmb;
 
         const needsReasoning = Boolean(
@@ -3141,11 +3689,7 @@ def render_html_template(
         let bestCandRmb = baselineRmb;
         let bestCandScore = -1;
         for (const cand of pool) {{
-          const cFactor = cand.cache_hit_factor ?? 0.2;
-          const cRmb = round2(
-            mInM * ((1 - hitRate) + hitRate * cFactor) * Number(cand.input_rmb_per_1m || 0) +
-            mOutM * Number(cand.output_rmb_per_1m || 0)
-          );
+          const cRmb = calcCandMonthly(cand, mInM, mOutM, hitRate);
           const cScore = Number(cand.value_score || 0);
           if (!bestCand || cRmb < bestCandRmb || (cRmb === bestCandRmb && cScore > bestCandScore)) {{
             bestCand = cand;
@@ -3154,15 +3698,52 @@ def render_html_template(
           }}
         }}
 
-        const canSwitch = Boolean(bestCand && bestCandRmb < baselineRmb - 0.005);
-        const recModel = canSwitch ? bestCand : matched;
-        const optRmb = canSwitch ? round2(bestCandRmb) : round2(baselineRmb);
-        const action = canSwitch ? "switch_cn_direct" : "keep_current";
+        const sameFamPool = findSameFamilyCnCandidatesWeb(rawModel, workhorses);
+        let bestSameFam = null;
+        let bestSameFamRmb = Infinity;
+        let bestSameFamScore = -1;
+        for (const sf of sameFamPool) {{
+          const sfRmb = calcCandMonthly(sf, mInM, mOutM, hitRate);
+          const sfScore = Number(sf.value_score || 0);
+          if (!bestSameFam || sfRmb < bestSameFamRmb || (sfRmb === bestSameFamRmb && sfScore > bestSameFamScore)) {{
+            bestSameFam = sf;
+            bestSameFamRmb = sfRmb;
+            bestSameFamScore = sfScore;
+          }}
+        }}
+
+        const autoCanSwitch = Boolean(bestCand && bestCandRmb < baselineRmb - 0.005);
+        const autoRecModel = autoCanSwitch ? bestCand : matched;
+        const autoOptRmb = autoCanSwitch ? round2(bestCandRmb) : round2(baselineRmb);
+
+        const overrideChoice = state.billRowOverrides[rawModel] || "auto";
+        let recModel = autoRecModel;
+        let optRmb = autoOptRmb;
+        let action = autoCanSwitch ? "switch_cn_direct" : "keep_current";
+
+        if (overrideChoice === "keep_current") {{
+          recModel = matched;
+          optRmb = round2(baselineRmb);
+          action = "keep_current";
+        }} else if (overrideChoice === "same_family" && bestSameFam) {{
+          recModel = bestSameFam;
+          optRmb = round2(bestSameFamRmb);
+          action = recModel.id === matched.id ? "keep_current" : "switch_cn_direct";
+        }} else if (overrideChoice && overrideChoice !== "auto") {{
+          const customMod = MODELS.find(m => m.id === overrideChoice);
+          if (customMod) {{
+            recModel = customMod;
+            optRmb = customMod.id === matched.id ? round2(baselineRmb) : calcCandMonthly(customMod, mInM, mOutM, hitRate);
+            action = customMod.id === matched.id ? "keep_current" : "switch_cn_direct";
+          }}
+        }}
+
         const savRmb = round2(Math.max(0, baselineRmb - optRmb));
         const savPct = baselineRmb > 0 ? Math.round(((savRmb / baselineRmb) * 100) * 10) / 10 : 0;
 
         lineItems.push({{
           raw_model: rawModel,
+          route_choice: overrideChoice,
           matched_model: matched,
           matched_model_id: matched.id,
           matched_model_name: matched.name,
@@ -3173,9 +3754,18 @@ def render_html_template(
           reported_monthly_rmb: reportedMonthlyRmb,
           catalog_payg_rmb: catalogPaygRmb,
           baseline_monthly_rmb: round2(baselineRmb),
+          auto_recommended_model: autoRecModel,
+          auto_optimized_rmb: autoOptRmb,
+          same_family_cn_model: bestSameFam,
+          same_family_cn_model_id: bestSameFam ? bestSameFam.id : null,
+          same_family_cn_monthly_rmb: bestSameFam ? round2(bestSameFamRmb) : null,
+          candidate_pool: pool,
           recommended_model: recModel,
           recommended_model_id: recModel.id,
           recommended_model_name: recModel.name,
+          recommended_api_model_id: String(recModel.api_model_id || String(recModel.id || "").split("/").slice(-1)[0]),
+          recommended_api_base_url: resolveModelApiBaseWeb(recModel),
+          recommended_env_key_var: resolveModelEnvKeyVarWeb(recModel),
           optimized_payg_rmb: optRmb,
           savings_rmb: savRmb,
           savings_pct: savPct,
@@ -3239,7 +3829,8 @@ def render_html_template(
           payg_savings_pct: totalSavPct,
           has_global_closed_models: hasGlobalClosed
         }},
-        coding_plan_option: codingPlanOption
+        coding_plan_option: codingPlanOption,
+        migration_litellm_config: buildBillMigrationLiteLlmConfig(lineItems)
       }};
     }}
 
@@ -3306,13 +3897,16 @@ def render_html_template(
 
     function renderUsageBillBreakdown() {{
       const el = document.getElementById("usageBillBreakdown");
+      const drawer = document.getElementById("usageImportDrawer");
       if (!el) return;
       const info = state.lastUsageImport;
       if (!info || info.error || !info.parsed || info.parsed.detected_format !== "csv_multimodel_bill") {{
         el.hidden = true;
         el.innerHTML = "";
+        if (drawer) drawer.classList.remove("has-bill-audit");
         return;
       }}
+      if (drawer) drawer.classList.add("has-bill-audit");
       const isEn = state.lang === "en";
       const cur = state.currency;
       const audit = auditCsvBillWeb(info.parsed);
@@ -3320,12 +3914,33 @@ def render_html_template(
       const cp = audit.coding_plan_option;
 
       const bodyRows = audit.line_items.map(it => {{
-        const recName = it.action === "keep_current"
-          ? (isEn ? `Keep Current (${{shortModelName(it.matched_model, true)}})` : `保持现用（${{shortModelName(it.matched_model, false)}}）`)
-          : formatModelTitle(it.recommended_model, isEn);
+        const autoShort = shortModelName(it.auto_recommended_model, isEn);
+        const autoLabel = it.auto_recommended_model.id === it.matched_model.id
+          ? (isEn ? `Auto Optimal (${{autoShort}})` : `自动最优（${{autoShort}}）`)
+          : (isEn ? `Auto Max-Save: ${{autoShort}}` : `自动最省：${{autoShort}}`);
+        const routeOpts = [`<option value="auto"${{it.route_choice === "auto" ? " selected" : ""}}>${{esc(autoLabel)}}</option>`];
+        if (it.same_family_cn_model && it.same_family_cn_model.id !== it.auto_recommended_model.id) {{
+          const sfShort = shortModelName(it.same_family_cn_model, isEn);
+          const sfLabel = isEn
+            ? `Same-Family CN: ${{sfShort}} (${{fmtVal(it.same_family_cn_monthly_rmb)}})`
+            : `同系直连：${{sfShort}}（${{fmtVal(it.same_family_cn_monthly_rmb)}}）`;
+          routeOpts.push(`<option value="same_family"${{it.route_choice === "same_family" ? " selected" : ""}}>${{esc(sfLabel)}}</option>`);
+        }}
+        const keepShort = shortModelName(it.matched_model, isEn);
+        routeOpts.push(
+          `<option value="keep_current"${{it.route_choice === "keep_current" ? " selected" : ""}}>${{esc(isEn ? `Keep Current: ${{keepShort}}` : `保持原模型：${{keepShort}}`)}}</option>`
+        );
+        const extraCands = (it.candidate_pool || [])
+          .filter(c => c.id !== it.auto_recommended_model.id && (!it.same_family_cn_model || c.id !== it.same_family_cn_model.id) && c.id !== it.matched_model.id)
+          .slice(0, 8);
+        if (extraCands.length > 0) {{
+          const extraHtml = extraCands.map(c => `<option value="${{esc(c.id)}}"${{it.route_choice === c.id ? " selected" : ""}}>${{esc(formatModelTitle(c, isEn))}}</option>`).join("");
+          routeOpts.push(`<optgroup label="${{isEn ? "Other CN Direct Routes" : "其他国内直连方案"}}">${{extraHtml}}</optgroup>`);
+        }}
+
         const savBadge = it.savings_rmb > 0.01
           ? `<span class="badge badge-save" style="margin-left:6px;">${{isEn ? `Save ${{it.savings_pct.toFixed(0)}}%` : `省 ${{it.savings_pct.toFixed(0)}}%`}}</span>`
-          : `<span class="badge badge-neutral" style="margin-left:6px;">${{isEn ? "Optimal" : "已是最优"}}</span>`;
+          : `<span class="badge badge-neutral" style="margin-left:6px;">${{isEn ? "Baseline" : "同基准"}}</span>`;
         const tokText = isEn
           ? `${{fmtNum(it.monthly_requests)}} calls · In ${{it.monthly_input_m.toFixed(1)}}M / Out ${{it.monthly_output_m.toFixed(1)}}M · ${{Math.round(it.cache_hit_rate * 100)}}% cached`
           : `${{fmtNum(it.monthly_requests)}} 次 · 输入 ${{it.monthly_input_m.toFixed(1)}}M / 输出 ${{it.monthly_output_m.toFixed(1)}}M · 缓存 ${{Math.round(it.cache_hit_rate * 100)}}%`;
@@ -3334,7 +3949,11 @@ def render_html_template(
             <td class="mono-cell"><strong>${{esc(it.raw_model)}}</strong><br><span class="table-sub">${{esc(formatModelTitle(it.matched_model, isEn))}}</span></td>
             <td class="mono-cell">${{esc(tokText)}}</td>
             <td class="mono-cell">${{fmtVal(it.baseline_monthly_rmb)}}</td>
-            <td>${{esc(recName)}}</td>
+            <td>
+              <select class="select-sm bill-route-select" data-bill-model="${{esc(it.raw_model)}}" aria-label="${{esc(isEn ? `Route for ${{it.raw_model}}` : `${{it.raw_model}} 替换路由`)}}">
+                ${{routeOpts.join("")}}
+              </select>
+            </td>
             <td class="mono-cell"><strong>${{fmtVal(it.optimized_payg_rmb)}}</strong>${{savBadge}}</td>
           </tr>
         `;
@@ -3360,7 +3979,10 @@ def render_html_template(
       el.innerHTML = `
         <div class="usage-bill-head">
           <div class="usage-bill-title">${{isEn ? `Multi-Model Bill Slim-Down Audit (${{audit.days_observed}}d → 30d Monthly)` : `多模型账单逐行瘦身审计（按 ${{audit.days_observed}} 天折算 30 天整月）`}}</div>
-          <button type="button" class="usage-import-btn" id="copyBillAuditMdBtn">${{isEn ? "Copy Bill Audit Table (Markdown)" : "复制多模型账单审计表 (Markdown)"}}</button>
+          <div class="usage-bill-actions">
+            <button type="button" class="usage-import-btn primary" id="openBillMigrationBtn">${{isEn ? "Generate Migration config.yaml" : "生成零改代码 config.yaml"}}</button>
+            <button type="button" class="usage-import-btn" id="copyBillAuditMdBtn">${{isEn ? "Copy Bill Audit Table (Markdown)" : "复制多模型账单审计表 (Markdown)"}}</button>
+          </div>
         </div>
         <div class="table-scroll" style="padding:0;background:var(--bg-elevated);">
           <table class="ssr-table" aria-label="${{isEn ? "Multi-Model Bill Audit" : "多模型账单逐行瘦身审计"}}">
@@ -4650,10 +5272,61 @@ def render_html_template(
       const copyGuiBtn = document.getElementById("copyGuiBtn");
       const copyEnvBtn = document.getElementById("copyEnvBtn");
       const dlJsonBtn = document.getElementById("downloadSettingsJsonBtn");
+      const dlYamlBtn = document.getElementById("downloadConfigYamlBtn");
       const verifyWrap = document.getElementById("cfgVerifyWrap");
       const verifyHeadEl = document.getElementById("cfgVerifyHeadingEl");
       const verifySnippetEl = document.getElementById("cfgVerifySnippet");
       const copyVerifyBtn = document.getElementById("copyVerifyCmdBtn");
+
+      if (state.modalMode === "litellm_bill_migration") {{
+        const imp = state.lastUsageImport;
+        if (!imp || !imp.parsed || imp.parsed.detected_format !== "csv_multimodel_bill") return;
+        const audit = auditCsvBillWeb(imp.parsed);
+        const mig = audit.migration_litellm_config;
+        const fmtVal = rmb => fmtMoney(rmb / FX, rmb, state.currency);
+        state.modalCurrentSettingsJson = null;
+        state.modalCurrentConfigYaml = mig.config_yaml;
+        if (selectorGrid) selectorGrid.style.display = "none";
+        if (dlJsonBtn) dlJsonBtn.style.display = "none";
+        if (dlYamlBtn) {{
+          dlYamlBtn.style.display = "";
+          dlYamlBtn.textContent = isEn ? I18N_EN.downloadConfigYamlBtn : (ORIG_ZH_I18N.downloadConfigYamlBtn || "下载 config.yaml 网关配置");
+        }}
+        if (verifyWrap) verifyWrap.style.display = "";
+        if (verifyHeadEl) verifyHeadEl.textContent = isEn ? "3. 1-Token Local Proxy Smoke Test" : "3. 1-Token 本地代理网关连通性自检";
+        if (verifySnippetEl) verifySnippetEl.textContent = mig.smoke_test_cmd;
+        if (copyVerifyBtn) copyVerifyBtn.textContent = isEn ? I18N_EN.copyVerifyCmdBtn : (ORIG_ZH_I18N.copyVerifyCmdBtn || "复制 1-Token 连通性自检命令");
+
+        if (titleEl) titleEl.textContent = isEn
+          ? "Zero-Code LiteLLM Bill Migration Config"
+          : "多模型账单零改代码 LiteLLM 迁移网关配置";
+        document.getElementById("cfgModalSubtitle").textContent = isEn
+          ? `${{audit.totals.distinct_models_count}} original model aliases preserved · Optimized ${{fmtVal(audit.totals.optimized_payg_monthly_rmb)}}/mo (Save ${{fmtVal(audit.totals.payg_savings_rmb)}}/mo)`
+          : `${{audit.totals.distinct_models_count}} 款原账单模型别名保持不变 · 优化后按量约 ${{fmtVal(audit.totals.optimized_payg_monthly_rmb)}}/月（月省 ${{fmtVal(audit.totals.payg_savings_rmb)}}）`;
+        if (guiHeadEl) guiHeadEl.textContent = isEn
+          ? "1. Save as config.yaml (Preserves Original Model Names)"
+          : "1. 保存为 config.yaml（原代码 model 名称零修改映射）";
+        if (envHeadEl) envHeadEl.textContent = isEn
+          ? `2. Export ${{mig.distinct_providers_count}} Provider PayG Keys & Launch Proxy`
+          : `2. 导出 ${{mig.distinct_providers_count}} 家渠道按量密钥并启动本地网关`;
+        if (copyGuiBtn) copyGuiBtn.textContent = isEn ? "Copy config.yaml" : "复制 config.yaml 配置";
+        if (copyEnvBtn) copyEnvBtn.textContent = isEn ? "Copy Launch Commands" : "复制启动命令";
+        document.getElementById("cfgModalWarning").textContent = mig.compliance_warning;
+        document.getElementById("cfgGuiSnippet").textContent = mig.config_yaml;
+        document.getElementById("cfgEnvSnippet").textContent = mig.env_snippet;
+        const docLink = document.getElementById("cfgModalDocLink");
+        docLink.href = "https://docs.litellm.ai/docs/proxy/configs";
+        docLink.textContent = isEn ? "Read LiteLLM Proxy Docs" : "查阅 LiteLLM 网关配置文档";
+        const primaryRec = (audit.line_items[0] && audit.line_items[0].recommended_model) || getBaselineModel();
+        const rCta = getModelCtaInfo(primaryRec);
+        const ctaEl = document.getElementById("cfgModalOfficialCta");
+        ctaEl.href = rCta.url;
+        ctaEl.rel = relAttr(rCta.url, primaryRec.provider_config_key);
+        ctaEl.dataset.offerId = rCta.offerId;
+        ctaEl.dataset.cardSlot = "bill_migration_modal";
+        ctaEl.textContent = isEn ? `Get ${{shortModelName(primaryRec, true)}} PayG Key` : `获取 ${{shortModelName(primaryRec, false)}} 按量密钥`;
+        return;
+      }}
 
       if (state.modalMode === "litellm_hybrid") {{
         state.modalCurrentSettingsJson = null;
@@ -4669,6 +5342,11 @@ def render_html_template(
         const hPct = 100 - rPct;
         const cfg = buildLiteLlmRoutingConfig(hy.routineModel, baselineModel, hy.ratio);
         const rCta = getModelCtaInfo(hy.routineModel);
+        state.modalCurrentConfigYaml = cfg.yaml;
+        if (dlYamlBtn) {{
+          dlYamlBtn.style.display = "";
+          dlYamlBtn.textContent = isEn ? I18N_EN.downloadConfigYamlBtn : (ORIG_ZH_I18N.downloadConfigYamlBtn || "下载 config.yaml 网关配置");
+        }}
 
         if (titleEl) titleEl.textContent = isEn
           ? `LiteLLM Tiered Routing Config (${{rPct}}/${{hPct}} Split)`
@@ -4694,6 +5372,9 @@ def render_html_template(
         ctaEl.textContent = isEn ? `Get ${{shortModelName(hy.routineModel, true)}} API Key` : `获取 ${{shortModelName(hy.routineModel, false)}} 按量密钥`;
         return;
       }}
+
+      state.modalCurrentConfigYaml = null;
+      if (dlYamlBtn) dlYamlBtn.style.display = "none";
 
       if (selectorGrid) selectorGrid.style.display = "";
       if (titleEl) titleEl.textContent = isEn
@@ -4760,6 +5441,18 @@ def render_html_template(
       modal.classList.add("open");
       document.getElementById("copyGuiBtn").focus();
       observeOfferCards();
+    }}
+
+    function openBillMigrationModal(triggerEl) {{
+      const modal = document.getElementById("configModal");
+      if (!modal) return;
+      lastModalTrigger = triggerEl || document.activeElement;
+      state.modalMode = "litellm_bill_migration";
+      refreshConfigModalSnippets();
+      modal.classList.add("open");
+      document.getElementById("copyGuiBtn").focus();
+      observeOfferCards();
+      trackEvent("share_copy", {{ slot_id: "bill_migration_modal_open" }});
     }}
 
     function openConfigModalForModel(modelId, triggerEl) {{
@@ -5252,6 +5945,23 @@ def render_html_template(
       }}
     }}
 
+    function renderPrintAuditStamp(baselineModel) {{
+      const el = document.getElementById("printAuditStamp");
+      if (!el) return;
+      const isEn = state.lang === "en";
+      const seats = getSeats();
+      const monthlyCalls = state.dailyCalls * 30;
+      const cacheStr = state.cacheEnabled ? `${{Math.round(state.cacheHitRate * 100)}}%` : "0%";
+      const shareUrl = buildShareUrl();
+      if (isEn) {{
+        const modeEn = state.usageMode === "automated_backend" ? "Automated Backend" : "Interactive Coding IDE";
+        el.innerHTML = `<strong>AI Cost Radar · LLM &amp; Coding Plan Procurement Audit Sheet</strong> · Quotes Verified: <strong>${{esc(QUOTE_VERIFIED_DATE)}}</strong><br>Workload: ${{fmtNum(state.dailyCalls)}} calls/day (${{fmtNum(monthlyCalls)}}/30d · ${{seats}} ${{seats === 1 ? "seat" : "seats"}}) · In ${{fmtNum(state.inputTokens)}} / Out ${{fmtNum(state.outputTokens)}} tok · Cache ${{cacheStr}} · Scenario: ${{modeEn}} · Baseline: ${{esc(formatModelTitle(baselineModel, true))}}<br>Reproducible Audit URL: <span style="font-family:var(--font-mono);word-break:break-all;">${{esc(shareUrl)}}</span>`;
+        return;
+      }}
+      const modeZh = state.usageMode === "automated_backend" ? "非交互式后端" : "交互式编程 IDE";
+      el.innerHTML = `<strong>智算省钱路由台 · 大模型算力与套餐采购核验单</strong> · 报价核验日：<strong>${{esc(QUOTE_VERIFIED_DATE)}}</strong><br>测算负载：日均 ${{fmtNum(state.dailyCalls)}} 次调用（30天 ${{fmtNum(monthlyCalls)}} 次 · ${{seats}} 个席位）· 单次输入 ${{fmtNum(state.inputTokens)}} / 输出 ${{fmtNum(state.outputTokens)}} Token · 缓存命中 ${{cacheStr}} · 场景：${{modeZh}} · 对账基准：${{esc(baselineModel ? baselineModel.name : "")}}<br>可复算核验链接：<span style="font-family:var(--font-mono);word-break:break-all;">${{esc(shareUrl)}}</span>`;
+    }}
+
     function renderCompareTray(baseCost, baselineModel) {{
       const tray = document.getElementById("compareTray");
       if (!tray) return;
@@ -5470,6 +6180,7 @@ def render_html_template(
       renderSelfHostBanner(baseCost);
       renderCompareTray(baseCost, baselineModel);
       renderUsageBillBreakdown();
+      renderPrintAuditStamp(baselineModel);
 
       const q = state.searchQuery.trim().toLowerCase();
       let filtered = regionPool.filter(m => {{
@@ -5649,12 +6360,13 @@ def render_html_template(
       presetPro: "Heavy IDE (2,500/day · 75k/mo)",
       presetOver: "Over-Cap Case (5,000/day · 150k/mo)",
       presetBackend: "Backend API (15,000/day · PayG/Host)",
-      usageImportSummary: "Import from Real Logs or Multi-Model CSV Bill (OpenRouter/Cloud CSV, Claude Code /cost, usage JSON)",
-      usageLogLabel: "Option 1: Upload local CSV/TSV/JSON bill, or paste Claude Code /cost & usage JSON",
+      usageImportSummary: "Import from Real Logs or Multi-Model CSV/JSONL Bill (OpenRouter/Cloud CSV, Claude Code .jsonl & /cost)",
+      usageLogLabel: "Option 1: Upload local CSV/TSV/JSON/JSONL bill, or paste Claude Code /cost & usage JSON",
       usageDaysLabel: "Log Window:",
       applyUsageLogBtn: "Parse & Apply to Calculator",
-      usageFileBtn: "Choose Local Bill (.csv/.tsv/.json)",
+      usageFileBtn: "Choose Local Bill (.csv/.tsv/.json/.jsonl)",
       fillSampleCsvBtn: "Fill Multi-Model CSV Sample",
+      fillSampleJsonlBtn: "Fill Claude Code JSONL Sample",
       fillSampleLogBtn: "Fill Claude Code Sample",
       usagePrivacyNote: "Privacy: Bills & logs are parsed 100% locally in browser memory and never uploaded to any server.",
       usageMonthlyQuickLabel: "Option 2: Convert Monthly Bill Totals (auto-computes daily calls, per-call avg & cache hit %)",
@@ -5689,6 +6401,7 @@ def render_html_template(
       verdictShareHint: "Share current inputs, same-model PayG & plan verdict with your team:",
       copySummaryBtn: "Copy Verdict Brief",
       copyMarkdownBtn: "Copy Markdown Table",
+      printAuditBtn: "Print / Save PDF Audit",
       codingPlanTitle: "2026 CN Coding Plan Subscriptions vs Same-Model Pay-As-You-Go",
       codingPlanDesc: "Aliyun Bailian Pro & Tencent Pro share 6,000/5h · 45,000/wk · 90,000/mo call caps; Tencent Lite is 1,200 / 9,000 / 18,000; Aliyun Lite is closed to new buyers.",
       modelsSectionTitle: "Live Pay-As-You-Go Model Directory (Under Identical Workload)",
@@ -5710,6 +6423,7 @@ def render_html_template(
       cfgEnvHeading: "Terminal Export Snippet",
       copyGuiBtn: "Copy Base URL & Model Parameters",
       downloadSettingsJsonBtn: "Download settings.json",
+      downloadConfigYamlBtn: "Download config.yaml",
       copyEnvBtn: "Copy Export Commands",
       cfgVerifyHeading: "1-Token Connectivity Smoke Test (Prevent Misbilling)",
       copyVerifyCmdBtn: "Copy 1-Token Smoke Test Command",
@@ -5951,6 +6665,50 @@ def render_html_template(
         }});
       }}
 
+      const fillSampleJsonlBtn = document.getElementById("fillSampleJsonlBtn");
+      if (fillSampleJsonlBtn) {{
+        fillSampleJsonlBtn.addEventListener("click", () => {{
+          const sampleJsonl = [
+            JSON.stringify({{
+              type: "assistant",
+              message: {{
+                id: "msg_cc_stream_01",
+                model: "claude-sonnet-4-20250514",
+                usage: {{ input_tokens: 4000, cache_creation_input_tokens: 0, cache_read_input_tokens: 36000, output_tokens: 200 }}
+              }}
+            }}),
+            JSON.stringify({{
+              type: "assistant",
+              message: {{
+                id: "msg_cc_stream_01",
+                model: "claude-sonnet-4-20250514",
+                usage: {{ input_tokens: 4000, cache_creation_input_tokens: 0, cache_read_input_tokens: 36000, output_tokens: 1800 }}
+              }}
+            }}),
+            JSON.stringify({{
+              type: "assistant",
+              message: {{
+                id: "msg_cc_stream_02",
+                model: "deepseek-reasoner",
+                usage: {{ prompt_tokens: 12000, completion_tokens: 3500, prompt_tokens_details: {{ cached_tokens: 8000 }}, completion_tokens_details: {{ reasoning_tokens: 2200 }} }}
+              }}
+            }}),
+            JSON.stringify({{
+              type: "assistant",
+              message: {{
+                id: "msg_cc_stream_03",
+                model: "qwen3-coder-next",
+                usage: {{ prompt_tokens: 16000, completion_tokens: 2400, prompt_tokens_details: {{ cached_tokens: 10000 }} }}
+              }}
+            }})
+          ].join("\\n");
+          const ta = document.getElementById("usageLogTextarea");
+          const ds = document.getElementById("usageDaysSelect");
+          if (ta) ta.value = sampleJsonl;
+          if (ds) ds.value = "1";
+        }});
+      }}
+
       const fillSampleBtn = document.getElementById("fillSampleLogBtn");
       if (fillSampleBtn) {{
         fillSampleBtn.addEventListener("click", () => {{
@@ -5969,7 +6727,8 @@ def render_html_template(
         }});
       }}
 
-      const applyParsedUsageSnippet = parsed => {{
+      const applyParsedUsageSnippet = (parsed, slotOverride) => {{
+        state.billRowOverrides = {{}};
         state.dailyCalls = Math.min(2000000, Math.max(1, parsed.daily_requests));
         state.inputTokens = Math.min(500000, Math.max(1, parsed.avg_input_tokens));
         state.outputTokens = Math.min(128000, Math.max(1, parsed.avg_output_tokens));
@@ -6009,11 +6768,15 @@ def render_html_template(
         document.getElementById("outputTokensRange").value = String(Math.min(8000, state.outputTokens));
         document.getElementById("cacheToggle").checked = state.cacheEnabled;
         document.querySelectorAll("#presetBar .preset-btn, [data-prompt-calls]").forEach(b => b.classList.remove("active"));
+        const drawerEl = document.getElementById("usageImportDrawer");
+        if (drawerEl && parsed.detected_format === "csv_multimodel_bill") {{
+          drawerEl.open = true;
+        }}
         state.lastUsageImport = {{ mode: "log_snippet", parsed }};
         renderUsageImportStatus();
         renderUsageBillBreakdown();
         updateAll(true);
-        trackEvent("usage_import", {{ slot_id: parsed.detected_format }});
+        trackEvent("usage_import", {{ slot_id: slotOverride || parsed.source_format || parsed.detected_format }});
       }};
 
       const usageFileInput = document.getElementById("usageFileInput");
@@ -6038,7 +6801,7 @@ def render_html_template(
             const daysVal = Number(document.getElementById("usageDaysSelect")?.value || 30) || 30;
             try {{
               const parsed = parseUsageSnippet(rawText, daysVal);
-              applyParsedUsageSnippet(parsed);
+              applyParsedUsageSnippet(parsed, "file_upload");
             }} catch (_) {{
               state.lastUsageImport = {{ error: "parse_failed" }};
               renderUsageImportStatus();
@@ -6303,6 +7066,35 @@ def render_html_template(
         copyTextWithFeedback(mdText, e.currentTarget, state.lang === "en" ? "Markdown Table Copied" : "已复制 Markdown 选型表");
       }});
 
+      let drawerClosedBeforePrint = false;
+      window.addEventListener("beforeprint", () => {{
+        const drawer = document.getElementById("usageImportDrawer");
+        if (drawer && drawer.classList.contains("has-bill-audit") && !drawer.open) {{
+          drawerClosedBeforePrint = true;
+          drawer.open = true;
+        }}
+      }});
+      window.addEventListener("afterprint", () => {{
+        const drawer = document.getElementById("usageImportDrawer");
+        if (drawer && drawerClosedBeforePrint) {{
+          drawer.open = false;
+          drawerClosedBeforePrint = false;
+        }}
+      }});
+
+      const printAuditBtn = document.getElementById("printAuditBtn");
+      if (printAuditBtn) {{
+        printAuditBtn.addEventListener("click", () => {{
+          const shareUrl = buildShareUrl();
+          try {{
+            window.history.replaceState(null, "", shareUrl);
+          }} catch (_) {{}}
+          renderPrintAuditStamp(getBaselineModel());
+          trackEvent("share_summary", {{ slot_id: "print_pdf_audit" }});
+          window.print();
+        }});
+      }}
+
       document.getElementById("themeToggleBtn").addEventListener("click", () => {{
         applyTheme(state.theme === "dark" ? "light" : "dark");
       }});
@@ -6314,6 +7106,17 @@ def render_html_template(
       document.getElementById("cfgBillingModeSelect").addEventListener("change", refreshConfigModalSnippets);
 
       document.addEventListener("change", e => {{
+        if (e.target && e.target.classList && e.target.classList.contains("bill-route-select")) {{
+          const modelKey = e.target.getAttribute("data-bill-model");
+          if (modelKey) {{
+            state.billRowOverrides[modelKey] = e.target.value || "auto";
+            renderUsageBillBreakdown();
+            if (document.getElementById("configModal").classList.contains("open") && state.modalMode === "litellm_bill_migration") {{
+              refreshConfigModalSnippets();
+            }}
+          }}
+          return;
+        }}
         if (e.target && e.target.id === "semanticCacheRateSelect") {{
           const v = Number(e.target.value);
           if (Number.isFinite(v) && v >= 0 && v <= 0.9) {{
@@ -6332,6 +7135,11 @@ def render_html_template(
       }});
 
       document.addEventListener("click", e => {{
+        const openBillMigBtn = e.target.closest("#openBillMigrationBtn");
+        if (openBillMigBtn) {{
+          openBillMigrationModal(openBillMigBtn);
+          return;
+        }}
         const copyBillMdBtn = e.target.closest("#copyBillAuditMdBtn");
         if (copyBillMdBtn) {{
           const imp = state.lastUsageImport;
@@ -6441,6 +7249,22 @@ def render_html_template(
           document.body.removeChild(a);
           setTimeout(() => URL.revokeObjectURL(url), 1000);
           trackEvent("share_copy", {{ slot_id: "claude_settings_json" }});
+        }});
+      }}
+      const dlYamlBtn = document.getElementById("downloadConfigYamlBtn");
+      if (dlYamlBtn) {{
+        dlYamlBtn.addEventListener("click", () => {{
+          if (!state.modalCurrentConfigYaml) return;
+          const blob = new Blob([state.modalCurrentConfigYaml + "\\n"], {{ type: "text/yaml;charset=utf-8" }});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "config.yaml";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          trackEvent("share_copy", {{ slot_id: state.modalMode === "litellm_bill_migration" ? "bill_migration_yaml" : "hybrid_routing_yaml" }});
         }});
       }}
       document.getElementById("copyEnvBtn").addEventListener("click", e => {{

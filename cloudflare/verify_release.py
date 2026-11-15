@@ -132,6 +132,21 @@ def main():
             assert "bill_audit" in csv_budget and csv_budget["bill_audit"]["totals"]["distinct_models_count"] == 3, (
                 f"Unexpected /api/budget bill_audit: {csv_budget}"
             )
+            assert "migration_litellm_config" in csv_budget["bill_audit"] and "model_list:" in csv_budget["bill_audit"]["migration_litellm_config"]["config_yaml"], (
+                f"Missing migration_litellm_config in /api/budget: {csv_budget}"
+            )
+            jsonl_sample = (
+                '{"type":"assistant","message":{"id":"msg_v1","model":"claude-sonnet-4-20250514","usage":{"input_tokens":2000,"cache_read_input_tokens":18000,"output_tokens":1000}}}\n'
+                '{"type":"assistant","message":{"id":"msg_v2","model":"deepseek-reasoner","usage":{"prompt_tokens":8000,"completion_tokens":2000}}}\n'
+            )
+            st_jsonl, body_jsonl = request_remote(
+                f"api/budget?model_id=auto&usage_snippet={quote(jsonl_sample, safe='')}&days_observed=1&team_size=1"
+            )
+            assert st_jsonl == 200, f"/api/budget JSONL bill_audit returned HTTP {st_jsonl}: {body_jsonl}"
+            jsonl_budget = json.loads(body_jsonl)
+            assert jsonl_budget.get("parsed_usage_summary", {}).get("source_format") == "jsonl_multimodel", (
+                f"Unexpected JSONL parsed_usage_summary: {jsonl_budget}"
+            )
             st_feed, body_feed = request_remote("feeds/price-changes.xml")
             assert st_feed == 200 and "<feed" in body_feed, f"/feeds/price-changes.xml returned HTTP {st_feed}"
             st_admin, _ = request_remote("admin/stats")

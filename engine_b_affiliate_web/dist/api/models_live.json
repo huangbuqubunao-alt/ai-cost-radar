@@ -7,11 +7,11 @@
   "build_date": "2026-11-15",
   "updated_at": "2026-11-15",
   "quote_verified_date": "2026-11-13",
-  "last_live_verified_at": "2026-11-15 00:29:11",
+  "last_live_verified_at": "2026-11-15 01:47:06",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
   "official_rule_audit": {
-    "checked_at": "2026-11-15T00:29:11Z",
+    "checked_at": "2026-11-15T01:47:06Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -23,7 +23,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-15T00:29:11Z",
+        "last_verified_at": "2026-11-15T01:47:06Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -33,10 +33,15 @@
       {
         "plan_id": "tencent-coding-plan",
         "url": "https://cloud.tencent.com/document/product/1823/130092",
-        "status": "csr_shell_manual_check",
-        "matched_groups": [],
+        "status": "verified_markers",
+        "matched_groups": [
+          "lite_monthly_cap_18k",
+          "lite_renewal_40",
+          "pro_monthly_cap_90k",
+          "pro_renewal_200"
+        ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-15T00:24:53Z",
+        "last_verified_at": "2026-11-15T01:47:06Z",
         "last_verified_groups": [
           "lite_monthly_cap_18k",
           "lite_renewal_40",
@@ -47,14 +52,10 @@
       {
         "plan_id": "volcengine-coding-plan",
         "url": "https://www.volcengine.com/docs/82379/1925114",
-        "status": "verified_markers",
-        "matched_groups": [
-          "tiers_lite_pro",
-          "quota_window_5h",
-          "dedicated_coding_endpoint",
-          "interactive_ide_only"
-        ],
+        "status": "unreachable",
+        "matched_groups": [],
         "missing_groups": [],
+        "note": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1081)>",
         "last_verified_at": "2026-11-15T00:29:11Z",
         "last_verified_groups": [
           "tiers_lite_pro",
@@ -66,6 +67,14 @@
     ]
   },
   "price_changes": [
+    {
+      "detected_at": "2026-11-15T01:47:06Z",
+      "entity_type": "model",
+      "id": "qwen/qwen3.5-9b",
+      "name": "Qwen: Qwen3.5-9B",
+      "change_type": "price_update",
+      "summary_zh": "输入单价 $0.054 -> $0.029 / 1M，输出单价 $0.079 -> $0.043 / 1M"
+    },
     {
       "detected_at": "2026-11-15T00:29:11Z",
       "entity_type": "model",
@@ -561,6 +570,41 @@
       "signup_url": "https://openrouter.ai"
     },
     {
+      "id": "qwen/qwen3.5-9b",
+      "anchor_id": "model-qwen-qwen3-5-9b",
+      "name": "Qwen: Qwen3.5-9B",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "qwen/qwen3.5-9b",
+      "cache_hit_factor": 0.5,
+      "perf_note": "",
+      "affiliate_url": "https://openrouter.ai",
+      "region": "global",
+      "input_usd_per_1m": 0.029,
+      "output_usd_per_1m": 0.043,
+      "input_rmb_per_1m": 0.2088,
+      "output_rmb_per_1m": 0.3096,
+      "blended_usd_per_1m": 0.0325,
+      "blended_rmb_per_1m": 0.234,
+      "context_length": 262144,
+      "supports_tools": true,
+      "is_free": false,
+      "has_free_quota": false,
+      "is_batch": false,
+      "open_weights": true,
+      "value_score": 93.9,
+      "tags": [
+        "cheap",
+        "coding",
+        "global",
+        "reasoning"
+      ],
+      "bonus_note": "统一多模型按量网关",
+      "bonus_note_en": "Unified Multi-LLM API",
+      "signup_url": "https://openrouter.ai"
+    },
+    {
       "id": "deepseek/deepseek-v4.1-flash-1017",
       "anchor_id": "model-deepseek-deepseek-v4-1-flash-1017",
       "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
@@ -629,41 +673,6 @@
       "bonus_note": "新客免费 Token 额度",
       "bonus_note_en": "Free Signup Tokens",
       "signup_url": "https://bailian.console.aliyun.com/?userCode=vlxk7knp"
-    },
-    {
-      "id": "qwen/qwen3.5-9b",
-      "anchor_id": "model-qwen-qwen3-5-9b",
-      "name": "Qwen: Qwen3.5-9B",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "qwen/qwen3.5-9b",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "affiliate_url": "https://openrouter.ai",
-      "region": "global",
-      "input_usd_per_1m": 0.054,
-      "output_usd_per_1m": 0.079,
-      "input_rmb_per_1m": 0.3888,
-      "output_rmb_per_1m": 0.5688,
-      "blended_usd_per_1m": 0.0602,
-      "blended_rmb_per_1m": 0.4338,
-      "context_length": 262144,
-      "supports_tools": true,
-      "is_free": false,
-      "has_free_quota": false,
-      "is_batch": false,
-      "open_weights": true,
-      "value_score": 93.1,
-      "tags": [
-        "cheap",
-        "coding",
-        "global",
-        "reasoning"
-      ],
-      "bonus_note": "统一多模型按量网关",
-      "bonus_note_en": "Unified Multi-LLM API",
-      "signup_url": "https://openrouter.ai"
     },
     {
       "id": "openai/gpt-6-luna-pro",

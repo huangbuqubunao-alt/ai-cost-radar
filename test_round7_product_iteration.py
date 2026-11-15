@@ -259,7 +259,7 @@ class Round7Batch2WebUiAndPipelineTests(unittest.TestCase):
     def test_04_web_multimodel_csv_bill_upload_breakdown_and_gfm_export(self) -> None:
         index_html = (self.dist_dir / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="usageFileInput"', index_html)
-        self.assertIn('accept=".csv,.tsv,.json,.txt,.log"', index_html)
+        self.assertRegex(index_html, r'accept="\.csv,\.tsv,\.json(?:,\.jsonl)?,\.txt,\.log"')
         self.assertIn('id="fillSampleCsvBtn"', index_html)
         self.assertIn('data-i18n="usagePrivacyNote"', index_html)
         self.assertIn('id="usageBillBreakdown"', index_html)

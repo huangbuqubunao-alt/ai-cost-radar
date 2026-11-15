@@ -244,6 +244,8 @@ function tryParseCsvBill(text, days, fxRate = 7.2) {
 
   return {
     detected_format: "csv_multimodel_bill",
+    source_format: "csv_multimodel",
+    deduplicated_chunks: 0,
     days_observed: days,
     distinct_models_count: modelBreakdown.length,
     total_requests: Math.round(totalReqs),
@@ -265,11 +267,284 @@ function tryParseCsvBill(text, days, fxRate = 7.2) {
   };
 }
 
+export function tryParseJsonRecordsBill(text, days, fxRate = 7.2) {
+  let rawRecords = null;
+  let sourceFormat = null;
+
+  if (text.startsWith("[") && text.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        rawRecords = parsed.filter((x) => x && typeof x === "object" && !Array.isArray(x));
+        sourceFormat = "json_array_multimodel";
+      }
+    } catch {
+      rawRecords = null;
+    }
+  } else if (text.startsWith("{") && text.endsWith("}")) {
+    try {
+      const single = JSON.parse(text);
+      if (single && typeof single === "object" && !Array.isArray(single)) {
+        for (const listKey of ["data", "records", "logs", "items", "generations"]) {
+          const cand = single[listKey];
+          if (Array.isArray(cand) && cand.some((x) => x && typeof x === "object" && !Array.isArray(x))) {
+            rawRecords = cand.filter((x) => x && typeof x === "object" && !Array.isArray(x));
+            sourceFormat = "json_array_multimodel";
+            break;
+          }
+        }
+        if (!rawRecords) {
+          const msgObj = single.message;
+          const respObj = single.response;
+          if (
+            (msgObj && typeof msgObj === "object" && ((msgObj.usage && typeof msgObj.usage === "object") || ["user", "assistant", "summary", "system"].includes(single.type))) ||
+            (respObj && typeof respObj === "object" && respObj.body && typeof respObj.body === "object")
+          ) {
+            rawRecords = [single];
+            sourceFormat = "jsonl_multimodel";
+          }
+        }
+      }
+    } catch {
+      const lines = text
+        .split(/\r?\n/)
+        .map((ln) => ln.trim())
+        .filter((ln) => ln && !ln.startsWith("#"));
+      if (lines.length >= 2) {
+        const parsedLines = [];
+        let allJsonLines = true;
+        for (const ln of lines) {
+          if (ln.startsWith("{") && ln.endsWith("}")) {
+            try {
+              const obj = JSON.parse(ln);
+              if (obj && typeof obj === "object" && !Array.isArray(obj)) parsedLines.push(obj);
+              else allJsonLines = false;
+            } catch {
+              allJsonLines = false;
+            }
+          } else {
+            allJsonLines = false;
+          }
+        }
+        if (parsedLines.length >= 2 || (allJsonLines && parsedLines.length >= 1)) {
+          rawRecords = parsedLines;
+          sourceFormat = "jsonl_multimodel";
+        }
+      }
+    }
+  }
+
+  if (!rawRecords || !sourceFormat) return null;
+
+  const safeNum = (v) => {
+    if (v === undefined || v === null || typeof v === "object" || typeof v === "boolean") return 0;
+    try {
+      return parseScaledNumber(v);
+    } catch {
+      return 0;
+    }
+  };
+  const firstVal = (obj, keys) => {
+    if (!obj || typeof obj !== "object") return null;
+    for (const k of keys) {
+      const val = obj[k];
+      if (val !== undefined && val !== null && typeof val !== "object" && typeof val !== "boolean") return val;
+    }
+    return null;
+  };
+
+  const skipTypes = new Set(["user", "summary", "system", "file-history-snapshot", "queue-operation"]);
+  const summaryLabels = new Set(["total", "totals", "sum", "summary", "合计", "总计", "汇总", "小计"]);
+  const dedupedEntries = new Map();
+  const anonEntries = [];
+  let deduplicatedChunks = 0;
+
+  for (const rec of rawRecords) {
+    if (skipTypes.has(String(rec.type || "").trim().toLowerCase())) continue;
+    const msg = rec.message && typeof rec.message === "object" ? rec.message : {};
+    const resp = rec.response && typeof rec.response === "object" ? rec.response : {};
+    const body = resp.body && typeof resp.body === "object" ? resp.body : {};
+    const u =
+      (msg.usage && typeof msg.usage === "object" ? msg.usage : null) ||
+      (body.usage && typeof body.usage === "object" ? body.usage : null) ||
+      (rec.usage && typeof rec.usage === "object" ? rec.usage : null) ||
+      {};
+
+    const modelRaw =
+      firstVal(rec, ["model_permaslug", "model", "model_id", "model_name", "api_model_id"]) ||
+      firstVal(msg, ["model", "model_id"]) ||
+      firstVal(body, ["model", "model_id"]) ||
+      "unknown";
+    const modelLabel = String(modelRaw).trim() || "unknown";
+    if (summaryLabels.has(modelLabel.toLowerCase())) continue;
+
+    const merged = {...rec, ...body, ...msg, ...u};
+    let rowIn = 0;
+    let rowCached = 0;
+    if ("cache_read_input_tokens" in merged || "cache_creation_input_tokens" in merged) {
+      const uncached = safeNum(merged.input_tokens);
+      const cRead = safeNum(merged.cache_read_input_tokens);
+      const cWrite = safeNum(merged.cache_creation_input_tokens);
+      rowIn = uncached + cRead + cWrite;
+      rowCached = cRead;
+    } else {
+      const pDet = merged.prompt_tokens_details && typeof merged.prompt_tokens_details === "object" ? merged.prompt_tokens_details : {};
+      const inDet = merged.input_tokens_details && typeof merged.input_tokens_details === "object" ? merged.input_tokens_details : {};
+      const inVal = safeNum(firstVal(merged, ["prompt_tokens", "native_tokens_prompt", "tokens_prompt", "input_tokens", "total_input_tokens"]));
+      const cRaw = pDet.cached_tokens ?? inDet.cached_tokens ?? firstVal(merged, ["native_tokens_cached", "cached_tokens", "cached_input_tokens", "cache_hit_tokens"]);
+      const cVal = safeNum(cRaw);
+      rowIn = Math.max(inVal, cVal);
+      rowCached = Math.min(rowIn, cVal);
+    }
+
+    const outVal = safeNum(firstVal(merged, ["completion_tokens", "native_tokens_completion", "tokens_completion", "output_tokens", "total_output_tokens"]));
+    const cDet = merged.completion_tokens_details && typeof merged.completion_tokens_details === "object" ? merged.completion_tokens_details : {};
+    const oDet = merged.output_tokens_details && typeof merged.output_tokens_details === "object" ? merged.output_tokens_details : {};
+    const rRaw = cDet.reasoning_tokens ?? oDet.reasoning_tokens ?? firstVal(merged, ["native_tokens_reasoning", "reasoning_tokens", "thinking_tokens"]);
+    const reasonVal = safeNum(rRaw);
+
+    if (rowIn <= 0 && outVal <= 0) continue;
+
+    const reqRaw = firstVal(rec, ["requests", "total_requests", "calls", "api_calls", "num_requests", "request_count"]);
+    const rowReqs = reqRaw !== null ? Math.max(1, safeNum(reqRaw)) : 1;
+
+    const rmbCostRaw = firstVal(rec, ["cost_rmb", "spend_rmb", "cost_cny", "应付金额", "账单金额"]);
+    let usdCostRaw = firstVal(rec, ["spend", "response_cost", "cost_usd", "costUSD", "total_cost", "cost"]);
+    if (usdCostRaw === null && rec.usage !== undefined && rec.usage !== null && typeof rec.usage !== "object" && typeof rec.usage !== "boolean") {
+      usdCostRaw = rec.usage;
+    }
+    const rowCostRmb = rmbCostRaw !== null
+      ? parseCurrencyRmb(rmbCostRaw, "costrmb", fxRate)
+      : (usdCostRaw !== null ? parseCurrencyRmb(usdCostRaw, "costusd", fxRate) : 0);
+
+    let dedupeId = null;
+    if (reqRaw === null) {
+      if (msg.id) dedupeId = `msg:${msg.id}`;
+      else if (body.id) dedupeId = `body:${body.id}`;
+      else if (rec.generation_id) dedupeId = `gen:${rec.generation_id}`;
+      else if (rec.request_id) dedupeId = `req:${rec.request_id}`;
+      else if (rec.id) dedupeId = `id:${rec.id}`;
+    }
+
+    const entry = {
+      model: modelLabel,
+      requests: rowReqs,
+      input_tokens: rowIn,
+      cached_input_tokens: rowCached,
+      output_tokens: outVal,
+      reasoning_tokens: reasonVal,
+      reported_cost_rmb: rowCostRmb,
+    };
+
+    if (dedupeId) {
+      if (dedupedEntries.has(dedupeId)) {
+        deduplicatedChunks += 1;
+        const prev = dedupedEntries.get(dedupeId);
+        for (const k of ["requests", "input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "reported_cost_rmb"]) {
+          prev[k] = Math.max(prev[k], entry[k]);
+        }
+        if (prev.model === "unknown" && entry.model !== "unknown") prev.model = entry.model;
+      } else {
+        dedupedEntries.set(dedupeId, entry);
+      }
+    } else {
+      anonEntries.push(entry);
+    }
+  }
+
+  const allEntries = [...dedupedEntries.values(), ...anonEntries];
+  if (allEntries.length === 0) throw new Error("JSON/JSONL bill contains zero positive token records");
+
+  const groups = new Map();
+  for (const ent of allEntries) {
+    const gKey = ent.model.toLowerCase();
+    if (!groups.has(gKey)) {
+      groups.set(gKey, {
+        model: ent.model,
+        requests: 0,
+        input_tokens: 0,
+        cached_input_tokens: 0,
+        output_tokens: 0,
+        reasoning_tokens: 0,
+        reported_cost_rmb: 0,
+      });
+    }
+    const grp = groups.get(gKey);
+    grp.requests += ent.requests;
+    grp.input_tokens += ent.input_tokens;
+    grp.cached_input_tokens += ent.cached_input_tokens;
+    grp.output_tokens += ent.output_tokens;
+    grp.reasoning_tokens += ent.reasoning_tokens;
+    grp.reported_cost_rmb += ent.reported_cost_rmb;
+  }
+
+  const sortedGroups = [...groups.values()].sort(
+    (a, b) => (b.reported_cost_rmb - a.reported_cost_rmb) || ((b.input_tokens + b.output_tokens) - (a.input_tokens + a.output_tokens))
+  );
+  let totalReqs = 0;
+  let totalIn = 0;
+  let totalCached = 0;
+  let totalOut = 0;
+  let totalReason = 0;
+  let totalCostRmb = 0;
+  const modelBreakdown = sortedGroups.map((g) => {
+    const gIn = g.input_tokens;
+    const gCached = Math.min(gIn, Math.max(0, g.cached_input_tokens));
+    totalReqs += g.requests;
+    totalIn += gIn;
+    totalCached += gCached;
+    totalOut += g.output_tokens;
+    totalReason += g.reasoning_tokens;
+    totalCostRmb += g.reported_cost_rmb;
+    return {
+      model: g.model,
+      requests: Math.round(g.requests),
+      input_tokens: Math.round(gIn),
+      cached_input_tokens: Math.round(gCached),
+      output_tokens: Math.round(g.output_tokens),
+      reasoning_tokens: Math.round(g.reasoning_tokens),
+      cache_hit_rate: gIn > 0 ? Math.round((gCached / gIn) * 10000) / 10000 : 0,
+      output_includes_reasoning: g.reasoning_tokens > 0,
+      reported_cost_rmb: Math.round((g.reported_cost_rmb + Number.EPSILON) * 10000) / 10000,
+    };
+  });
+
+  const cacheHitRate = totalIn > 0 ? Math.round((totalCached / totalIn) * 10000) / 10000 : 0;
+  const dailyRequests = Math.max(1, Math.round(totalReqs / days));
+  const monthlyRequests = Math.max(1, Math.round((totalReqs / days) * 30));
+  return {
+    detected_format: "csv_multimodel_bill",
+    source_format: sourceFormat,
+    deduplicated_chunks: deduplicatedChunks,
+    days_observed: days,
+    distinct_models_count: modelBreakdown.length,
+    total_requests: Math.round(totalReqs),
+    monthly_requests: monthlyRequests,
+    total_input_tokens: Math.round(totalIn),
+    cached_input_tokens: Math.round(totalCached),
+    total_output_tokens: Math.round(totalOut),
+    monthly_input_m: Math.round((((totalIn / days) * 30) / 1e6) * 1e6) / 1e6,
+    monthly_output_m: Math.round((((totalOut / days) * 30) / 1e6) * 1e6) / 1e6,
+    daily_requests: dailyRequests,
+    avg_input_tokens: totalIn > 0 ? Math.max(1, Math.round(totalIn / Math.max(1, totalReqs))) : 1500,
+    avg_output_tokens: totalOut > 0 ? Math.max(1, Math.round(totalOut / Math.max(1, totalReqs))) : 500,
+    cache_hit_rate: cacheHitRate,
+    output_includes_reasoning: totalReason > 0,
+    calls_estimated: false,
+    reported_cost_rmb: Math.round((totalCostRmb + Number.EPSILON) * 100) / 100,
+    monthly_reported_cost_rmb: Math.round((((totalCostRmb / days) * 30) + Number.EPSILON) * 100) / 100,
+    model_breakdown: modelBreakdown,
+  };
+}
+
 export function parseUsageSnippet(rawText, daysObserved = 30, defaultTokensPerCall = 4000) {
   const text = String(rawText ?? "").trim();
   if (!text || text.length > 32000) throw new Error("Invalid usage_snippet");
   let days = Number(daysObserved ?? 30);
   if (!Number.isFinite(days) || days <= 0 || days > 365) throw new Error("Invalid days_observed");
+
+  const jsonRecordsParsed = tryParseJsonRecordsBill(text, days);
+  if (jsonRecordsParsed) return jsonRecordsParsed;
 
   let totalInput = 0;
   let cachedInput = 0;
@@ -466,6 +741,28 @@ export function resolveModelFuzzy(models, rawId) {
   if (strict) return strict;
   if (!models || models.length === 0) return null;
   const raw = String(rawId || "deepseek-v3").trim().toLowerCase();
+  const stripped = raw.replace(/-(?:20\d{2}-\d{2}-\d{2}|20\d{6}|\d{4})$/, "");
+  const slugBase = stripped.split("/").slice(-1)[0];
+  const aliasCands = [];
+  if (stripped !== raw) aliasCands.push(stripped, slugBase);
+  if (slugBase === "deepseek-reasoner" || slugBase === "r1") aliasCands.push("deepseek-r1");
+  else if (slugBase === "deepseek-chat" || slugBase === "v3") aliasCands.push("deepseek-v3");
+  else if (["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1-nano", "o1-mini", "o3-mini", "o4-mini"].includes(slugBase)) {
+    aliasCands.push("openai/gpt-5.4-mini", "openai/gpt-5-mini");
+  } else if (slugBase.startsWith("gpt-4") || slugBase.startsWith("chatgpt-4o") || ["o1", "o3", "o3-pro"].includes(slugBase)) {
+    aliasCands.push("openai/gpt-5.4", "openai/gpt-5.5");
+  } else if (slugBase.includes("claude") && slugBase.includes("sonnet")) {
+    aliasCands.push("anthropic/claude-sonnet-5.5", "anthropic/claude-sonnet-5");
+  } else if (slugBase.includes("claude") && slugBase.includes("opus")) {
+    aliasCands.push("anthropic/claude-opus-5.5", "anthropic/claude-opus-5");
+  } else if (slugBase.includes("claude") && slugBase.includes("haiku")) {
+    aliasCands.push("anthropic/claude-haiku-5.5");
+  }
+  for (const ca of aliasCands) {
+    const hit = resolveCatalogModel(models, ca);
+    if (hit) return hit;
+  }
+
   const wantsFree = raw.includes("free");
   const qTokens = raw.replace(/[/-]/g, " ").split(/\s+/).filter(Boolean);
   let best = null;
@@ -493,6 +790,100 @@ export function resolveModelFuzzy(models, rawId) {
     }
   }
   return best || models[0];
+}
+
+function resolveModelEnvKeyVar(model) {
+  const pkey = String(model?.provider_config_key || "").toLowerCase();
+  const base = String(model?.api_base_url || "").toLowerCase();
+  if (pkey === "aliyun_bailian_url" || base.includes("dashscope.aliyuncs.com")) return "DASHSCOPE_API_KEY";
+  if (pkey === "tencent_cps_url" || base.includes("lkeap.cloud.tencent.com")) return "TENCENT_LKEAP_API_KEY";
+  if (pkey === "volcengine_ark_url" || base.includes("volces.com")) return "VOLCENGINE_ARK_API_KEY";
+  if (pkey === "siliconflow_invite_url" || base.includes("siliconflow.cn")) return "SILICONFLOW_API_KEY";
+  return "OPENROUTER_API_KEY";
+}
+
+function resolveModelApiBase(model) {
+  const base = String(model?.api_base_url || "").trim();
+  if (base) return base;
+  return model?.region === "global" ? "https://openrouter.ai/api/v1" : "https://dashscope.aliyuncs.com/compatible-mode/v1";
+}
+
+function findSameFamilyCnCandidates(rawModelName, workhorses) {
+  const rawLow = String(rawModelName || "").toLowerCase();
+  if (rawLow.includes("deepseek-r1") || rawLow.includes("deepseek-reasoner") || rawLow.endsWith("/r1")) {
+    return workhorses.filter((c) => String(c.id || "").toLowerCase().includes("deepseek-r1"));
+  }
+  if (rawLow.includes("deepseek-v3") || rawLow.includes("deepseek-chat")) {
+    return workhorses.filter((c) => String(c.id || "").toLowerCase().includes("deepseek-v3"));
+  }
+  if (rawLow.includes("qwen3-coder") || rawLow.includes("qwen-coder")) {
+    return workhorses.filter((c) => {
+      const idLow = String(c.id || "").toLowerCase();
+      return idLow.includes("qwen") && idLow.includes("coder");
+    });
+  }
+  if (rawLow.includes("qwen")) return workhorses.filter((c) => String(c.id || "").toLowerCase().includes("qwen"));
+  if (rawLow.includes("glm")) return workhorses.filter((c) => String(c.id || "").toLowerCase().includes("glm"));
+  if (rawLow.includes("kimi") || rawLow.includes("moonshot")) return workhorses.filter((c) => String(c.id || "").toLowerCase().includes("kimi"));
+  if (rawLow.includes("minimax")) return workhorses.filter((c) => String(c.id || "").toLowerCase().includes("minimax"));
+  if (rawLow.includes("doubao")) return workhorses.filter((c) => String(c.id || "").toLowerCase().includes("doubao"));
+  if (rawLow.includes("hunyuan")) return workhorses.filter((c) => String(c.id || "").toLowerCase().includes("hunyuan"));
+  return [];
+}
+
+export function buildBillMigrationLiteLlmConfig(lineItems) {
+  const yamlLines = [
+    "# AI Cost Radar — Zero-Code Multi-Model Bill Migration (LiteLLM Proxy)",
+    "# Compliance: Use standard Pay-As-You-Go API keys ONLY (NEVER use sk-sp- Coding Plan keys).",
+    "model_list:",
+  ];
+  const requiredEnvVars = [];
+  for (const item of lineItems) {
+    const aliasEsc = String(item.raw_model || "default").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const apiMid = String(item.recommended_api_model_id || item.recommended_model_id || "deepseek-v3");
+    const apiBase = String(item.recommended_api_base_url || "https://dashscope.aliyuncs.com/compatible-mode/v1");
+    const envVar = String(item.recommended_env_key_var || "DASHSCOPE_API_KEY");
+    if (!requiredEnvVars.includes(envVar)) requiredEnvVars.push(envVar);
+    yamlLines.push(
+      `  - model_name: "${aliasEsc}"`,
+      "    litellm_params:",
+      `      model: openai/${apiMid}`,
+      `      api_base: ${apiBase}`,
+      `      api_key: os.environ/${envVar}`
+    );
+  }
+  yamlLines.push(
+    "",
+    "router_settings:",
+    "  routing_strategy: simple-shuffle",
+    "  num_retries: 2",
+    "  timeout: 60"
+  );
+  const envLines = requiredEnvVars.map(
+    (v) => `export ${v}="sk-your-${v.toLowerCase().replace("_api_key", "")}-payg-key"`
+  );
+  envLines.push(
+    'export LITELLM_MASTER_KEY="sk-local-bill-migration-proxy"',
+    "",
+    "# 启动本地零改代码迁移网关（业务代码无需改 model 名，仅需设 OPENAI_BASE_URL=http://127.0.0.1:4000/v1）",
+    "uvx --from 'litellm[proxy]' litellm --config config.yaml --port 4000"
+  );
+  const probeModel = String(lineItems[0]?.raw_model || "deepseek-v3").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const smokeTestCmd =
+    `curl -fsS "http://127.0.0.1:4000/v1/chat/completions" ` +
+    `-H "Authorization: Bearer sk-local-bill-migration-proxy" ` +
+    `-H "Content-Type: application/json" ` +
+    `-d '{"model":"${probeModel}","max_tokens":1,"messages":[{"role":"user","content":"ping"}]}'`;
+
+  return {
+    config_yaml: yamlLines.join("\n"),
+    env_snippet: envLines.join("\n"),
+    smoke_test_cmd: smokeTestCmd,
+    required_env_vars: requiredEnvVars,
+    distinct_providers_count: requiredEnvVars.length,
+    compliance_warning_zh:
+      "合规红线：此网关配置仅限填入各厂商标准「按量付费 API Key」（sk-...）；严禁将个人 Coding Plan 包月专属密钥（sk-sp-...）填入 LiteLLM 网关或团队共享服务。",
+  };
 }
 
 export function auditCsvBill(catalog, parsedSummary, {usageMode = "interactive_ide", teamSize = 1} = {}) {
@@ -565,6 +956,24 @@ export function auditCsvBill(catalog, parsedSummary, {usageMode = "interactive_i
       }
     }
 
+    const sameFamPool = findSameFamilyCnCandidates(rawModel, workhorses);
+    let sameFamBest = null;
+    let sameFamRmb = null;
+    let sameFamScore = -1;
+    for (const sfCand of sameFamPool) {
+      const sfFactor = sfCand.cache_hit_factor ?? 0.2;
+      const sfCost = round2(
+        mInM * ((1 - hitRate) + hitRate * sfFactor) * Number(sfCand.input_rmb_per_1m || 0) +
+        mOutM * Number(sfCand.output_rmb_per_1m || 0)
+      );
+      const sfScore = Number(sfCand.value_score || 0);
+      if (!sameFamBest || sfCost < sameFamRmb || (sfCost === sameFamRmb && sfScore > sameFamScore)) {
+        sameFamBest = sfCand;
+        sameFamRmb = sfCost;
+        sameFamScore = sfScore;
+      }
+    }
+
     const recModel = bestCand && bestCandRmb < baselineRmb - 0.005 ? bestCand : matched;
     const optRmb = bestCand && bestCandRmb < baselineRmb - 0.005 ? round2(bestCandRmb) : round2(baselineRmb);
     const action = bestCand && bestCandRmb < baselineRmb - 0.005 ? "switch_cn_direct" : "keep_current";
@@ -584,7 +993,16 @@ export function auditCsvBill(catalog, parsedSummary, {usageMode = "interactive_i
       baseline_monthly_rmb: round2(baselineRmb),
       recommended_model_id: recModel.id,
       recommended_model_name: recModel.name,
+      recommended_api_model_id: String(recModel.api_model_id || recModel.id),
+      recommended_api_base_url: resolveModelApiBase(recModel),
+      recommended_env_key_var: resolveModelEnvKeyVar(recModel),
       recommended_signup_url: recModel.signup_url || recModel.affiliate_url || "",
+      same_family_cn_model_id: sameFamBest ? sameFamBest.id : null,
+      same_family_cn_model_name: sameFamBest ? sameFamBest.name : null,
+      same_family_cn_api_model_id: sameFamBest ? String(sameFamBest.api_model_id || sameFamBest.id) : null,
+      same_family_cn_api_base_url: sameFamBest ? resolveModelApiBase(sameFamBest) : null,
+      same_family_cn_env_key_var: sameFamBest ? resolveModelEnvKeyVar(sameFamBest) : null,
+      same_family_cn_monthly_rmb: sameFamRmb,
       optimized_payg_rmb: optRmb,
       savings_rmb: savRmb,
       savings_pct: savPct,
@@ -658,6 +1076,7 @@ export function auditCsvBill(catalog, parsedSummary, {usageMode = "interactive_i
       has_global_closed_models: hasGlobalClosed,
     },
     coding_plan_option: codingPlanOption,
+    migration_litellm_config: buildBillMigrationLiteLlmConfig(lineItems),
   };
 }
 

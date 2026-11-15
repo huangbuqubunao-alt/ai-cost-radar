@@ -394,6 +394,49 @@ def resolve_model_query(models: list[dict[str, Any]], raw_query: str | None) -> 
         )
         return suffix_matches[0], None
 
+    # 3.5 Strip release date suffixes (e.g. `-20250514`, `-2025-04-14`) & map official API aliases
+    import re as _re
+
+    stripped_q = _re.sub(r"-(?:20\d{2}-\d{2}-\d{2}|20\d{6}|\d{4})$", "", q_lower)
+    slug_base = stripped_q.split("/")[-1]
+    alias_candidates: list[str] = []
+    if stripped_q != q_lower:
+        alias_candidates.extend([stripped_q, slug_base])
+    if slug_base in ("deepseek-reasoner", "r1"):
+        alias_candidates.append("deepseek-r1")
+    elif slug_base in ("deepseek-chat", "v3"):
+        alias_candidates.append("deepseek-v3")
+    elif slug_base in ("gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1-nano", "o1-mini", "o3-mini", "o4-mini"):
+        alias_candidates.extend(["openai/gpt-5.4-mini", "openai/gpt-5-mini"])
+    elif slug_base.startswith(("gpt-4", "chatgpt-4o")) or slug_base in ("o1", "o3", "o3-pro"):
+        alias_candidates.extend(["openai/gpt-5.4", "openai/gpt-5.5"])
+    elif "claude" in slug_base and "sonnet" in slug_base:
+        alias_candidates.extend(["anthropic/claude-sonnet-5.5", "anthropic/claude-sonnet-5"])
+    elif "claude" in slug_base and "opus" in slug_base:
+        alias_candidates.extend(["anthropic/claude-opus-5.5", "anthropic/claude-opus-5"])
+    elif "claude" in slug_base and "haiku" in slug_base:
+        alias_candidates.append("anthropic/claude-haiku-5.5")
+
+    for cand_alias in alias_candidates:
+        ca_low = cand_alias.lower()
+        ca_hits = [
+            m
+            for m in models
+            if str(m.get("id") or "").lower() == ca_low
+            or str(m.get("api_model_id") or "").lower() == ca_low
+            or str(m.get("id") or "").lower().endswith("/" + ca_low)
+        ]
+        if ca_hits:
+            ca_hits.sort(
+                key=lambda item: (
+                    1 if item.get("region") == "cn_direct" else 0,
+                    0 if item.get("is_free") else 1,
+                    float(item.get("value_score") or 0.0),
+                ),
+                reverse=True,
+            )
+            return ca_hits[0], None
+
     # 4. Fuzzy token & substring ranking
     wants_free = "free" in q_lower
     best_match: dict[str, Any] | None = None
@@ -1446,6 +1489,8 @@ def _try_parse_csv_bill(
 
     return {
         "detected_format": "csv_multimodel_bill",
+        "source_format": "csv_multimodel",
+        "deduplicated_chunks": 0,
         "days_observed": days,
         "distinct_models_count": len(model_breakdown),
         "total_requests": int(round(total_reqs)),
@@ -1464,6 +1509,414 @@ def _try_parse_csv_bill(
         "reported_cost_rmb": round(total_cost_rmb, 2),
         "monthly_reported_cost_rmb": round((total_cost_rmb / days) * 30.0, 2),
         "model_breakdown": model_breakdown,
+    }
+
+
+def _try_parse_json_records_bill(
+    text: str,
+    days: float,
+    *,
+    fx_rate: float = DEFAULT_FX_USD_TO_RMB,
+) -> dict[str, Any] | None:
+    """
+    Parse multi-record JSON Array (`[...]`, `{"data": [...]}`) or multi-line JSONL (`{...}\\n{...}`)
+    logs/bills into the exact `csv_multimodel_bill` portfolio schema.
+    Supports Claude Code `~/.claude/projects/*.jsonl` (streaming `message.id` deduplication + additive cache),
+    OpenAI Batch `.jsonl` (`response.body`), LiteLLM spend logs, and OpenRouter JSON exports.
+    """
+    import json
+
+    raw_records: list[dict[str, Any]] | None = None
+    source_format: str | None = None
+
+    if text.startswith("[") and text.endswith("]"):
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, list):
+                raw_records = [x for x in parsed if isinstance(x, dict)]
+                source_format = "json_array_multimodel"
+        except json.JSONDecodeError:
+            raw_records = None
+    elif text.startswith("{") and text.endswith("}"):
+        try:
+            parsed_single = json.loads(text)
+            if isinstance(parsed_single, dict):
+                for list_key in ("data", "records", "logs", "items", "generations"):
+                    cand_list = parsed_single.get(list_key)
+                    if isinstance(cand_list, list) and any(isinstance(x, dict) for x in cand_list):
+                        raw_records = [x for x in cand_list if isinstance(x, dict)]
+                        source_format = "json_array_multimodel"
+                        break
+                if raw_records is None:
+                    msg_obj = parsed_single.get("message")
+                    resp_obj = parsed_single.get("response")
+                    if (isinstance(msg_obj, dict) and (isinstance(msg_obj.get("usage"), dict) or parsed_single.get("type") in ("user", "assistant", "summary", "system"))) or (
+                        isinstance(resp_obj, dict) and isinstance(resp_obj.get("body"), dict)
+                    ):
+                        raw_records = [parsed_single]
+                        source_format = "jsonl_multimodel"
+        except json.JSONDecodeError:
+            lines = [
+                ln.strip()
+                for ln in text.splitlines()
+                if ln.strip() and not ln.strip().startswith("#")
+            ]
+            if len(lines) >= 2:
+                parsed_lines: list[dict[str, Any]] = []
+                all_json_lines = True
+                for ln in lines:
+                    if ln.startswith("{") and ln.endswith("}"):
+                        try:
+                            obj = json.loads(ln)
+                            if isinstance(obj, dict):
+                                parsed_lines.append(obj)
+                            else:
+                                all_json_lines = False
+                        except json.JSONDecodeError:
+                            all_json_lines = False
+                    else:
+                        all_json_lines = False
+                if len(parsed_lines) >= 2 or (all_json_lines and len(parsed_lines) >= 1):
+                    raw_records = parsed_lines
+                    source_format = "jsonl_multimodel"
+
+    if raw_records is None or source_format is None:
+        return None
+
+    def _safe_num(val: Any) -> float:
+        if val is None or isinstance(val, (dict, list, bool)):
+            return 0.0
+        try:
+            return _parse_scaled_number(val)
+        except ValueError:
+            return 0.0
+
+    def _first_val(d: dict[str, Any], keys: tuple[str, ...]) -> Any:
+        for k in keys:
+            if d.get(k) is not None and not isinstance(d.get(k), (dict, list, bool)):
+                return d.get(k)
+        return None
+
+    skip_types = {"user", "summary", "system", "file-history-snapshot", "queue-operation"}
+    summary_labels = {"total", "totals", "sum", "summary", "合计", "总计", "汇总", "小计"}
+    deduped_entries: dict[str, dict[str, Any]] = {}
+    anon_entries: list[dict[str, Any]] = []
+    deduplicated_chunks = 0
+
+    for rec in raw_records:
+        if str(rec.get("type") or "").strip().lower() in skip_types:
+            continue
+        msg = rec.get("message") if isinstance(rec.get("message"), dict) else {}
+        resp = rec.get("response") if isinstance(rec.get("response"), dict) else {}
+        body = resp.get("body") if isinstance(resp.get("body"), dict) else {}
+
+        u_msg = msg.get("usage") if isinstance(msg.get("usage"), dict) else None
+        u_body = body.get("usage") if isinstance(body.get("usage"), dict) else None
+        u_rec = rec.get("usage") if isinstance(rec.get("usage"), dict) else None
+        u = u_msg or u_body or u_rec or {}
+
+        model_raw = (
+            _first_val(rec, ("model_permaslug", "model", "model_id", "model_name", "api_model_id"))
+            or _first_val(msg, ("model", "model_id"))
+            or _first_val(body, ("model", "model_id"))
+            or "unknown"
+        )
+        model_label = str(model_raw).strip() or "unknown"
+        if model_label.lower() in summary_labels:
+            continue
+
+        merged: dict[str, Any] = {**rec, **body, **msg, **u}
+        if "cache_read_input_tokens" in merged or "cache_creation_input_tokens" in merged:
+            uncached = _safe_num(merged.get("input_tokens"))
+            c_read = _safe_num(merged.get("cache_read_input_tokens"))
+            c_write = _safe_num(merged.get("cache_creation_input_tokens"))
+            row_in = uncached + c_read + c_write
+            row_cached = c_read
+        else:
+            p_det = merged.get("prompt_tokens_details") if isinstance(merged.get("prompt_tokens_details"), dict) else {}
+            in_det = merged.get("input_tokens_details") if isinstance(merged.get("input_tokens_details"), dict) else {}
+            in_val = _safe_num(
+                _first_val(merged, ("prompt_tokens", "native_tokens_prompt", "tokens_prompt", "input_tokens", "total_input_tokens"))
+            )
+            c_raw = (
+                p_det.get("cached_tokens")
+                if p_det.get("cached_tokens") is not None
+                else (
+                    in_det.get("cached_tokens")
+                    if in_det.get("cached_tokens") is not None
+                    else _first_val(merged, ("native_tokens_cached", "cached_tokens", "cached_input_tokens", "cache_hit_tokens"))
+                )
+            )
+            c_val = _safe_num(c_raw)
+            row_in = max(in_val, c_val)
+            row_cached = min(row_in, c_val)
+
+        out_val = _safe_num(
+            _first_val(merged, ("completion_tokens", "native_tokens_completion", "tokens_completion", "output_tokens", "total_output_tokens"))
+        )
+        c_det = merged.get("completion_tokens_details") if isinstance(merged.get("completion_tokens_details"), dict) else {}
+        o_det = merged.get("output_tokens_details") if isinstance(merged.get("output_tokens_details"), dict) else {}
+        r_raw = (
+            c_det.get("reasoning_tokens")
+            if c_det.get("reasoning_tokens") is not None
+            else (
+                o_det.get("reasoning_tokens")
+                if o_det.get("reasoning_tokens") is not None
+                else _first_val(merged, ("native_tokens_reasoning", "reasoning_tokens", "thinking_tokens"))
+            )
+        )
+        reason_val = _safe_num(r_raw)
+
+        if row_in <= 0 and out_val <= 0:
+            continue
+
+        req_raw = _first_val(rec, ("requests", "total_requests", "calls", "api_calls", "num_requests", "request_count"))
+        row_reqs = max(1.0, _safe_num(req_raw)) if req_raw is not None else 1.0
+
+        rmb_cost_raw = _first_val(rec, ("cost_rmb", "spend_rmb", "cost_cny", "应付金额", "账单金额"))
+        usd_cost_raw = _first_val(rec, ("spend", "response_cost", "cost_usd", "costUSD", "total_cost", "cost"))
+        if usd_cost_raw is None and rec.get("usage") is not None and not isinstance(rec.get("usage"), (dict, list, bool)):
+            usd_cost_raw = rec.get("usage")
+        if rmb_cost_raw is not None:
+            row_cost_rmb = _parse_currency_rmb(rmb_cost_raw, "costrmb", fx_rate=fx_rate)
+        elif usd_cost_raw is not None:
+            row_cost_rmb = _parse_currency_rmb(usd_cost_raw, "costusd", fx_rate=fx_rate)
+        else:
+            row_cost_rmb = 0.0
+
+        dedupe_id: str | None = None
+        if req_raw is None:
+            if msg.get("id"):
+                dedupe_id = f"msg:{msg['id']}"
+            elif body.get("id"):
+                dedupe_id = f"body:{body['id']}"
+            elif rec.get("generation_id"):
+                dedupe_id = f"gen:{rec['generation_id']}"
+            elif rec.get("request_id"):
+                dedupe_id = f"req:{rec['request_id']}"
+            elif rec.get("id"):
+                dedupe_id = f"id:{rec['id']}"
+
+        entry = {
+            "model": model_label,
+            "requests": row_reqs,
+            "input_tokens": row_in,
+            "cached_input_tokens": row_cached,
+            "output_tokens": out_val,
+            "reasoning_tokens": reason_val,
+            "reported_cost_rmb": row_cost_rmb,
+        }
+        if dedupe_id is not None:
+            if dedupe_id in deduped_entries:
+                deduplicated_chunks += 1
+                prev = deduped_entries[dedupe_id]
+                for num_k in ("requests", "input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "reported_cost_rmb"):
+                    prev[num_k] = max(prev[num_k], entry[num_k])
+                if prev["model"] == "unknown" and entry["model"] != "unknown":
+                    prev["model"] = entry["model"]
+            else:
+                deduped_entries[dedupe_id] = entry
+        else:
+            anon_entries.append(entry)
+
+    all_entries = list(deduped_entries.values()) + anon_entries
+    if not all_entries:
+        raise ValueError("JSON/JSONL bill contains zero positive token records")
+
+    groups: dict[str, dict[str, Any]] = {}
+    for ent in all_entries:
+        g_key = ent["model"].lower()
+        if g_key not in groups:
+            groups[g_key] = {
+                "model": ent["model"],
+                "requests": 0.0,
+                "input_tokens": 0.0,
+                "cached_input_tokens": 0.0,
+                "output_tokens": 0.0,
+                "reasoning_tokens": 0.0,
+                "reported_cost_rmb": 0.0,
+            }
+        grp = groups[g_key]
+        grp["requests"] += ent["requests"]
+        grp["input_tokens"] += ent["input_tokens"]
+        grp["cached_input_tokens"] += ent["cached_input_tokens"]
+        grp["output_tokens"] += ent["output_tokens"]
+        grp["reasoning_tokens"] += ent["reasoning_tokens"]
+        grp["reported_cost_rmb"] += ent["reported_cost_rmb"]
+
+    sorted_groups = sorted(
+        groups.values(),
+        key=lambda g: (g["reported_cost_rmb"], g["input_tokens"] + g["output_tokens"]),
+        reverse=True,
+    )
+    model_breakdown: list[dict[str, Any]] = []
+    total_reqs = total_in = total_cached = total_out = total_reason = total_cost_rmb = 0.0
+    for g in sorted_groups:
+        g_in = g["input_tokens"]
+        g_cached = min(g_in, max(0.0, g["cached_input_tokens"]))
+        total_reqs += g["requests"]
+        total_in += g_in
+        total_cached += g_cached
+        total_out += g["output_tokens"]
+        total_reason += g["reasoning_tokens"]
+        total_cost_rmb += g["reported_cost_rmb"]
+        model_breakdown.append(
+            {
+                "model": g["model"],
+                "requests": int(round(g["requests"])),
+                "input_tokens": int(round(g_in)),
+                "cached_input_tokens": int(round(g_cached)),
+                "output_tokens": int(round(g["output_tokens"])),
+                "reasoning_tokens": int(round(g["reasoning_tokens"])),
+                "cache_hit_rate": round(g_cached / g_in, 4) if g_in > 0 else 0.0,
+                "output_includes_reasoning": bool(g["reasoning_tokens"] > 0),
+                "reported_cost_rmb": round(g["reported_cost_rmb"], 4),
+            }
+        )
+
+    daily_requests = max(1, int(round(total_reqs / days)))
+    monthly_requests = max(1, int(round((total_reqs / days) * 30.0)))
+    return {
+        "detected_format": "csv_multimodel_bill",
+        "source_format": source_format,
+        "deduplicated_chunks": deduplicated_chunks,
+        "days_observed": days,
+        "distinct_models_count": len(model_breakdown),
+        "total_requests": int(round(total_reqs)),
+        "monthly_requests": monthly_requests,
+        "total_input_tokens": int(round(total_in)),
+        "cached_input_tokens": int(round(total_cached)),
+        "total_output_tokens": int(round(total_out)),
+        "monthly_input_m": round(((total_in / days) * 30.0) / 1_000_000.0, 6),
+        "monthly_output_m": round(((total_out / days) * 30.0) / 1_000_000.0, 6),
+        "daily_requests": daily_requests,
+        "avg_input_tokens": max(1, int(round(total_in / max(1.0, total_reqs)))) if total_in > 0 else 1500,
+        "avg_output_tokens": max(1, int(round(total_out / max(1.0, total_reqs)))) if total_out > 0 else 500,
+        "cache_hit_rate": round(total_cached / total_in, 4) if total_in > 0 else 0.0,
+        "output_includes_reasoning": bool(total_reason > 0),
+        "calls_estimated": False,
+        "reported_cost_rmb": round(total_cost_rmb, 2),
+        "monthly_reported_cost_rmb": round((total_cost_rmb / days) * 30.0, 2),
+        "model_breakdown": model_breakdown,
+    }
+
+
+def _resolve_model_env_key_var(model: dict[str, Any]) -> str:
+    pkey = str(model.get("provider_config_key") or "").lower()
+    base = str(model.get("api_base_url") or "").lower()
+    if pkey == "aliyun_bailian_url" or "dashscope.aliyuncs.com" in base:
+        return "DASHSCOPE_API_KEY"
+    if pkey == "tencent_cps_url" or "lkeap.cloud.tencent.com" in base:
+        return "TENCENT_LKEAP_API_KEY"
+    if pkey == "volcengine_ark_url" or "volces.com" in base:
+        return "VOLCENGINE_ARK_API_KEY"
+    if pkey == "siliconflow_invite_url" or "siliconflow.cn" in base:
+        return "SILICONFLOW_API_KEY"
+    return "OPENROUTER_API_KEY"
+
+
+def _resolve_model_api_base(model: dict[str, Any]) -> str:
+    base = str(model.get("api_base_url") or "").strip()
+    if base:
+        return base
+    return "https://openrouter.ai/api/v1" if model.get("region") == "global" else "https://dashscope.aliyuncs.com/compatible-mode/v1"
+
+
+def _find_same_family_cn_candidates(raw_model_name: str, workhorses: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    raw_low = str(raw_model_name or "").lower()
+    if "deepseek-r1" in raw_low or "deepseek-reasoner" in raw_low or raw_low.endswith("/r1"):
+        return [c for c in workhorses if "deepseek-r1" in str(c.get("id") or "").lower()]
+    if "deepseek-v3" in raw_low or "deepseek-chat" in raw_low:
+        return [c for c in workhorses if "deepseek-v3" in str(c.get("id") or "").lower()]
+    if "qwen3-coder" in raw_low or "qwen-coder" in raw_low:
+        return [c for c in workhorses if "coder" in str(c.get("id") or "").lower() and "qwen" in str(c.get("id") or "").lower()]
+    if "qwen" in raw_low:
+        return [c for c in workhorses if "qwen" in str(c.get("id") or "").lower()]
+    if "glm" in raw_low:
+        return [c for c in workhorses if "glm" in str(c.get("id") or "").lower()]
+    if "kimi" in raw_low or "moonshot" in raw_low:
+        return [c for c in workhorses if "kimi" in str(c.get("id") or "").lower()]
+    if "minimax" in raw_low:
+        return [c for c in workhorses if "minimax" in str(c.get("id") or "").lower()]
+    if "doubao" in raw_low:
+        return [c for c in workhorses if "doubao" in str(c.get("id") or "").lower()]
+    if "hunyuan" in raw_low:
+        return [c for c in workhorses if "hunyuan" in str(c.get("id") or "").lower()]
+    return []
+
+
+def build_bill_migration_litellm_config(line_items: list[dict[str, Any]]) -> dict[str, Any]:
+    """
+    Generate a zero-code-change LiteLLM Proxy `config.yaml`, deduplicated `export` env snippet,
+    and 1-token proxy verification `curl` mapping every exact `raw_model` in the user's bill
+    to its recommended Pay-As-You-Go API route.
+    """
+    yaml_lines = [
+        "# AI Cost Radar — Zero-Code Multi-Model Bill Migration (LiteLLM Proxy)",
+        "# Compliance: Use standard Pay-As-You-Go API keys ONLY (NEVER use sk-sp- Coding Plan keys).",
+        "model_list:",
+    ]
+    required_env_vars: list[str] = []
+    for item in line_items:
+        alias_escaped = str(item.get("raw_model") or "default").replace("\\", "\\\\").replace('"', '\\"')
+        api_mid = str(item.get("recommended_api_model_id") or item.get("recommended_model_id") or "deepseek-v3")
+        api_base = str(item.get("recommended_api_base_url") or "https://dashscope.aliyuncs.com/compatible-mode/v1")
+        env_var = str(item.get("recommended_env_key_var") or "DASHSCOPE_API_KEY")
+        if env_var not in required_env_vars:
+            required_env_vars.append(env_var)
+        yaml_lines.extend(
+            [
+                f'  - model_name: "{alias_escaped}"',
+                "    litellm_params:",
+                f"      model: openai/{api_mid}",
+                f"      api_base: {api_base}",
+                f"      api_key: os.environ/{env_var}",
+            ]
+        )
+
+    yaml_lines.extend(
+        [
+            "",
+            "router_settings:",
+            "  routing_strategy: simple-shuffle",
+            "  num_retries: 2",
+            "  timeout: 60",
+        ]
+    )
+    config_yaml = "\n".join(yaml_lines)
+
+    env_lines = [
+        f'export {var}="sk-your-{var.lower().replace("_api_key", "")}-payg-key"'
+        for var in required_env_vars
+    ]
+    env_lines.extend(
+        [
+            'export LITELLM_MASTER_KEY="sk-local-bill-migration-proxy"',
+            "",
+            "# 启动本地零改代码迁移网关（业务代码无需改 model 名，仅需设 OPENAI_BASE_URL=http://127.0.0.1:4000/v1）",
+            "uvx --from 'litellm[proxy]' litellm --config config.yaml --port 4000",
+        ]
+    )
+    env_snippet = "\n".join(env_lines)
+
+    probe_model = str(line_items[0]["raw_model"] if line_items else "deepseek-v3").replace("\\", "\\\\").replace('"', '\\"')
+    smoke_test_cmd = (
+        'curl -fsS "http://127.0.0.1:4000/v1/chat/completions" '
+        '-H "Authorization: Bearer sk-local-bill-migration-proxy" '
+        '-H "Content-Type: application/json" '
+        f'-d \'{{"model":"{probe_model}","max_tokens":1,"messages":[{{"role":"user","content":"ping"}}]}}\''
+    )
+
+    return {
+        "config_yaml": config_yaml,
+        "env_snippet": env_snippet,
+        "smoke_test_cmd": smoke_test_cmd,
+        "required_env_vars": required_env_vars,
+        "distinct_providers_count": len(required_env_vars),
+        "compliance_warning_zh": (
+            "合规红线：此网关配置仅限填入各厂商标准「按量付费 API Key」（sk-...）；"
+            "严禁将个人 Coding Plan 包月专属密钥（sk-sp-...）填入 LiteLLM 网关或团队共享服务。"
+        ),
     }
 
 
@@ -1489,18 +1942,19 @@ def audit_csv_bill(
     fx_rate: float = DEFAULT_FX_USD_TO_RMB,
 ) -> dict[str, Any]:
     """
-    Audit a multi-model CSV/TSV billing statement:
+    Audit a multi-model CSV/TSV/JSON/JSONL billing statement:
       1. Extrapolate each model's requests, input/output/cached tokens, and spend to 30 days.
       2. Match each row against real workhorse Mainland China direct models (>=64K ctx, non-toy),
-         separating reasoning vs coding workloads and never recommending a costlier replacement.
-      3. Evaluate portfolio Coding Plan subscription eligibility & cross-model caveats.
+         separating reasoning vs coding workloads and never recommending a costlier replacement,
+         while also surfacing exact same-family CN direct routes when available.
+      3. Generate a zero-code-change LiteLLM Proxy `migration_litellm_config` & evaluate Coding Plan options.
     """
     if isinstance(raw_text, dict) and raw_text.get("detected_format") == "csv_multimodel_bill":
         parsed = raw_text
     else:
         parsed = parse_usage_log_snippet(str(raw_text), days_observed=days_observed)
         if parsed.get("detected_format") != "csv_multimodel_bill":
-            raise ValueError("audit_csv_bill requires a multi-model CSV/TSV snippet")
+            raise ValueError("audit_csv_bill requires a multi-model CSV/TSV/JSONL snippet")
 
     days = float(parsed["days_observed"])
     scale_30d = 30.0 / days
@@ -1588,6 +2042,31 @@ def audit_csv_bill(
                 best_cand_rmb = c_rmb
                 best_cand_score = c_score
 
+        same_fam_pool = _find_same_family_cn_candidates(raw_model_name, workhorses)
+        same_fam_best: dict[str, Any] | None = None
+        same_fam_rmb: float | None = None
+        same_fam_score = -1.0
+        for sf_cand in same_fam_pool:
+            sf_hit = float(sf_cand.get("cache_hit_factor") if sf_cand.get("cache_hit_factor") is not None else 0.2)
+            sf_cost = round(
+                calculate_token_bill(
+                    monthly_input_m=m_in_m,
+                    monthly_output_m=m_out_m,
+                    input_price_per_1m=float(sf_cand["input_rmb_per_1m"]),
+                    output_price_per_1m=float(sf_cand["output_rmb_per_1m"]),
+                    cache_hit_rate=hit_rate,
+                    cache_hit_factor=sf_hit,
+                    reasoning_multiplier=1.0,
+                    output_includes_reasoning=True,
+                )["total_cost"],
+                2,
+            )
+            sf_score = float(sf_cand.get("value_score") or 0.0)
+            if same_fam_best is None or (sf_cost < (same_fam_rmb or 0.0)) or (sf_cost == same_fam_rmb and sf_score > same_fam_score):
+                same_fam_best = sf_cand
+                same_fam_rmb = sf_cost
+                same_fam_score = sf_score
+
         if best_cand is not None and best_cand_rmb < baseline_rmb - 0.005:
             rec_model = best_cand
             opt_rmb = round(best_cand_rmb, 2)
@@ -1613,7 +2092,16 @@ def audit_csv_bill(
                 "baseline_monthly_rmb": round(baseline_rmb, 2),
                 "recommended_model_id": rec_model["id"],
                 "recommended_model_name": rec_model["name"],
+                "recommended_api_model_id": str(rec_model.get("api_model_id") or rec_model["id"]),
+                "recommended_api_base_url": _resolve_model_api_base(rec_model),
+                "recommended_env_key_var": _resolve_model_env_key_var(rec_model),
                 "recommended_signup_url": rec_model.get("signup_url") or rec_model.get("affiliate_url") or "",
+                "same_family_cn_model_id": same_fam_best["id"] if same_fam_best else None,
+                "same_family_cn_model_name": same_fam_best["name"] if same_fam_best else None,
+                "same_family_cn_api_model_id": str(same_fam_best.get("api_model_id") or same_fam_best["id"]) if same_fam_best else None,
+                "same_family_cn_api_base_url": _resolve_model_api_base(same_fam_best) if same_fam_best else None,
+                "same_family_cn_env_key_var": _resolve_model_env_key_var(same_fam_best) if same_fam_best else None,
+                "same_family_cn_monthly_rmb": same_fam_rmb,
                 "optimized_payg_rmb": opt_rmb,
                 "savings_rmb": sav_rmb,
                 "savings_pct": sav_pct,
@@ -1692,6 +2180,7 @@ def audit_csv_bill(
             "has_global_closed_models": has_global_closed,
         },
         "coding_plan_option": coding_plan_option,
+        "migration_litellm_config": build_bill_migration_litellm_config(line_items),
     }
 
 
@@ -1702,9 +2191,10 @@ def parse_usage_log_snippet(
     default_tokens_per_call: int = 4000,
 ) -> dict[str, Any]:
     """
-    Deterministically parse real LLM usage logs, multi-model CSV/TSV bills, or billing summaries into calculator parameters.
+    Deterministically parse real LLM usage logs, multi-model CSV/TSV/JSON/JSONL bills, or billing summaries into calculator parameters.
     Supports:
-      1. Multi-model CSV / TSV / pipe-table billing exports (`detected_format="csv_multimodel_bill"`)
+      1. Multi-model CSV / TSV / pipe-table / JSON Array / JSONL billing exports (`detected_format="csv_multimodel_bill"`,
+         incl. Claude Code `~/.claude/projects/*.jsonl` transcripts & OpenAI Batch `.jsonl`)
       2. Anthropic / Claude Code `/cost` plaintext or JSON (where `input_tokens` and `cache_read` are additive)
       3. OpenAI / OpenRouter / Bailian / DeepSeek `usage` JSON (where `cached_tokens` is a subset of `prompt_tokens`,
          and `reasoning_tokens` inside `completion_tokens_details` triggers `output_includes_reasoning=True`)
@@ -1720,6 +2210,10 @@ def parse_usage_log_snippet(
     days = float(days_observed if days_observed is not None else 30.0)
     if not math.isfinite(days) or days <= 0 or days > 365:
         raise ValueError("Invalid days_observed (must be between 0.1 and 365)")
+
+    json_records_parsed = _try_parse_json_records_bill(text, days)
+    if json_records_parsed is not None:
+        return json_records_parsed
 
     total_input = 0.0
     cached_input = 0.0

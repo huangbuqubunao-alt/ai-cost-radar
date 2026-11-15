@@ -106,9 +106,9 @@
 
 ---
 
-## 五、在线自查与多模型 CSV 账单审计工具（纯本地解析 · 支持无 JS 静态阅读）
+## 五、在线自查与多模型 CSV / JSONL 账单瘦身审计工具（纯本地解析 · 支持零改代码 `config.yaml` 迁移）
 
-我把上面这套公式、三层额度核验、场景排除（交互式 IDE vs 自动化后端）、OpenRouter / 云控制台多模型 CSV 账单逐行瘦身审计（纯浏览器内存解析，零上传）以及 `settings.json` 专属端点生成器做成了静态页面：
+我把上面这套公式、三层额度核验、场景排除（交互式 IDE vs 自动化后端）、OpenRouter / 云控制台多模型 CSV 账单与 Claude Code `~/.claude/projects/*.jsonl` 会话日志逐行瘦身审计（纯浏览器内存解析，零上传）、一键生成保持原模型别名的 LiteLLM 零改代码迁移网关 `config.yaml`、`settings.json` 专属端点生成器以及一页式 PDF 立项对账单打印功能做成了静态页面：
 
 👉 **https://ai-cost-radar-nlu.pages.dev/coding-plan-2026/**
 

@@ -112,6 +112,7 @@ def summarize_daily_reconciliation(
     offer_clickers: dict[str, set[str]] = {}
     route_uv: dict[str, set[str]] = {}
     source_uv: dict[str, set[str]] = {}
+    feature_slots: dict[tuple[str, str], set[str]] = {}
 
     for raw in events:
         ok, _, clean = validate_event_payload(raw)
@@ -123,10 +124,14 @@ def summarize_daily_reconciliation(
         rt = clean["route"]
         src = clean["source_channel"]
         oid = clean["offer_id"]
+        slot = clean["slot_id"] or "unspecified"
 
         uv_all.add(bid)
         route_uv.setdefault(rt, set()).add(bid)
         source_uv.setdefault(src, set()).add(bid)
+
+        if ev in ("usage_import", "share_copy", "share_summary", "share_open"):
+            feature_slots.setdefault((ev, slot), set()).add(bid)
 
         if ev == "result_view":
             uv_calc_done.add(bid)
@@ -140,6 +145,14 @@ def summarize_daily_reconciliation(
             offer_viewers.setdefault(oid, set()).add(bid)
         elif ev == "affiliate_click" and oid:
             offer_clickers.setdefault(oid, set()).add(bid)
+
+    feature_funnel = [
+        {"event_name": ev_name, "slot_id": slot_id, "unique_users": len(bids)}
+        for (ev_name, slot_id), bids in sorted(
+            feature_slots.items(),
+            key=lambda item: (-len(item[1]), item[0][0], item[0][1]),
+        )
+    ]
 
     all_offer_ids = sorted(set(offer_viewers.keys()) | set(offer_clickers.keys()))
     offers_summary: dict[str, dict[str, Any]] = {}
@@ -173,6 +186,7 @@ def summarize_daily_reconciliation(
         "share_opens_uv": len(uv_share_open),
         "routes_uv": {k: len(v) for k, v in sorted(route_uv.items())},
         "sources_uv": {k: len(v) for k, v in sorted(source_uv.items())},
+        "feature_funnel": feature_funnel,
         "offers": offers_summary,
         "vendor_valid_orders": valid_orders,
         "pending_commission_rmb": pending_rmb,
