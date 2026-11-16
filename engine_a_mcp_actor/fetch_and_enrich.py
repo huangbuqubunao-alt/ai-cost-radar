@@ -585,6 +585,28 @@ FALLBACK_OPENROUTER_RAW: list[dict[str, Any]] = [
         "pricing": {"prompt": "0", "completion": "0"},
         "supported_parameters": ["tools"],
     },
+    {
+        "id": "x-ai/grok-4",
+        "name": "xAI: Grok 4",
+        "created": 1752019200,
+        "context_length": 256000,
+        "architecture": {"modality": "text+image->text"},
+        "pricing": {"prompt": "0.000003", "completion": "0.000015"},
+        "supported_parameters": ["tools", "reasoning"],
+    },
+    {
+        "id": "x-ai/grok-code-fast-1",
+        "name": "xAI: Grok Code Fast 1",
+        "created": 1756166400,
+        "context_length": 256000,
+        "architecture": {"modality": "text->text"},
+        "pricing": {"prompt": "0.0000002", "completion": "0.0000015"},
+        "supported_parameters": ["tools", "reasoning"],
+    },
+]
+
+PINNED_GLOBAL_RAW: list[dict[str, Any]] = [
+    item for item in FALLBACK_OPENROUTER_RAW if item["id"] in {"x-ai/grok-4", "x-ai/grok-code-fast-1"}
 ]
 
 
@@ -728,6 +750,7 @@ def compute_tags_and_score(
             "openai/",
             "anthropic/",
             "google/",
+            "x-ai/",
             "deepseek/",
             "qwen/",
             "aliyun-",
@@ -762,8 +785,13 @@ def normalize_openrouter_models(
     free_candidates: list[tuple[float, dict[str, Any]]] = []
 
     openrouter_base_url = affiliate_map["openrouter_url"].rstrip("/")
+    seen_raw_ids = {str(x.get("id") or "").strip() for x in raw_models}
+    merged_raw = list(raw_models) + [
+        p for p in PINNED_GLOBAL_RAW if p["id"] not in seen_raw_ids
+    ]
+    pinned_ids = {p["id"] for p in PINNED_GLOBAL_RAW}
 
-    for item in raw_models:
+    for item in merged_raw:
         model_id = str(item.get("id") or "").strip()
         if (
             not model_id
@@ -831,7 +859,7 @@ def normalize_openrouter_models(
             "provider_config_key": "openrouter_url",
             "api_base_url": "https://openrouter.ai/api/v1",
             "api_model_id": model_id,
-            "cache_hit_factor": 0.5 if input_usd > 0 else 1.0,
+            "cache_hit_factor": 0.25 if model_id.startswith("x-ai/") and input_usd > 0 else (0.5 if input_usd > 0 else 1.0),
             "perf_note": "",
             "signup_url": openrouter_base_url,
             "affiliate_url": openrouter_base_url,
@@ -862,7 +890,12 @@ def normalize_openrouter_models(
     free_quota = min(14, len(free_candidates))
     paid_quota = max(0, limit - free_quota)
 
-    selected = [r for _, r in paid_candidates[:paid_quota]] + [
+    pinned_paid = [r for _, r in paid_candidates if r["id"] in pinned_ids]
+    pinned_paid_ids = {r["id"] for r in pinned_paid}
+    other_paid = [r for _, r in paid_candidates if r["id"] not in pinned_paid_ids]
+    selected_paid = pinned_paid + other_paid[: max(0, paid_quota - len(pinned_paid))]
+
+    selected = selected_paid + [
         r for _, r in free_candidates[:free_quota]
     ]
     return selected

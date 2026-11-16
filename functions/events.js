@@ -19,6 +19,7 @@ const ALLOWED_ROUTES = new Set([
   "/deepseek-vs-qwen/",
   "/claude-code-domestic/",
   "/dify-openclaw-cloud-server/",
+  "/ai-coding-spend-auditor/",
 ]);
 
 const SAFE_TOKEN_RE = /^[A-Za-z0-9_./:\-]{1,96}$/;

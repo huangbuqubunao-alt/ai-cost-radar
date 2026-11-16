@@ -55,6 +55,7 @@ DEFAULT_AFFILIATES: dict[str, str] = {
     "volcengine_ark_url": "https://console.volcengine.com/ark",
     # Global USD channels (clean official URLs when unconfigured)
     "runpod_affiliate_url": "https://www.runpod.io",
+    "apify_affiliate_url": "https://apify.com",
     "digitalocean_affiliate_url": "https://www.digitalocean.com",
     "railway_affiliate_url": "https://railway.com",
     "openrouter_url": "https://openrouter.ai",
@@ -471,6 +472,42 @@ SEO_ROUTES: list[dict[str, Any]] = [
                 "aliyun-bailian/qwen3.5-plus",
                 "volcengine/doubao-seed-2.0-pro",
             ],
+        },
+    },
+    {
+        "slug": "ai-coding-spend-auditor/",
+        "nav_label": "海外账单体检",
+        "html_lang": "en",
+        "priority": "0.95",
+        "title": "AI Coding & Agent Spend Auditor (2026) — Claude Code, Codex, Antigravity, OpenCode & Grok vs RunPod GPU",
+        "description": "Zero-dependency local read-only CLI auditor for Claude Code, OpenAI Codex (.jsonl & .zst), Google Antigravity, OpenCode SQLite, xAI Grok CLI & Cline — plus live USD API vs RunPod GPU & Railway LiteLLM cache break-even calculator.",
+        "hero_main": "Audit Real Claude Code, Codex & Agent Spend Locally, ",
+        "hero_accent": "Compare USD APIs vs RunPod GPU Break-Even",
+        "hero_sub": "100% read-only Python stdlib scanner across Claude Code, Codex (.jsonl/.zst), Antigravity, OpenCode SQLite, Grok CLI & Cline — zero prompts uploaded. Model exact prompt-cache savings, Railway LiteLLM proxy, and RunPod elastic GPU break-even.",
+        "preset": {
+            "lang": "en",
+            "region": "global",
+            "filter": "coding",
+            "dailyCalls": 2000,
+            "inputTokens": 4500,
+            "outputTokens": 900,
+            "cacheEnabled": True,
+            "cacheHitRate": 0.75,
+            "reasoningEnabled": False,
+            "reasoningMultiplier": 2.5,
+            "usageMode": "interactive_ide",
+            "baselineId": "anthropic/claude-sonnet-5.5",
+            "compareIds": [
+                "anthropic/claude-sonnet-5.5",
+                "openai/gpt-5.3-codex",
+                "x-ai/grok-code-fast-1",
+            ],
+            "heroEnMain": "Audit Real Claude Code, Codex & Agent Spend Locally, ",
+            "heroEnAccent": "Compare USD APIs vs RunPod GPU Break-Even",
+            "heroEnSub": "100% read-only Python stdlib scanner across Claude Code, Codex (.jsonl/.zst), Antigravity, OpenCode SQLite, Grok CLI & Cline — zero prompts uploaded. Model exact prompt-cache savings, Railway LiteLLM proxy, and RunPod elastic GPU break-even.",
+            "heroZhMain": "一行命令只读审计海内外 8 大 AI 编程客户端账单，",
+            "heroZhAccent": "实算海外 USD 按量 vs RunPod GPU 回本线",
+            "heroZhSub": "零依赖本地扫描 Claude Code、Codex（含 .zst 归档）、Antigravity、OpenCode、Grok、WorkBuddy、Qwen 与 Cline，精准对比海外低价 API、Railway 缓存网关与 RunPod 弹性 GPU。",
         },
     },
 ]
@@ -1361,6 +1398,7 @@ def build_seo_nav_html(base_prefix: str, active_slug: str) -> str:
         "deepseek-vs-qwen/": "navTopicDeepseekQwen",
         "claude-code-domestic/": "navTopicClaudeCode",
         "dify-openclaw-cloud-server/": "navTopicDifyHost",
+        "ai-coding-spend-auditor/": "navTopicGlobalSpend",
     }
     links: list[str] = []
     for r in SEO_ROUTES:
@@ -1471,6 +1509,7 @@ def build_site(
             feed_href=f"{base_prefix}feeds/price-changes.xml",
             api_json_href=f"{base_prefix}api/models_live.json",
             badge_svg_href=f"{base_prefix}badges/coding-plan-status.svg",
+            html_lang=route.get("html_lang", "zh-CN"),
         )
 
         out_file = target_dist / "index.html" if is_root else (target_dist / slug.strip("/") / "index.html")
@@ -1501,10 +1540,11 @@ def build_site(
     coze_spec = PROJECT_ROOT / "engine_a_mcp_actor/publish_bundles/coze_cn_bundle/openapi_coze_live.json"
     (api_dir / "openapi.json").write_text(coze_spec.read_text(encoding="utf-8"), encoding="utf-8")
 
-    # Standalone read-only local ~/.claude/projects CLI scanner script
+    # Standalone read-only local 8-client CLI scanner scripts (legacy + global alias, byte-identical)
     cli_scanner_src = PROJECT_ROOT / "engine_a_mcp_actor/audit_local_claude.py"
-    cli_scanner_dst = target_dist / "audit_local_claude.py"
-    cli_scanner_dst.write_bytes(cli_scanner_src.read_bytes())
+    cli_bytes = cli_scanner_src.read_bytes()
+    (target_dist / "audit_local_claude.py").write_bytes(cli_bytes)
+    (target_dist / "audit_ai_spend.py").write_bytes(cli_bytes)
 
     # Embeddable SVG status badge + Atom price-change feed
     badges_dir = target_dist / "badges"

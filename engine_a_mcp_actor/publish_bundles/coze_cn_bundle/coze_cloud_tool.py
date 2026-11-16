@@ -1280,6 +1280,96 @@ def _try_parse_json_records_bill(text: str, days: float, fx_rate: float = DEFAUL
             )
             continue
 
+        rt_low = str(rec.get("type") or "").strip().lower()
+        if rt_low == "user_input":
+            continue
+        if rt_low == "planner_response" or ("cache_read_tokens" in rec and not rt_low):
+            row_in = _snum(rec.get("input_tokens")) + _snum(rec.get("cache_read_tokens")) + _snum(rec.get("cache_creation_tokens"))
+            row_cached = _snum(rec.get("cache_read_tokens"))
+            out_val = _snum(rec.get("output_tokens"))
+            reason_val = _snum(rec.get("thinking_tokens"))
+            if row_in <= 0 and out_val <= 0:
+                continue
+            m_agy = str(_fval(rec, ("model", "model_id", "model_name")) or "google/gemini-4-hydrogen").strip() or "google/gemini-4-hydrogen"
+            step_idx = rec.get("step_index")
+            _push_ent(
+                {
+                    "model": m_agy,
+                    "requests": 1.0,
+                    "input_tokens": row_in,
+                    "cached_input_tokens": row_cached,
+                    "output_tokens": out_val,
+                    "reasoning_tokens": reason_val,
+                    "reported_cost_rmb": 0.0,
+                    "source_file_idx": f_key,
+                },
+                f"agy:{f_key}:{step_idx}" if step_idx is not None else None,
+            )
+            continue
+
+        if "sessionUpdate" in rec:
+            if str(rec.get("sessionUpdate") or "").strip() != "turn_completed":
+                continue
+            u_grok = rec.get("usage") if isinstance(rec.get("usage"), dict) else rec
+            in_g = _snum(_fval(u_grok, ("inputTokens", "prompt_tokens", "input_tokens")))
+            cr_g = _snum(_fval(u_grok, ("cachedReadTokens", "cached_tokens", "cached_input_tokens")))
+            cw_g = _snum(_fval(u_grok, ("cacheCreationTokens", "cache_creation_input_tokens")))
+            row_in = max(in_g, cr_g) + cw_g
+            row_cached = min(row_in, cr_g)
+            out_val = _snum(_fval(u_grok, ("outputTokens", "completion_tokens", "output_tokens")))
+            reason_val = _snum(_fval(u_grok, ("reasoningTokens", "reasoning_tokens")))
+            if row_in <= 0 and out_val <= 0:
+                continue
+            m_grok = str(_fval(rec, ("model", "modelId", "model_id")) or _fval(u_grok, ("model", "modelId")) or "x-ai/grok-4").strip() or "x-ai/grok-4"
+            c_usd = _fval(u_grok, ("costUsd", "cost", "cost_usd")) or _fval(rec, ("costUsd", "cost"))
+            row_cost_rmb = _parse_currency_rmb(c_usd, "costusd", fx_rate=fx_rate) if c_usd is not None else 0.0
+            t_id = _fval(rec, ("turnId", "turn_id", "id"))
+            _push_ent(
+                {
+                    "model": m_grok,
+                    "requests": 1.0,
+                    "input_tokens": row_in,
+                    "cached_input_tokens": row_cached,
+                    "output_tokens": out_val,
+                    "reasoning_tokens": reason_val,
+                    "reported_cost_rmb": row_cost_rmb,
+                    "source_file_idx": f_key,
+                },
+                f"grok:{f_key}:{t_id}" if t_id is not None else None,
+            )
+            continue
+
+        if isinstance(rec.get("tokens"), dict) and ("modelID" in rec or "sessionID" in rec or "providerID" in rec):
+            role_oc = str(rec.get("role") or "").strip().lower()
+            if role_oc and role_oc != "assistant":
+                continue
+            toks_oc = rec["tokens"]
+            cache_oc = toks_oc.get("cache") if isinstance(toks_oc.get("cache"), dict) else {}
+            row_in = _snum(toks_oc.get("input")) + _snum(cache_oc.get("read")) + _snum(cache_oc.get("write"))
+            row_cached = _snum(cache_oc.get("read"))
+            out_val = _snum(toks_oc.get("output"))
+            reason_val = _snum(toks_oc.get("reasoning"))
+            if row_in <= 0 and out_val <= 0:
+                continue
+            m_oc = str(_fval(rec, ("modelID", "model_id", "model")) or "anthropic/claude-sonnet-5.5").strip() or "anthropic/claude-sonnet-5.5"
+            c_usd = _fval(rec, ("cost", "cost_usd"))
+            row_cost_rmb = _parse_currency_rmb(c_usd, "costusd", fx_rate=fx_rate) if c_usd is not None else 0.0
+            oc_id = _fval(rec, ("id", "messageID"))
+            _push_ent(
+                {
+                    "model": m_oc,
+                    "requests": 1.0,
+                    "input_tokens": row_in,
+                    "cached_input_tokens": row_cached,
+                    "output_tokens": out_val,
+                    "reasoning_tokens": reason_val,
+                    "reported_cost_rmb": row_cost_rmb,
+                    "source_file_idx": f_key,
+                },
+                f"opencode_msg:{oc_id}" if oc_id is not None else None,
+            )
+            continue
+
         msg = rec.get("message") if isinstance(rec.get("message"), dict) else {}
         resp = rec.get("response") if isinstance(rec.get("response"), dict) else {}
         body = resp.get("body") if isinstance(resp.get("body"), dict) else {}
@@ -1509,6 +1599,14 @@ def _match_model_in_catalog(models: list[dict[str, Any]], raw_q: str) -> dict[st
         alias_cands.extend(["anthropic/claude-opus-5.5", "anthropic/claude-opus-5"])
     elif "claude" in slug_base and "haiku" in slug_base:
         alias_cands.append("anthropic/claude-haiku-5.5")
+    elif "grok" in slug_base and ("fast" in slug_base or "code" in slug_base or "mini" in slug_base):
+        alias_cands.extend(["x-ai/grok-code-fast-1", "x-ai/grok-4"])
+    elif "grok" in slug_base:
+        alias_cands.extend(["x-ai/grok-4", "x-ai/grok-code-fast-1"])
+    elif "gemini" in slug_base and ("flash" in slug_base or "lite" in slug_base):
+        alias_cands.extend(["google/gemini-3.8-flash", "google/gemini-3.7-flash", "google/gemini-2.5-flash"])
+    elif "gemini" in slug_base or slug_base in ("antigravity", "antigravity-pro"):
+        alias_cands.extend(["google/gemini-4-hydrogen", "google/gemini-2.5-pro", "google/gemini-3.8-flash"])
     for ca in alias_cands:
         ca_low = ca.lower()
         ca_hits = [
@@ -2007,8 +2105,21 @@ def _sanitize_file_label_coze(raw_name: Any, fallback_idx: int = 1) -> str:
             tail = parts[idx + 2 :]
             lbl = "/".join(tail[-2:]) if len(tail) >= 2 else tail[-1]
             return lbl[:80] or f"file_{fallback_idx}"
-        if p_low == ".codex" and p_next == "sessions" and (idx + 2) < len(parts):
+        if p_low == ".codex" and p_next in ("sessions", "archived_sessions") and (idx + 2) < len(parts):
             return f"codex/{parts[-1]}"[:80]
+        if p_low == "antigravity" and p_next == "brain" and (idx + 2) < len(parts):
+            return f"antigravity/{parts[idx + 2]}/{parts[-1]}"[:80]
+        if p_low == ".grok" and p_next == "sessions" and len(parts) >= idx + 4:
+            return f"grok/{parts[-2]}/{parts[-1]}"[:80]
+        if p_low == "opencode" and idx + 1 < len(parts):
+            tail = "/".join(parts[-2:]) if len(parts) >= idx + 3 else parts[-1]
+            return f"opencode/{tail}"[:80]
+        if p_low in (".workbuddy", ".codebuddy") and idx + 1 < len(parts):
+            tail = "/".join(parts[-2:]) if len(parts) >= idx + 3 else parts[-1]
+            return f"workbuddy/{tail}"[:80]
+        if p_low in (".qwen", ".qoder") and idx + 1 < len(parts):
+            tail = "/".join(parts[-2:]) if len(parts) >= idx + 3 else parts[-1]
+            return f"qwen/{tail}"[:80]
         if p_low == "tasks" and (idx + 2) < len(parts) and parts[-1].lower() in ("ui_messages.json", "api_conversation_history.json"):
             return f"cline/{parts[idx + 1]}/{parts[-1]}"[:80]
     host_roots = {"users", "home", "var", "tmp", "private", "mnt", "opt", "etc", "root", "downloads", "documents", "desktop"}

@@ -47,7 +47,7 @@ def main():
     parser.add_argument("--remote", help="Read-only HTTP verification of deployed assets")
     args = parser.parse_args()
     pages = sorted(DIST.rglob("*.html"))
-    assert len(pages) == 5, f"Expected 5 landing pages, found {len(pages)}"
+    assert len(pages) == 6, f"Expected 6 landing pages, found {len(pages)}"
     for file in pages:
         page = Page()
         page.feed(file.read_text())
@@ -68,9 +68,14 @@ def main():
     atom_xml = (DIST / "feeds/price-changes.xml").read_text()
     assert '<feed xmlns="http://www.w3.org/2005/Atom">' in atom_xml, "Invalid Atom XML feed"
     cli_dist = DIST / "audit_local_claude.py"
+    cli_spend_dist = DIST / "audit_ai_spend.py"
     cli_src = ROOT / "engine_a_mcp_actor" / "audit_local_claude.py"
+    cli_spend_src = ROOT / "engine_a_mcp_actor" / "audit_ai_spend.py"
     assert cli_dist.is_file(), "Missing dist/audit_local_claude.py"
+    assert cli_spend_dist.is_file(), "Missing dist/audit_ai_spend.py"
     assert cli_dist.read_bytes() == cli_src.read_bytes(), "dist/audit_local_claude.py differs from engine_a_mcp_actor/audit_local_claude.py"
+    assert cli_spend_dist.read_bytes() == cli_spend_src.read_bytes(), "dist/audit_ai_spend.py differs from engine_a_mcp_actor/audit_ai_spend.py"
+    assert cli_dist.read_bytes() == cli_spend_dist.read_bytes(), "dist/audit_ai_spend.py must stay byte-synced with dist/audit_local_claude.py"
     cli_dist_txt = cli_dist.read_text(encoding="utf-8")
     assert "def scan_claude_projects_dir(" in cli_dist_txt and "def scan_local_coding_logs(" in cli_dist_txt, (
         "dist/audit_local_claude.py missing expected CLI entrypoints"
@@ -203,6 +208,14 @@ def main():
             st_cli, body_cli = request_remote("audit_local_claude.py")
             assert st_cli == 200 and "scan_claude_projects_dir" in body_cli and "scan_local_coding_logs" in body_cli, (
                 f"/audit_local_claude.py returned HTTP {st_cli}"
+            )
+            st_cli2, body_cli2 = request_remote("audit_ai_spend.py")
+            assert st_cli2 == 200 and body_cli2 == body_cli, (
+                f"/audit_ai_spend.py returned HTTP {st_cli2} or drifted from /audit_local_claude.py"
+            )
+            st_en_page, body_en_page = request_remote("ai-coding-spend-auditor/")
+            assert st_en_page == 200 and '<html lang="en"' in body_en_page, (
+                f"/ai-coding-spend-auditor/ returned HTTP {st_en_page}"
             )
             st_feed, body_feed = request_remote("feeds/price-changes.xml")
             assert st_feed == 200 and "<feed" in body_feed, f"/feeds/price-changes.xml returned HTTP {st_feed}"

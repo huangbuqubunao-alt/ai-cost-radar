@@ -363,7 +363,7 @@ function collectJsonRecordEntries(rawRecords, fxRate = 7.2) {
     return null;
   };
 
-  const skipTypes = new Set(["user", "summary", "system", "file-history-snapshot", "queue-operation", "session_meta", "response_item", "compacted"]);
+  const skipTypes = new Set(["user", "user_input", "summary", "system", "file-history-snapshot", "queue-operation", "session_meta", "response_item", "compacted"]);
   const summaryLabels = new Set(["total", "totals", "sum", "summary", "合计", "总计", "汇总", "小计"]);
   const dedupedEntries = new Map();
   const anonEntries = [];
@@ -501,6 +501,88 @@ function collectJsonRecordEntries(rawRecords, fxRate = 7.2) {
         reported_cost_rmb: rowCostRmb,
         source_file_idx: fKey,
       }, tsVal !== null ? `cline:${fKey}:${tsVal}` : null);
+      continue;
+    }
+
+    if (recTypeLow === "planner_response" || ("cache_read_tokens" in rec && !recTypeLow)) {
+      const uInAgy = safeNum(rec.input_tokens);
+      const cReadAgy = safeNum(rec.cache_read_tokens);
+      const cWriteAgy = safeNum(rec.cache_creation_tokens);
+      const rowIn = uInAgy + cReadAgy + cWriteAgy;
+      const rowCached = cReadAgy;
+      const outVal = safeNum(rec.output_tokens);
+      const reasonVal = safeNum(rec.thinking_tokens);
+      if (rowIn <= 0 && outVal <= 0) continue;
+      const mAgy = String(firstVal(rec, ["model", "model_id", "model_name"]) || "google/gemini-4-hydrogen").trim() || "google/gemini-4-hydrogen";
+      const stepIdx = rec.step_index;
+      pushEntry({
+        model: mAgy,
+        requests: 1,
+        input_tokens: rowIn,
+        cached_input_tokens: rowCached,
+        output_tokens: outVal,
+        reasoning_tokens: reasonVal,
+        reported_cost_rmb: 0,
+        source_file_idx: fKey,
+      }, stepIdx !== undefined && stepIdx !== null ? `agy:${fKey}:${stepIdx}` : null);
+      continue;
+    }
+
+    if ("sessionUpdate" in rec) {
+      if (String(rec.sessionUpdate || "").trim() !== "turn_completed") continue;
+      const uGrok = rec.usage && typeof rec.usage === "object" ? rec.usage : rec;
+      const inG = safeNum(firstVal(uGrok, ["inputTokens", "prompt_tokens", "input_tokens"]));
+      const crG = safeNum(firstVal(uGrok, ["cachedReadTokens", "cached_tokens", "cached_input_tokens"]));
+      const cwG = safeNum(firstVal(uGrok, ["cacheCreationTokens", "cache_creation_input_tokens"]));
+      const rowIn = Math.max(inG, crG) + cwG;
+      const rowCached = Math.min(rowIn, crG);
+      const outVal = safeNum(firstVal(uGrok, ["outputTokens", "completion_tokens", "output_tokens"]));
+      const reasonVal = safeNum(firstVal(uGrok, ["reasoningTokens", "reasoning_tokens"]));
+      if (rowIn <= 0 && outVal <= 0) continue;
+      const mGrok = String(firstVal(rec, ["model", "modelId", "model_id"]) || firstVal(uGrok, ["model", "modelId"]) || "x-ai/grok-4").trim() || "x-ai/grok-4";
+      const cUsd = firstVal(uGrok, ["costUsd", "cost", "cost_usd"]) ?? firstVal(rec, ["costUsd", "cost"]);
+      const rowCostRmb = cUsd !== null && cUsd !== undefined ? parseCurrencyRmb(cUsd, "costusd", fxRate) : 0;
+      const tId = firstVal(rec, ["turnId", "turn_id", "id"]);
+      pushEntry({
+        model: mGrok,
+        requests: 1,
+        input_tokens: rowIn,
+        cached_input_tokens: rowCached,
+        output_tokens: outVal,
+        reasoning_tokens: reasonVal,
+        reported_cost_rmb: rowCostRmb,
+        source_file_idx: fKey,
+      }, tId !== null ? `grok:${fKey}:${tId}` : null);
+      continue;
+    }
+
+    if (rec.tokens && typeof rec.tokens === "object" && ("modelID" in rec || "sessionID" in rec || "providerID" in rec)) {
+      const roleOc = String(rec.role || "").trim().toLowerCase();
+      if (roleOc && roleOc !== "assistant") continue;
+      const toksOc = rec.tokens;
+      const cacheOc = toksOc.cache && typeof toksOc.cache === "object" ? toksOc.cache : {};
+      const tIn = safeNum(toksOc.input);
+      const cRead = safeNum(cacheOc.read);
+      const cWrite = safeNum(cacheOc.write);
+      const rowIn = tIn + cRead + cWrite;
+      const rowCached = cRead;
+      const outVal = safeNum(toksOc.output);
+      const reasonVal = safeNum(toksOc.reasoning);
+      if (rowIn <= 0 && outVal <= 0) continue;
+      const mOc = String(firstVal(rec, ["modelID", "model_id", "model"]) || "anthropic/claude-sonnet-5.5").trim() || "anthropic/claude-sonnet-5.5";
+      const cUsd = firstVal(rec, ["cost", "cost_usd"]);
+      const rowCostRmb = cUsd !== null && cUsd !== undefined ? parseCurrencyRmb(cUsd, "costusd", fxRate) : 0;
+      const ocId = firstVal(rec, ["id", "messageID"]);
+      pushEntry({
+        model: mOc,
+        requests: 1,
+        input_tokens: rowIn,
+        cached_input_tokens: rowCached,
+        output_tokens: outVal,
+        reasoning_tokens: reasonVal,
+        reported_cost_rmb: rowCostRmb,
+        source_file_idx: fKey,
+      }, ocId !== null ? `opencode_msg:${ocId}` : null);
       continue;
     }
 
@@ -695,8 +777,26 @@ export function sanitizeUsageFileLabel(rawName, fallbackIdx = 1) {
       const lbl = (tail.length >= 2 ? tail.slice(-2).join("/") : tail[tail.length - 1]).slice(0, 80);
       return lbl || `file_${fallbackIdx}`;
     }
-    if (pLow === ".codex" && pNext === "sessions" && i + 2 < parts.length) {
+    if (pLow === ".codex" && ["sessions", "archived_sessions"].includes(pNext) && i + 2 < parts.length) {
       return `codex/${parts[parts.length - 1]}`.slice(0, 80);
+    }
+    if (pLow === "antigravity" && pNext === "brain" && i + 2 < parts.length) {
+      return `antigravity/${parts[i + 2]}/${parts[parts.length - 1]}`.slice(0, 80);
+    }
+    if (pLow === ".grok" && pNext === "sessions" && parts.length >= i + 4) {
+      return `grok/${parts[parts.length - 2]}/${parts[parts.length - 1]}`.slice(0, 80);
+    }
+    if (pLow === "opencode" && i + 1 < parts.length) {
+      const tail = parts.length >= i + 3 ? parts.slice(-2).join("/") : parts[parts.length - 1];
+      return `opencode/${tail}`.slice(0, 80);
+    }
+    if ([".workbuddy", ".codebuddy"].includes(pLow) && i + 1 < parts.length) {
+      const tail = parts.length >= i + 3 ? parts.slice(-2).join("/") : parts[parts.length - 1];
+      return `workbuddy/${tail}`.slice(0, 80);
+    }
+    if ([".qwen", ".qoder"].includes(pLow) && i + 1 < parts.length) {
+      const tail = parts.length >= i + 3 ? parts.slice(-2).join("/") : parts[parts.length - 1];
+      return `qwen/${tail}`.slice(0, 80);
     }
     if (pLow === "tasks" && i + 2 < parts.length && ["ui_messages.json", "api_conversation_history.json"].includes(parts[parts.length - 1].toLowerCase())) {
       return `cline/${parts[i + 1]}/${parts[parts.length - 1]}`.slice(0, 80);
@@ -1134,6 +1234,14 @@ export function resolveModelFuzzy(models, rawId) {
     aliasCands.push("anthropic/claude-opus-5.5", "anthropic/claude-opus-5");
   } else if (slugBase.includes("claude") && slugBase.includes("haiku")) {
     aliasCands.push("anthropic/claude-haiku-5.5");
+  } else if (slugBase.includes("grok") && (slugBase.includes("fast") || slugBase.includes("code") || slugBase.includes("mini"))) {
+    aliasCands.push("x-ai/grok-code-fast-1", "x-ai/grok-4");
+  } else if (slugBase.includes("grok")) {
+    aliasCands.push("x-ai/grok-4", "x-ai/grok-code-fast-1");
+  } else if (slugBase.includes("gemini") && (slugBase.includes("flash") || slugBase.includes("lite"))) {
+    aliasCands.push("google/gemini-3.8-flash", "google/gemini-3.7-flash", "google/gemini-2.5-flash");
+  } else if (slugBase.includes("gemini") || slugBase === "antigravity" || slugBase === "antigravity-pro") {
+    aliasCands.push("google/gemini-4-hydrogen", "google/gemini-2.5-pro", "google/gemini-3.8-flash");
   }
   for (const ca of aliasCands) {
     const hit = resolveCatalogModel(models, ca);
@@ -1263,14 +1371,22 @@ export function buildBillMigrationLiteLlmConfig(lineItems) {
   };
 }
 
-export function auditCsvBill(catalog, parsedSummary, {usageMode = "interactive_ide", teamSize = 1} = {}) {
+export function auditCsvBill(catalog, parsedSummary, {usageMode = "interactive_ide", teamSize = 1, targetRegion = "cn"} = {}) {
   const models = catalog.models || [];
   const days = Number(parsedSummary.days_observed || 30);
   const scale30d = 30 / days;
   const seats = Math.max(1, Math.min(50, Math.round(Number(teamSize) || 1)));
   const round2 = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
+  const isGlobalTarget = String(targetRegion || "cn").trim().toLowerCase() === "global";
 
   const workhorses = models.filter((m) => {
+    if (isGlobalTarget) {
+      if (m.region !== "global" || m.is_free) return false;
+      if ((Number(m.context_length) || 0) < 64000) return false;
+      const midLow = String(m.id || "").toLowerCase();
+      if (midLow.includes("grok-code-fast")) return true;
+      return !["7b", "8b", "lite", "turbo", "nano", "flash"].some((tok) => midLow.includes(tok));
+    }
     if (m.region !== "cn_direct" || m.is_free) return false;
     if ((Number(m.context_length) || 0) < 64000) return false;
     const midLow = String(m.id || "").toLowerCase();
@@ -1353,7 +1469,7 @@ export function auditCsvBill(catalog, parsedSummary, {usageMode = "interactive_i
 
     const recModel = bestCand && bestCandRmb < baselineRmb - 0.005 ? bestCand : matched;
     const optRmb = bestCand && bestCandRmb < baselineRmb - 0.005 ? round2(bestCandRmb) : round2(baselineRmb);
-    const action = bestCand && bestCandRmb < baselineRmb - 0.005 ? "switch_cn_direct" : "keep_current";
+    const action = bestCand && bestCandRmb < baselineRmb - 0.005 ? (isGlobalTarget ? "switch_global_value" : "switch_cn_direct") : "keep_current";
     const savRmb = round2(Math.max(0, baselineRmb - optRmb));
     const savPct = baselineRmb > 0 ? Math.round(((savRmb / baselineRmb) * 100) * 10) / 10 : 0;
 
@@ -1395,7 +1511,7 @@ export function auditCsvBill(catalog, parsedSummary, {usageMode = "interactive_i
   const totalSavPct = totalBaseRmb > 0 ? Math.round(((totalSavRmb / totalBaseRmb) * 100) * 10) / 10 : 0;
 
   let codingPlanOption = null;
-  if (usageMode === "interactive_ide") {
+  if (usageMode === "interactive_ide" && !isGlobalTarget) {
     const subOffers = (catalog.coding_plans || []).filter((p) => p.offer_type === "subscription");
     if (subOffers.length > 0) {
       const fitsLite = totalMReqs <= 18000 * seats;
@@ -1524,7 +1640,8 @@ export function calculateBudget(catalog, params) {
     if (parsedUsageSummary.output_includes_reasoning) includesReasoning = true;
     if (parsedUsageSummary.detected_format === "csv_multimodel_bill") {
       explicitMonthlyRequests = parsedUsageSummary.monthly_requests;
-      billAudit = auditCsvBill(catalog, parsedUsageSummary, {usageMode: mode, teamSize: seats});
+      const targetRegion = String(params.get("region") || "cn").trim().toLowerCase() === "global" ? "global" : "cn";
+      billAudit = auditCsvBill(catalog, parsedUsageSummary, {usageMode: mode, teamSize: seats, targetRegion});
     }
   } else if (
     params.has("monthly_requests") ||

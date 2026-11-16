@@ -28,7 +28,10 @@ import math
 import os
 from pathlib import Path
 import re
+import shutil
+import sqlite3
 import ssl
+import subprocess
 import sys
 import time
 from typing import Any
@@ -36,6 +39,18 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
+
+SUPPORTED_CLIENTS: tuple[str, ...] = (
+    "all",
+    "claude",
+    "codex",
+    "antigravity",
+    "opencode",
+    "grok",
+    "workbuddy",
+    "qwen",
+    "cline",
+)
 
 LIVE_CATALOG_URL: str = "https://ai-cost-radar-nlu.pages.dev/api/models_live.json"
 WEB_CALCULATOR_BASE: str = "https://ai-cost-radar-nlu.pages.dev/"
@@ -154,6 +169,62 @@ EMBEDDED_FALLBACK_MODELS: list[dict[str, Any]] = [
         "context_length": 400_000,
         "is_free": False,
         "value_score": 89.0,
+        "tags": ["coding", "reasoning", "global"],
+    },
+    {
+        "id": "x-ai/grok-4",
+        "api_model_id": "x-ai/grok-4",
+        "name": "xAI: Grok 4",
+        "provider": "OpenRouter",
+        "region": "global",
+        "input_rmb_per_1m": 21.60,
+        "output_rmb_per_1m": 108.00,
+        "cache_hit_factor": 0.25,
+        "context_length": 256_000,
+        "is_free": False,
+        "value_score": 86.0,
+        "tags": ["coding", "reasoning", "global"],
+    },
+    {
+        "id": "x-ai/grok-code-fast-1",
+        "api_model_id": "x-ai/grok-code-fast-1",
+        "name": "xAI: Grok Code Fast 1",
+        "provider": "OpenRouter",
+        "region": "global",
+        "input_rmb_per_1m": 1.44,
+        "output_rmb_per_1m": 10.80,
+        "cache_hit_factor": 0.25,
+        "context_length": 256_000,
+        "is_free": False,
+        "value_score": 92.0,
+        "tags": ["coding", "reasoning", "cheap", "global"],
+    },
+    {
+        "id": "google/gemini-4-hydrogen",
+        "api_model_id": "google/gemini-4-hydrogen",
+        "name": "Google: Gemini 4 Hydrogen",
+        "provider": "OpenRouter",
+        "region": "global",
+        "input_rmb_per_1m": 10.80,
+        "output_rmb_per_1m": 54.00,
+        "cache_hit_factor": 0.50,
+        "context_length": 1_048_576,
+        "is_free": False,
+        "value_score": 89.5,
+        "tags": ["coding", "reasoning", "global"],
+    },
+    {
+        "id": "google/gemini-3.8-flash",
+        "api_model_id": "google/gemini-3.8-flash",
+        "name": "Google: Gemini 3.8 Flash",
+        "provider": "OpenRouter",
+        "region": "global",
+        "input_rmb_per_1m": 5.94,
+        "output_rmb_per_1m": 29.70,
+        "cache_hit_factor": 0.50,
+        "context_length": 1_048_576,
+        "is_free": False,
+        "value_score": 91.5,
         "tags": ["coding", "reasoning", "global"],
     },
     {
@@ -408,6 +479,14 @@ def resolve_catalog_model(models: list[dict[str, Any]], raw_query: str) -> dict[
         alias_cands.extend(["anthropic/claude-opus-5.5", "anthropic/claude-opus-5"])
     elif "claude" in slug_base and "haiku" in slug_base:
         alias_cands.append("anthropic/claude-haiku-5.5")
+    elif "grok" in slug_base and ("fast" in slug_base or "code" in slug_base or "mini" in slug_base):
+        alias_cands.extend(["x-ai/grok-code-fast-1", "x-ai/grok-4"])
+    elif "grok" in slug_base:
+        alias_cands.extend(["x-ai/grok-4", "x-ai/grok-code-fast-1"])
+    elif "gemini" in slug_base and ("flash" in slug_base or "lite" in slug_base):
+        alias_cands.extend(["google/gemini-3.8-flash", "google/gemini-3.7-flash", "google/gemini-2.5-flash"])
+    elif "gemini" in slug_base or slug_base in ("antigravity", "antigravity-pro"):
+        alias_cands.extend(["google/gemini-4-hydrogen", "google/gemini-2.5-pro", "google/gemini-3.8-flash"])
 
     for ca in alias_cands:
         ca_low = ca.lower()
@@ -485,6 +564,21 @@ def _safe_rel_session_label(file_path: Path, root_dir: Path, client_prefix: str 
     parts = [p for p in rel.split("/") if p and p not in (".", "..")]
     if client_prefix == "codex":
         return f"codex/{parts[-1] if parts else file_path.name}"
+    if client_prefix == "antigravity" or ".system_generated" in parts:
+        conv_id = parts[0] if parts else "conv"
+        return f"antigravity/{conv_id}/{file_path.name}"
+    if client_prefix == "grok":
+        sess_id = parts[-2] if len(parts) >= 2 else "session"
+        return f"grok/{sess_id}/{file_path.name}"
+    if client_prefix == "opencode":
+        sess_id = parts[-2] if len(parts) >= 2 else (parts[-1] if parts else file_path.name)
+        return f"opencode/{sess_id}"
+    if client_prefix == "workbuddy":
+        tail = "/".join(parts[-2:]) if len(parts) >= 2 else (parts[-1] if parts else file_path.name)
+        return f"workbuddy/{tail}"
+    if client_prefix == "qwen":
+        tail = "/".join(parts[-2:]) if len(parts) >= 2 else (parts[-1] if parts else file_path.name)
+        return f"qwen/{tail}"
     if client_prefix == "cline":
         tail = "/".join(parts[-2:]) if len(parts) >= 2 else (parts[-1] if parts else file_path.name)
         return f"cline/{tail}"
@@ -502,12 +596,12 @@ def discover_client_roots(
     home_dir: str | Path | None = None,
 ) -> list[tuple[str, Path]]:
     """
-    Auto-discover existing local log directories for Claude Code, OpenAI Codex CLI,
-    and VS Code / Cursor Cline & Roo Code without reading any file contents yet.
+    Auto-discover existing local log directories across all 8 exact-telemetry coding/agent clients
+    without reading any file contents yet.
     """
     norm_client = str(client or "all").strip().lower()
-    if norm_client not in ("all", "claude", "codex", "cline"):
-        raise ValueError(f"Unsupported client '{client}' (must be all, claude, codex, or cline)")
+    if norm_client not in SUPPORTED_CLIENTS:
+        raise ValueError(f"Unsupported client '{client}' (must be one of {', '.join(SUPPORTED_CLIENTS)})")
 
     base_home = Path(home_dir).expanduser() if home_dir is not None else Path.home()
     candidates: list[tuple[str, Path]] = []
@@ -516,6 +610,25 @@ def discover_client_roots(
         candidates.append(("claude", base_home / ".claude" / "projects"))
     if norm_client in ("all", "codex"):
         candidates.append(("codex", base_home / ".codex" / "sessions"))
+        candidates.append(("codex", base_home / ".codex" / "archived_sessions"))
+    if norm_client in ("all", "antigravity"):
+        candidates.append(("antigravity", base_home / ".gemini" / "antigravity" / "brain"))
+        candidates.append(("antigravity", base_home / "Library" / "Application Support" / "Antigravity" / "brain"))
+    if norm_client in ("all", "opencode"):
+        if home_dir is None and os.environ.get("OPENCODE_DATA_DIR"):
+            candidates.append(("opencode", Path(os.environ["OPENCODE_DATA_DIR"]).expanduser()))
+        candidates.append(("opencode", base_home / ".local" / "share" / "opencode"))
+        candidates.append(("opencode", base_home / "AppData" / "Local" / "opencode"))
+    if norm_client in ("all", "grok"):
+        if home_dir is None and os.environ.get("GROK_HOME"):
+            candidates.append(("grok", Path(os.environ["GROK_HOME"]).expanduser() / "sessions"))
+        candidates.append(("grok", base_home / ".grok" / "sessions"))
+    if norm_client in ("all", "workbuddy"):
+        candidates.append(("workbuddy", base_home / ".workbuddy"))
+        candidates.append(("workbuddy", base_home / ".codebuddy"))
+    if norm_client in ("all", "qwen"):
+        candidates.append(("qwen", base_home / ".qwen"))
+        candidates.append(("qwen", base_home / ".qoder"))
     if norm_client in ("all", "cline"):
         for ide_dir in ("Code", "Cursor"):
             for ext_id in ("saoudrizwan.claude-dev", "rooveterinaryinc.roo-cline"):
@@ -547,9 +660,35 @@ def discover_client_roots(
     return discovered
 
 
+def _decompress_zst_bytes(fpath: Path) -> str:
+    """Decode a `.jsonl.zst` file strictly in memory (zero temp files, zero third-party deps)."""
+    try:
+        from compression import zstd as _stdlib_zstd  # type: ignore[attr-defined]
+
+        return _stdlib_zstd.decompress(fpath.read_bytes()).decode("utf-8", errors="replace")
+    except Exception:
+        pass
+    zstd_bin = shutil.which("zstd")
+    if zstd_bin:
+        try:
+            proc = subprocess.run(
+                [zstd_bin, "-dc", str(fpath)],
+                capture_output=True,
+                timeout=15,
+                check=False,
+            )
+            if proc.returncode == 0 and proc.stdout:
+                return proc.stdout.decode("utf-8", errors="replace")
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return ""
+
+
 def _load_records_from_session_file(fpath: Path) -> list[dict[str, Any]]:
     fname_low = fpath.name.lower()
-    if fname_low == "ui_messages.json":
+    if fname_low in ("settings.json", "auth.json", "config.json", "summary.json", "mcp.json"):
+        return []
+    if fname_low == "ui_messages.json" or (fname_low.endswith(".json") and not fname_low.endswith(".jsonl")):
         raw_txt = fpath.read_text(encoding="utf-8", errors="replace").strip()
         if not raw_txt:
             return []
@@ -557,11 +696,35 @@ def _load_records_from_session_file(fpath: Path) -> list[dict[str, Any]]:
             parsed = json.loads(raw_txt)
         except json.JSONDecodeError:
             return []
-        return [x for x in parsed if isinstance(x, dict)] if isinstance(parsed, list) else []
+        if isinstance(parsed, list):
+            return [x for x in parsed if isinstance(x, dict)]
+        if isinstance(parsed, dict):
+            return [parsed]
+        return []
+
+    if fname_low.endswith(".jsonl.zst"):
+        raw_zst_text = _decompress_zst_bytes(fpath)
+        if not raw_zst_text:
+            return []
+        out_zst: list[dict[str, Any]] = []
+        for raw_line in raw_zst_text.splitlines():
+            ln = raw_line.strip()
+            if not ln or not ln.startswith("{"):
+                continue
+            try:
+                rec = json.loads(ln)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(rec, dict):
+                out_zst.append(rec)
+        return out_zst
 
     out: list[dict[str, Any]] = []
+    is_agy_transcript = fname_low == "transcript.jsonl"
     with fpath.open("r", encoding="utf-8", errors="replace") as fh:
         for raw_line in fh:
+            if is_agy_transcript and "PLANNER_RESPONSE" not in raw_line and "planner_response" not in raw_line:
+                continue
             ln = raw_line.strip()
             if not ln or not ln.startswith("{"):
                 continue
@@ -574,6 +737,196 @@ def _load_records_from_session_file(fpath: Path) -> list[dict[str, Any]]:
     return out
 
 
+def _normalize_epoch_seconds(raw_ts: Any) -> float | None:
+    if raw_ts is None or isinstance(raw_ts, bool):
+        return None
+    if isinstance(raw_ts, (int, float)):
+        val = float(raw_ts)
+        if not math.isfinite(val) or val <= 0:
+            return None
+        if val > 1e14:
+            return val / 1_000_000.0
+        if val > 1e11:
+            return val / 1_000.0
+        return val
+    s = str(raw_ts).strip()
+    if not s:
+        return None
+    try:
+        num = float(s)
+        return _normalize_epoch_seconds(num)
+    except ValueError:
+        pass
+    try:
+        iso = s.replace("Z", "+00:00")
+        return dt.datetime.fromisoformat(iso).timestamp()
+    except ValueError:
+        return None
+
+
+def _read_sqlite_agent_entries(
+    db_path: Path,
+    client_tag: str,
+    cutoff_ts: float,
+    fx_rate: float,
+) -> list[tuple[dict[str, Any], str | None]]:
+    """Read OpenCode (`opencode.db`) or WorkBuddy (`workbuddy.db`) strictly in read-only SQLite mode."""
+    results: list[tuple[dict[str, Any], str | None]] = []
+    conn: sqlite3.Connection | None = None
+    try:
+        uri = f"file:{db_path.resolve().as_posix()}?mode=ro"
+        conn = sqlite3.connect(uri, uri=True, timeout=2.0)
+        tables = {
+            str(r[0])
+            for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+            if r and r[0]
+        }
+        msg_table = (
+            "message"
+            if "message" in tables
+            else ("session_message" if "session_message" in tables else None)
+        )
+        if msg_table is not None:
+            cols = {
+                str(r[1])
+                for r in conn.execute(f"PRAGMA table_info({msg_table})").fetchall()
+                if len(r) > 1
+            }
+            id_col = "id" if "id" in cols else "rowid"
+            sess_col = "session_id" if "session_id" in cols else ("sessionID" if "sessionID" in cols else "''")
+            ts_col = (
+                "time_created"
+                if "time_created" in cols
+                else ("created_at" if "created_at" in cols else ("timestamp" if "timestamp" in cols else "NULL"))
+            )
+            data_col = "data" if "data" in cols else None
+            if data_col is not None:
+                rows = conn.execute(
+                    f"SELECT {id_col}, {sess_col}, {ts_col}, {data_col} FROM {msg_table}"
+                ).fetchall()
+                for msg_id, sess_id, raw_ts, raw_data in rows:
+                    if not isinstance(raw_data, str) or not raw_data.strip().startswith("{"):
+                        continue
+                    try:
+                        data = json.loads(raw_data)
+                    except json.JSONDecodeError:
+                        continue
+                    if not isinstance(data, dict):
+                        continue
+                    ts_sec = _normalize_epoch_seconds(raw_ts)
+                    if ts_sec is None:
+                        time_obj = data.get("time") if isinstance(data.get("time"), dict) else {}
+                        ts_sec = _normalize_epoch_seconds(
+                            time_obj.get("created") or data.get("time_created") or data.get("created_at")
+                        )
+                    if ts_sec is not None and ts_sec < cutoff_ts:
+                        continue
+                    role_low = str(data.get("role") or "").strip().lower()
+                    if role_low and role_low != "assistant":
+                        continue
+                    toks = data.get("tokens") if isinstance(data.get("tokens"), dict) else {}
+                    if not toks:
+                        continue
+                    cache_obj = toks.get("cache") if isinstance(toks.get("cache"), dict) else {}
+                    t_in = _safe_float(toks.get("input"))
+                    c_read = _safe_float(cache_obj.get("read"))
+                    c_write = _safe_float(cache_obj.get("write"))
+                    row_in = t_in + c_read + c_write
+                    row_cached = c_read
+                    out_val = _safe_float(toks.get("output"))
+                    reason_val = _safe_float(toks.get("reasoning"))
+                    if row_in <= 0 and out_val <= 0:
+                        continue
+                    m_id = str(
+                        _first_scalar(data, ("modelID", "model_id", "model")) or "anthropic/claude-sonnet-5.5"
+                    ).strip()
+                    prov_id = str(data.get("providerID") or "").strip()
+                    if prov_id and "/" not in m_id and prov_id.lower() in ("x-ai", "openai", "anthropic", "google", "deepseek", "qwen"):
+                        model_label = f"{prov_id}/{m_id}"
+                    else:
+                        model_label = m_id or "anthropic/claude-sonnet-5.5"
+                    cost_usd = _first_scalar(data, ("cost", "cost_usd"))
+                    cost_rmb = _parse_currency_rmb(cost_usd, is_usd=True, fx_rate=fx_rate) if cost_usd is not None else 0.0
+                    clean_sess = str(sess_id or data.get("sessionID") or "session").strip() or "session"
+                    rel_lbl = f"{client_tag}/{clean_sess}"
+                    dedupe = f"{client_tag}_msg:{msg_id}" if msg_id else None
+                    results.append(
+                        (
+                            {
+                                "client": client_tag,
+                                "model": model_label,
+                                "requests": 1.0,
+                                "input_tokens": row_in,
+                                "cached_input_tokens": row_cached,
+                                "output_tokens": out_val,
+                                "reasoning_tokens": reason_val,
+                                "reported_cost_rmb": cost_rmb,
+                                "session_relpath": rel_lbl,
+                                "project_name": client_tag,
+                            },
+                            dedupe,
+                        )
+                    )
+                return results
+
+        if "session" in tables:
+            cols = {str(r[1]) for r in conn.execute("PRAGMA table_info(session)").fetchall() if len(r) > 1}
+            if "tokens_input" in cols and "tokens_output" in cols:
+                ts_col = "time_updated" if "time_updated" in cols else ("time_created" if "time_created" in cols else "NULL")
+                c_read_col = "tokens_cache_read" if "tokens_cache_read" in cols else "0"
+                c_write_col = "tokens_cache_write" if "tokens_cache_write" in cols else "0"
+                r_col = "tokens_reasoning" if "tokens_reasoning" in cols else "0"
+                cost_col = "cost" if "cost" in cols else "0"
+                m_col = "model" if "model" in cols else "NULL"
+                rows = conn.execute(
+                    f"SELECT id, {ts_col}, tokens_input, {c_read_col}, {c_write_col}, tokens_output, {r_col}, {cost_col}, {m_col} FROM session"
+                ).fetchall()
+                for s_id, raw_ts, t_in, c_read, c_write, t_out, t_r, c_usd, raw_m in rows:
+                    ts_sec = _normalize_epoch_seconds(raw_ts)
+                    if ts_sec is not None and ts_sec < cutoff_ts:
+                        continue
+                    row_in = _safe_float(t_in) + _safe_float(c_read) + _safe_float(c_write)
+                    out_val = _safe_float(t_out)
+                    if row_in <= 0 and out_val <= 0:
+                        continue
+                    m_label = "anthropic/claude-sonnet-5.5"
+                    if isinstance(raw_m, str) and raw_m.strip():
+                        if raw_m.strip().startswith("{"):
+                            try:
+                                m_obj = json.loads(raw_m)
+                                m_label = str(m_obj.get("id") or m_obj.get("modelID") or m_label)
+                            except json.JSONDecodeError:
+                                pass
+                        else:
+                            m_label = raw_m.strip()
+                    results.append(
+                        (
+                            {
+                                "client": client_tag,
+                                "model": m_label,
+                                "requests": 1.0,
+                                "input_tokens": row_in,
+                                "cached_input_tokens": _safe_float(c_read),
+                                "output_tokens": out_val,
+                                "reasoning_tokens": _safe_float(t_r),
+                                "reported_cost_rmb": _parse_currency_rmb(c_usd, is_usd=True, fx_rate=fx_rate) if c_usd else 0.0,
+                                "session_relpath": f"{client_tag}/{s_id or 'session'}",
+                                "project_name": client_tag,
+                            },
+                            f"{client_tag}_sess:{s_id}" if s_id else None,
+                        )
+                    )
+    except (sqlite3.Error, OSError):
+        return results
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except sqlite3.Error:
+                pass
+    return results
+
+
 def _scan_roots_internal(
     roots: list[tuple[str | None, Path]],
     *,
@@ -581,11 +934,21 @@ def _scan_roots_internal(
     seats: int = 1,
     offline: bool = False,
     catalog: dict[str, Any] | None = None,
+    lang: str = "auto",
+    region: str = "auto",
+    currency: str = "auto",
 ) -> dict[str, Any]:
     obs_days = float(days if days is not None else 30.0)
     if not math.isfinite(obs_days) or obs_days <= 0 or obs_days > 365:
         raise ValueError("days must be between 0.1 and 365")
     team_seats = max(1, min(50, int(round(float(seats or 1)))))
+
+    norm_lang = str(lang or "auto").strip().lower()
+    norm_region = str(region or "auto").strip().lower()
+    norm_currency = str(currency or "auto").strip().lower()
+    use_global = norm_region == "global" or norm_currency == "usd"
+    use_en = norm_lang == "en" or (norm_lang == "auto" and use_global)
+    use_usd = norm_currency == "usd" or (norm_currency == "auto" and use_global)
 
     cat = catalog if isinstance(catalog, dict) else _load_catalog(offline=offline)
     models = cat.get("models") if isinstance(cat.get("models"), list) and cat.get("models") else EMBEDDED_FALLBACK_MODELS
@@ -594,13 +957,52 @@ def _scan_roots_internal(
 
     cutoff_ts = time.time() - (obs_days * 86400.0)
     candidate_files: list[tuple[str | None, Path, Path]] = []
+    sqlite_targets: list[tuple[str, Path]] = []
     seen_files: set[Path] = set()
 
     for client_prefix, root in roots:
-        patterns = ("ui_messages.json",) if client_prefix == "cline" else ("*.jsonl", "ui_messages.json")
+        if client_prefix == "cline":
+            patterns: tuple[str, ...] = ("ui_messages.json",)
+        elif client_prefix == "antigravity":
+            patterns = ("transcript.jsonl",)
+        elif client_prefix == "grok":
+            patterns = ("updates.jsonl",)
+        elif client_prefix == "codex":
+            patterns = ("*.jsonl", "*.jsonl.zst")
+        elif client_prefix == "opencode":
+            db_cand = root / "opencode.db"
+            if db_cand.is_file():
+                sqlite_targets.append(("opencode", db_cand))
+            msg_root = root / "storage" / "message"
+            if msg_root.is_dir():
+                for p in sorted(msg_root.rglob("*.json")):
+                    if not p.is_file():
+                        continue
+                    try:
+                        rp = p.resolve()
+                        if rp not in seen_files and p.stat().st_mtime >= cutoff_ts:
+                            seen_files.add(rp)
+                            candidate_files.append(("opencode", msg_root, p))
+                    except OSError:
+                        continue
+            continue
+        elif client_prefix in ("workbuddy", "qwen"):
+            if client_prefix == "workbuddy":
+                wb_db = root / "workbuddy.db"
+                if wb_db.is_file():
+                    sqlite_targets.append(("workbuddy", wb_db))
+            patterns = ("projects/**/*.jsonl", "sessions/**/*.jsonl", "usage-data/**/*.json", "*.jsonl")
+        else:
+            patterns = ("*.jsonl", "*.jsonl.zst", "ui_messages.json")
+
         for pat in patterns:
             for p in sorted(root.rglob(pat)):
                 if not p.is_file():
+                    continue
+                parts_low = {pt.lower() for pt in p.parts}
+                if p.name.lower() == "transcript_full.jsonl":
+                    continue
+                if ".system_generated" in parts_low and "chunks" in parts_low:
                     continue
                 try:
                     rp = p.resolve()
@@ -612,7 +1014,17 @@ def _scan_roots_internal(
                 except OSError:
                     continue
 
-    skip_types = {"user", "summary", "system", "file-history-snapshot", "queue-operation", "session_meta", "response_item", "compacted"}
+    skip_types = {
+        "user",
+        "user_input",
+        "summary",
+        "system",
+        "file-history-snapshot",
+        "queue-operation",
+        "session_meta",
+        "response_item",
+        "compacted",
+    }
     summary_labels = {"total", "totals", "sum", "summary", "合计", "总计", "汇总", "小计"}
     deduped_entries: dict[str, dict[str, Any]] = {}
     anon_entries: list[dict[str, Any]] = []
@@ -633,6 +1045,10 @@ def _scan_roots_internal(
         else:
             anon_entries.append(entry)
 
+    for sq_client, sq_db in sqlite_targets:
+        for sq_entry, sq_dedupe in _read_sqlite_agent_entries(sq_db, sq_client, cutoff_ts, fx_rate):
+            _push_entry(sq_entry, sq_dedupe)
+
     for client_prefix, root, fpath in candidate_files:
         rel_label = _safe_rel_session_label(fpath, root, client_prefix=client_prefix)
         proj_name = rel_label.split("/")[0] if "/" in rel_label else root.name
@@ -643,6 +1059,19 @@ def _scan_roots_internal(
         if not records:
             continue
 
+        grok_summary_model: str | None = None
+        if client_prefix == "grok" or fpath.name.lower() == "updates.jsonl":
+            sum_file = fpath.parent / "summary.json"
+            if sum_file.is_file():
+                try:
+                    sum_obj = json.loads(sum_file.read_text(encoding="utf-8", errors="replace"))
+                    if isinstance(sum_obj, dict):
+                        sm = _first_scalar(sum_obj, ("current_model_id", "model_id", "model"))
+                        if sm:
+                            grok_summary_model = str(sm).strip()
+                except (OSError, json.JSONDecodeError):
+                    pass
+
         has_codex_tur = any(str(r.get("type") or "").strip().lower() == "token_usage_record" for r in records)
         sticky_codex_model: str | None = None
         last_codex_cum_total: float | None = None
@@ -650,6 +1079,125 @@ def _scan_roots_internal(
         for rec in records:
             rec_type_low = str(rec.get("type") or "").strip().lower()
             if rec_type_low in skip_types:
+                continue
+
+            # Google Antigravity transcript.jsonl (`PLANNER_RESPONSE` with additive input + cache_read_tokens)
+            if rec_type_low == "planner_response" or (
+                (client_prefix == "antigravity" or fpath.name.lower() == "transcript.jsonl")
+                and "cache_read_tokens" in rec
+            ):
+                if rec_type_low and rec_type_low != "planner_response":
+                    continue
+                uncached_agy = _safe_float(rec.get("input_tokens"))
+                cread_agy = _safe_float(rec.get("cache_read_tokens"))
+                cwrite_agy = _safe_float(rec.get("cache_creation_tokens"))
+                row_in = uncached_agy + cread_agy + cwrite_agy
+                row_cached = cread_agy
+                out_val = _safe_float(rec.get("output_tokens"))
+                reason_val = _safe_float(rec.get("thinking_tokens"))
+                if row_in <= 0 and out_val <= 0:
+                    continue
+                m_agy = str(
+                    _first_scalar(rec, ("model", "model_id", "model_name")) or "google/gemini-4-hydrogen"
+                ).strip() or "google/gemini-4-hydrogen"
+                step_idx = rec.get("step_index")
+                _push_entry(
+                    {
+                        "client": client_prefix or "antigravity",
+                        "model": m_agy,
+                        "requests": 1.0,
+                        "input_tokens": row_in,
+                        "cached_input_tokens": row_cached,
+                        "output_tokens": out_val,
+                        "reasoning_tokens": reason_val,
+                        "reported_cost_rmb": 0.0,
+                        "session_relpath": rel_label,
+                        "project_name": proj_name,
+                    },
+                    f"agy:{rel_label}:{step_idx}" if step_idx is not None else None,
+                )
+                continue
+
+            # xAI Grok CLI updates.jsonl (`sessionUpdate == "turn_completed"`, inclusive inputTokens)
+            if "sessionUpdate" in rec or client_prefix == "grok" or fpath.name.lower() == "updates.jsonl":
+                su_val = str(rec.get("sessionUpdate") or "").strip()
+                if su_val and su_val != "turn_completed":
+                    continue
+                u_grok = rec.get("usage") if isinstance(rec.get("usage"), dict) else rec
+                in_g = _safe_float(_first_scalar(u_grok, ("inputTokens", "prompt_tokens", "input_tokens")))
+                cread_g = _safe_float(_first_scalar(u_grok, ("cachedReadTokens", "cached_tokens", "cached_input_tokens")))
+                cwrite_g = _safe_float(_first_scalar(u_grok, ("cacheCreationTokens", "cache_creation_input_tokens")))
+                row_in = max(in_g, cread_g) + cwrite_g
+                row_cached = min(row_in, cread_g)
+                out_val = _safe_float(_first_scalar(u_grok, ("outputTokens", "completion_tokens", "output_tokens")))
+                reason_val = _safe_float(_first_scalar(u_grok, ("reasoningTokens", "reasoning_tokens")))
+                if row_in <= 0 and out_val <= 0:
+                    continue
+                m_grok = str(
+                    _first_scalar(rec, ("model", "modelId", "model_id"))
+                    or _first_scalar(u_grok, ("model", "modelId"))
+                    or grok_summary_model
+                    or "x-ai/grok-4"
+                ).strip() or "x-ai/grok-4"
+                c_usd = _first_scalar(u_grok, ("costUsd", "cost", "cost_usd")) or _first_scalar(rec, ("costUsd", "cost"))
+                cost_rmb = _parse_currency_rmb(c_usd, is_usd=True, fx_rate=fx_rate) if c_usd is not None else 0.0
+                t_id = _first_scalar(rec, ("turnId", "turn_id", "id"))
+                _push_entry(
+                    {
+                        "client": client_prefix or "grok",
+                        "model": m_grok,
+                        "requests": 1.0,
+                        "input_tokens": row_in,
+                        "cached_input_tokens": row_cached,
+                        "output_tokens": out_val,
+                        "reasoning_tokens": reason_val,
+                        "reported_cost_rmb": cost_rmb,
+                        "session_relpath": rel_label,
+                        "project_name": proj_name,
+                    },
+                    f"grok:{rel_label}:{t_id}" if t_id is not None else None,
+                )
+                continue
+
+            # OpenCode legacy JSON message (`tokens: {input, output, reasoning, cache: {read, write}}`)
+            if isinstance(rec.get("tokens"), dict) and (client_prefix == "opencode" or "modelID" in rec or "sessionID" in rec):
+                role_oc = str(rec.get("role") or "").strip().lower()
+                if role_oc and role_oc != "assistant":
+                    continue
+                toks_oc = rec["tokens"]
+                cache_oc = toks_oc.get("cache") if isinstance(toks_oc.get("cache"), dict) else {}
+                t_in = _safe_float(toks_oc.get("input"))
+                c_read = _safe_float(cache_oc.get("read"))
+                c_write = _safe_float(cache_oc.get("write"))
+                row_in = t_in + c_read + c_write
+                row_cached = c_read
+                out_val = _safe_float(toks_oc.get("output"))
+                reason_val = _safe_float(toks_oc.get("reasoning"))
+                if row_in <= 0 and out_val <= 0:
+                    continue
+                m_oc = str(
+                    _first_scalar(rec, ("modelID", "model_id", "model")) or "anthropic/claude-sonnet-5.5"
+                ).strip() or "anthropic/claude-sonnet-5.5"
+                c_usd = _first_scalar(rec, ("cost", "cost_usd"))
+                cost_rmb = _parse_currency_rmb(c_usd, is_usd=True, fx_rate=fx_rate) if c_usd is not None else 0.0
+                oc_id = _first_scalar(rec, ("id", "messageID"))
+                oc_sess = str(_first_scalar(rec, ("sessionID", "session_id")) or "").strip()
+                oc_rel = f"opencode/{oc_sess}" if oc_sess else rel_label
+                _push_entry(
+                    {
+                        "client": client_prefix or "opencode",
+                        "model": m_oc,
+                        "requests": 1.0,
+                        "input_tokens": row_in,
+                        "cached_input_tokens": row_cached,
+                        "output_tokens": out_val,
+                        "reasoning_tokens": reason_val,
+                        "reported_cost_rmb": cost_rmb,
+                        "session_relpath": oc_rel,
+                        "project_name": "opencode",
+                    },
+                    f"opencode_msg:{oc_id}" if oc_id else None,
+                )
                 continue
 
             if rec_type_low == "turn_context":
@@ -894,14 +1442,27 @@ def _scan_roots_internal(
     all_entries = list(deduped_entries.values()) + anon_entries
     scale_30d = 30.0 / obs_days
 
-    workhorses = [
-        m
-        for m in models
-        if m.get("region") == "cn_direct"
-        and not m.get("is_free")
-        and int(m.get("context_length") or 0) >= 64_000
-        and not any(tok in str(m.get("id") or "").lower() for tok in ("7b", "8b", "lite", "turbo", "mini", "flash"))
-    ]
+    if use_global:
+        workhorses = [
+            m
+            for m in models
+            if m.get("region") == "global"
+            and not m.get("is_free")
+            and int(m.get("context_length") or 0) >= 64_000
+            and (
+                "grok-code-fast" in str(m.get("id") or "").lower()
+                or not any(tok in str(m.get("id") or "").lower() for tok in ("7b", "8b", "lite", "turbo", "nano", "flash"))
+            )
+        ]
+    else:
+        workhorses = [
+            m
+            for m in models
+            if m.get("region") == "cn_direct"
+            and not m.get("is_free")
+            and int(m.get("context_length") or 0) >= 64_000
+            and not any(tok in str(m.get("id") or "").lower() for tok in ("7b", "8b", "lite", "turbo", "mini", "flash"))
+        ]
 
     model_groups: dict[str, dict[str, Any]] = {}
     session_groups: dict[str, dict[str, Any]] = {}
@@ -1139,7 +1700,44 @@ def _scan_roots_internal(
     sav_rmb = round(max(0.0, base_rmb - opt_rmb), 2)
     sav_pct = round((sav_rmb / base_rmb) * 100.0, 1) if base_rmb > 0 else 0.0
 
-    if monthly_calls == 0:
+    obs_usd = round((base_rmb / scale_30d) / fx_rate, 2)
+    base_usd = round(base_rmb / fx_rate, 2)
+    opt_usd = round(opt_rmb / fx_rate, 2)
+    sav_usd = round(max(0.0, base_usd - opt_usd), 2)
+
+    # Global infrastructure break-even math: Railway LiteLLM proxy (~$5/mo + 30% semantic cache savings) vs RunPod 24GB GPU (~$120/mo active coding window)
+    railway_gw_usd = round(5.0 + opt_usd * 0.75 + 2.0, 2)
+    runpod_gpu_usd = 124.0
+    if base_usd >= runpod_gpu_usd + 15.0:
+        self_host_verdict = (
+            f"Monthly spend (${base_usd:,.2f}) exceeds self-hosted GPU break-even (~${runpod_gpu_usd:.0f}/mo on RunPod RTX 4090/A100 Serverless or Pod) "
+            f"and Railway LiteLLM cache gateway (~${railway_gw_usd:,.2f}/mo)."
+            if use_en
+            else f"月账单已达弹性 GPU 回本线（RunPod 按秒 GPU 约 ${runpod_gpu_usd:.0f}/月；Railway 托管 LiteLLM 缓存网关约 ${railway_gw_usd:,.2f}/月）。"
+        )
+    elif base_usd >= 25.0:
+        self_host_verdict = (
+            f"Below dedicated GPU break-even (~${runpod_gpu_usd:.0f}/mo on RunPod), but a $5/mo Railway LiteLLM cache gateway (~${railway_gw_usd:,.2f}/mo total) "
+            "or routing coding subtasks to Grok Code Fast / Gemini Flash cuts spend immediately."
+            if use_en
+            else f"暂未达独立 GPU 回本线（RunPod 约 ${runpod_gpu_usd:.0f}/月），但可用 Railway 轻量缓存网关（总约 ${railway_gw_usd:,.2f}/月）或高性价比按量模型降本。"
+        )
+    else:
+        self_host_verdict = (
+            f"Spend (${base_usd:,.2f}/mo) is well below RunPod GPU (~${runpod_gpu_usd:.0f}/mo) break-even; stay on Pay-As-You-Go APIs (no dedicated GPU needed yet)."
+            if use_en
+            else f"当前月耗（约 ${base_usd:,.2f}/月）低于独立 GPU 回本线（RunPod 约 ${runpod_gpu_usd:.0f}/月），直接保持按量 API 最划算。"
+        )
+
+    if use_en:
+        if monthly_calls == 0:
+            plan_verdict = "No active model API calls detected within the selected window."
+        else:
+            plan_verdict = (
+                f"Projected ~{monthly_calls:,} model calls/mo ({team_seats} seat{'s' if team_seats > 1 else ''}); "
+                f"{self_host_verdict}"
+            )
+    elif monthly_calls == 0:
         plan_verdict = "未检出近窗口有效模型调用记录。"
     elif monthly_calls <= LITE_MONTHLY_CAP * team_seats:
         plan_verdict = (
@@ -1157,6 +1755,16 @@ def _scan_roots_internal(
             "建议走国内直连按量 API 或「Pro 打底 + 溢出按量」混合方案。"
         )
 
+    for row in model_breakdown:
+        row["observed_cost_usd"] = round(float(row["observed_cost_rmb"]) / fx_rate, 4)
+        row["baseline_monthly_usd"] = round(float(row["baseline_monthly_rmb"]) / fx_rate, 2)
+        row["optimized_payg_usd"] = round(float(row["optimized_payg_rmb"]) / fx_rate, 2)
+        row["savings_usd"] = round(float(row["savings_rmb"]) / fx_rate, 2)
+    for srow in session_breakdown:
+        srow["estimated_monthly_usd"] = round(float(srow["estimated_monthly_rmb"]) / fx_rate, 2)
+    for crow in client_breakdown:
+        crow["estimated_monthly_usd"] = round(float(crow["estimated_monthly_rmb"]) / fx_rate, 2)
+
     baseline_id = model_breakdown[0]["matched_model_id"] if model_breakdown else "anthropic/claude-sonnet-5.5"
     qs_params: dict[str, Any] = {
         "calls": daily_calls,
@@ -1171,13 +1779,21 @@ def _scan_roots_internal(
     }
     if team_seats > 1:
         qs_params["seats"] = team_seats
-    web_deep_link = f"{WEB_CALCULATOR_BASE}?{urllib.parse.urlencode(qs_params)}"
+    if use_en:
+        qs_params["lang"] = "en"
+    if use_global:
+        qs_params["region"] = "global"
+    base_web_url = f"{WEB_CALCULATOR_BASE}ai-coding-spend-auditor/" if (use_en and use_global) else WEB_CALCULATOR_BASE
+    web_deep_link = f"{base_web_url}?{urllib.parse.urlencode(qs_params)}"
 
     return {
         "scanned_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "days_observed": obs_days,
         "team_size": team_seats,
-        "scanned_files_count": len(candidate_files),
+        "lang": "en" if use_en else "zh",
+        "region": "global" if use_global else "cn",
+        "currency": "usd" if use_usd else "rmb",
+        "scanned_files_count": len(candidate_files) + len(sqlite_targets),
         "active_files_count": len(session_breakdown),
         "deduplicated_chunks": deduplicated_chunks,
         "total_requests": total_reqs_int,
@@ -1192,8 +1808,13 @@ def _scan_roots_internal(
             "baseline_monthly_rmb": base_rmb,
             "optimized_payg_monthly_rmb": opt_rmb,
             "payg_savings_rmb": sav_rmb,
+            "observed_baseline_usd": obs_usd,
+            "baseline_monthly_usd": base_usd,
+            "optimized_payg_monthly_usd": opt_usd,
+            "payg_savings_usd": sav_usd,
             "payg_savings_pct": sav_pct,
             "coding_plan_verdict": plan_verdict,
+            "self_host_verdict": self_host_verdict,
         },
         "client_breakdown": client_breakdown,
         "model_breakdown": model_breakdown,
@@ -1209,10 +1830,12 @@ def scan_claude_projects_dir(
     seats: int = 1,
     offline: bool = False,
     catalog: dict[str, Any] | None = None,
+    lang: str = "auto",
+    region: str = "auto",
+    currency: str = "auto",
 ) -> dict[str, Any]:
     """
-    Scan a specific local session directory (Claude Code `.jsonl`, Codex CLI `.jsonl`,
-    or Cline `ui_messages.json`) modified within the last `days` days (100% read-only).
+    Scan a specific local session directory modified within the last `days` days (100% read-only).
     """
     root = Path(root_dir).expanduser()
     if not root.exists():
@@ -1223,6 +1846,9 @@ def scan_claude_projects_dir(
         seats=seats,
         offline=offline,
         catalog=catalog,
+        lang=lang,
+        region=region,
+        currency=currency,
     )
 
 
@@ -1235,9 +1861,13 @@ def scan_local_coding_logs(
     seats: int = 1,
     offline: bool = False,
     catalog: dict[str, Any] | None = None,
+    lang: str = "auto",
+    region: str = "auto",
+    currency: str = "auto",
 ) -> dict[str, Any]:
     """
-    Auto-discover and scan local Claude Code + OpenAI Codex CLI + VS Code/Cursor Cline
+    Auto-discover and scan local Claude Code, OpenAI Codex, Google Antigravity, OpenCode,
+    xAI Grok CLI, Tencent WorkBuddy/CodeBuddy, Qwen Code/Qoder, and VS Code/Cursor Cline
     session transcripts in a single unified, read-only pass.
     """
     if explicit_dir is not None:
@@ -1247,6 +1877,9 @@ def scan_local_coding_logs(
             seats=seats,
             offline=offline,
             catalog=catalog,
+            lang=lang,
+            region=region,
+            currency=currency,
         )
     discovered = discover_client_roots(client, home_dir=home_dir)
     roots: list[tuple[str | None, Path]] = [(c_name, c_path) for c_name, c_path in discovered]
@@ -1256,6 +1889,9 @@ def scan_local_coding_logs(
         seats=seats,
         offline=offline,
         catalog=catalog,
+        lang=lang,
+        region=region,
+        currency=currency,
     )
 
 
@@ -1296,9 +1932,83 @@ def export_privacy_safe_csv(report: dict[str, Any], out_path: str | Path) -> Pat
 
 def _format_human_report(report: dict[str, Any], csv_exported: Path | None = None) -> str:
     totals = report["totals"]
+    is_en = report.get("lang") == "en"
+    is_usd = report.get("currency") == "usd"
+
+    if is_en:
+        sym = "$" if is_usd else "¥"
+        b_mo = totals["baseline_monthly_usd"] if is_usd else totals["baseline_monthly_rmb"]
+        b_obs = totals["observed_baseline_usd"] if is_usd else totals["observed_baseline_rmb"]
+        o_mo = totals["optimized_payg_monthly_usd"] if is_usd else totals["optimized_payg_monthly_rmb"]
+        s_mo = totals["payg_savings_usd"] if is_usd else totals["payg_savings_rmb"]
+        lines_en = [
+            "========================================================================",
+            f" AI Cost Radar · Read-Only Local AI Coding & Agent Spend Report (Last {report['days_observed']:g}d)",
+            " Privacy Guarantee: 100% Local Scan · Zero Prompts Uploaded · Zero Paths Sent",
+            "========================================================================",
+            (
+                f" Scanned Sources : {report['active_files_count']} active sessions / {report['scanned_files_count']} sources"
+                f" ({report['deduplicated_chunks']} duplicate stream chunks merged)"
+            ),
+            (
+                f" API Model Calls : {report['total_requests']:,} calls (~{report['monthly_requests']:,} calls/30d · {report['team_size']} seat{'s' if report['team_size'] > 1 else ''})"
+            ),
+            (
+                f" Token Footprint : {report['total_input_tokens']:,} input ({report['cache_hit_rate'] * 100:.1f}% cached)"
+                f" · {report['total_output_tokens']:,} output"
+            ),
+            "------------------------------------------------------------------------",
+            f" Baseline 30d Spend    : {sym}{b_mo:,.2f} / mo ({sym}{b_obs:,.2f} observed over {report['days_observed']:g}d)",
+            f" Optimized PayG Spend  : {sym}{o_mo:,.2f} / mo (est. savings {sym}{s_mo:,.2f}/mo · -{totals['payg_savings_pct']:.1f}%)",
+            f" Infra & GPU Verdict   : {totals.get('self_host_verdict') or totals['coding_plan_verdict']}",
+        ]
+        cb = report.get("client_breakdown") or []
+        if cb:
+            cb_parts = [
+                f"{c['client']} ({c['sessions_count']} sess / {c['requests']:,} calls / {sym}{(c['estimated_monthly_usd'] if is_usd else c['estimated_monthly_rmb']):,.2f}/mo)"
+                for c in cb
+            ]
+            lines_en.append(f" Spend by Agent Client : {' · '.join(cb_parts)}")
+
+        mb = report.get("model_breakdown") or []
+        if mb:
+            lines_en.append("------------------------------------------------------------------------")
+            lines_en.append(" Model Breakdown (30-Day Normalized):")
+            for idx, item in enumerate(mb[:6], start=1):
+                m_base = item["baseline_monthly_usd"] if is_usd else item["baseline_monthly_rmb"]
+                m_opt = item["optimized_payg_usd"] if is_usd else item["optimized_payg_rmb"]
+                lines_en.append(
+                    f"  {idx}. {item['model']} | {item['requests']:,} calls | {item['cache_hit_rate'] * 100:.0f}% cached | "
+                    f"~{sym}{m_base:,.2f}/mo -> Try {item['recommended_model_name']} ({sym}{m_opt:,.2f}/mo)"
+                )
+
+        sb = report.get("session_breakdown") or []
+        if sb:
+            lines_en.append("------------------------------------------------------------------------")
+            lines_en.append(" Top Spend Sessions (Local Terminal Only):")
+            for idx, s in enumerate(sb[:5], start=1):
+                s_est = s["estimated_monthly_usd"] if is_usd else s["estimated_monthly_rmb"]
+                lines_en.append(
+                    f"  {idx}. {s['session_relpath']} | {s['requests']:,} calls | {s['top_model']} | ~{sym}{s_est:,.2f}/mo"
+                )
+
+        if csv_exported is not None:
+            lines_en.append("------------------------------------------------------------------------")
+            lines_en.append(f" Privacy-safe CSV exported (drop into Web UI to generate LiteLLM config.yaml): {csv_exported}")
+
+        lines_en.extend(
+            [
+                "------------------------------------------------------------------------",
+                " Interactive Calculator & GPU Break-Even Link (zero paths or prompts):",
+                f" {report['web_deep_link']}",
+                "========================================================================",
+            ]
+        )
+        return "\n".join(lines_en)
+
     lines = [
         "========================================================================",
-        f" AI Cost Radar · 本地 AI 编程会话只读体检报告（近 {report['days_observed']:g} 天 · Claude / Codex / Cline）",
+        f" AI Cost Radar · 本地 AI 编程与 Agent 会话只读体检报告（近 {report['days_observed']:g} 天 · 8 大客户端）",
         " 隐私承诺：100% 本地扫描 · 零对话内容上传 · 零本地路径外发",
         "========================================================================",
         (
@@ -1363,13 +2073,13 @@ def _format_human_report(report: dict[str, Any], csv_exported: Path | None = Non
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="100% local read-only Claude Code / Codex CLI / Cline token & RMB spend auditor."
+        description="100% local read-only AI Coding & Agent Spend Auditor (Claude Code, Codex, Antigravity, OpenCode, Grok, WorkBuddy, Qwen, Cline)."
     )
     parser.add_argument(
         "--client",
-        choices=("all", "claude", "codex", "cline"),
+        choices=SUPPORTED_CLIENTS,
         default="all",
-        help="Auto-discover logs for 'all' (default), 'claude' (~/.claude/projects), 'codex' (~/.codex/sessions), or 'cline' (VS Code/Cursor tasks).",
+        help="Auto-discover logs for 'all' (default) or a specific client family.",
     )
     parser.add_argument(
         "--dir",
@@ -1380,13 +2090,31 @@ def main(argv: list[str] | None = None) -> int:
         "--days",
         type=float,
         default=30.0,
-        help="Scan session files modified within the last N days (default: 30).",
+        help="Scan session files/rows within the last N days (default: 30).",
     )
     parser.add_argument(
         "--seats",
         type=int,
         default=1,
         help="Interactive IDE developer seats 1..50 (default: 1).",
+    )
+    parser.add_argument(
+        "--lang",
+        choices=("auto", "zh", "en"),
+        default="auto",
+        help="Output language: 'zh' (default for CN), 'en' (default when --region global / --currency usd), or 'auto'.",
+    )
+    parser.add_argument(
+        "--region",
+        choices=("auto", "cn", "global"),
+        default="auto",
+        help="Recommendation market: 'cn' (domestic RMB channels) or 'global' (USD APIs + RunPod/Railway self-host).",
+    )
+    parser.add_argument(
+        "--currency",
+        choices=("auto", "rmb", "usd"),
+        default="auto",
+        help="Display currency: 'rmb' (¥) or 'usd' ($).",
     )
     parser.add_argument(
         "--offline",
@@ -1410,11 +2138,16 @@ def main(argv: list[str] | None = None) -> int:
         help="Open the privacy-safe interactive calculator deep link in your browser.",
     )
     args = parser.parse_args(argv)
+    is_en_cli = args.lang == "en" or (args.lang == "auto" and (args.region == "global" or args.currency == "usd"))
 
     if args.dir is not None:
         target_dir = Path(args.dir).expanduser()
         if not target_dir.exists():
-            msg = f"未找到目录 {target_dir}（若你的日志在其他路径，请检查 --dir <路径>）。"
+            msg = (
+                f"Directory not found: {target_dir} (check --dir <path>)."
+                if is_en_cli
+                else f"未找到目录 {target_dir}（若你的日志在其他路径，请检查 --dir <路径>）。"
+            )
             if args.json:
                 print(json.dumps({"error": msg, "active_files_count": 0}, ensure_ascii=False, indent=2))
             else:
@@ -1425,13 +2158,20 @@ def main(argv: list[str] | None = None) -> int:
             days=args.days,
             seats=args.seats,
             offline=args.offline,
+            lang=args.lang,
+            region=args.region,
+            currency=args.currency,
         )
     else:
         discovered = discover_client_roots(args.client)
         if not discovered:
             msg = (
-                f"未检出本地 {args.client} 会话目录（默认扫描 ~/.claude/projects、~/.codex/sessions 与 VS Code/Cursor Cline tasks；"
-                "若你的日志在其他路径，请使用 --dir <路径> 指定）。"
+                f"No local {args.client} session logs found under standard paths (~/.claude, ~/.codex, ~/.gemini/antigravity, ~/.local/share/opencode, ~/.grok, ~/.workbuddy, ~/.qwen, Cline). Pass --dir <path> if customized."
+                if is_en_cli
+                else (
+                    f"未检出本地 {args.client} 会话目录（默认自动扫描 Claude Code、Codex、Antigravity、OpenCode、Grok、WorkBuddy/CodeBuddy、Qwen 与 Cline；"
+                    "若你的日志在其他路径，请使用 --dir <路径> 指定）。"
+                )
             )
             if args.json:
                 print(json.dumps({"error": msg, "active_files_count": 0}, ensure_ascii=False, indent=2))
@@ -1443,6 +2183,9 @@ def main(argv: list[str] | None = None) -> int:
             days=args.days,
             seats=args.seats,
             offline=args.offline,
+            lang=args.lang,
+            region=args.region,
+            currency=args.currency,
         )
 
     exported_path: Path | None = None

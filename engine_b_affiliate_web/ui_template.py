@@ -31,15 +31,18 @@ def render_html_template(
     feed_href: str = "feeds/price-changes.xml",
     api_json_href: str = "api/models_live.json",
     badge_svg_href: str = "badges/coding-plan-status.svg",
+    html_lang: str = "zh-CN",
 ) -> str:
+    og_locale = "en_US" if html_lang == "en" else "zh_CN"
+    og_alt = "zh_CN" if html_lang == "en" else "en_US"
     return f"""<!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="{html_lang}" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{page_title}</title>
   <meta name="description" content="{page_description}" />
-  <meta name="keywords" content="大模型API价格对比, Coding Plan额度上限, 阿里云百炼Coding Plan, 腾讯云Coding Plan, DeepSeek API价格, 通义千问Qwen3价格, Claude Code国内配置, LLM成本计算器" />
+  <meta name="keywords" content="大模型API价格对比, Coding Plan额度上限, 阿里云百炼Coding Plan, 腾讯云Coding Plan, DeepSeek API价格, 通义千问Qwen3价格, Claude Code国内配置, LLM成本计算器, AI Coding Spend Auditor, RunPod GPU Break-Even" />
   <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large" />
   <link rel="canonical" href="{canonical_url}" />
   <link rel="alternate" type="application/atom+xml" title="AI Cost Radar 价格核验订阅" href="{feed_href}" />
@@ -48,8 +51,8 @@ def render_html_template(
   <meta property="og:title" content="{page_title}" />
   <meta property="og:description" content="{page_description}" />
   <meta property="og:url" content="{canonical_url}" />
-  <meta property="og:locale" content="zh_CN" />
-  <meta property="og:locale:alternate" content="en_US" />
+  <meta property="og:locale" content="{og_locale}" />
+  <meta property="og:locale:alternate" content="{og_alt}" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="{page_title}" />
   <meta name="twitter:description" content="{page_description}" />
@@ -3417,6 +3420,83 @@ def render_html_template(
           continue;
         }}
 
+        if (recTypeLow === "user_input") continue;
+        if (recTypeLow === "planner_response" || ("cache_read_tokens" in rec && !recTypeLow)) {{
+          const rowIn = safeNum(rec.input_tokens) + safeNum(rec.cache_read_tokens) + safeNum(rec.cache_creation_tokens);
+          const rowCached = safeNum(rec.cache_read_tokens);
+          const outVal = safeNum(rec.output_tokens);
+          const reasonVal = safeNum(rec.thinking_tokens);
+          if (rowIn <= 0 && outVal <= 0) continue;
+          const mAgy = String(firstVal(rec, ["model", "model_id", "model_name"]) || "google/gemini-4-hydrogen").trim() || "google/gemini-4-hydrogen";
+          const stepIdx = rec.step_index;
+          pushEntry({{
+            model: mAgy,
+            requests: 1,
+            input_tokens: rowIn,
+            cached_input_tokens: rowCached,
+            output_tokens: outVal,
+            reasoning_tokens: reasonVal,
+            reported_cost_rmb: 0,
+            source_file_idx: fKey
+          }}, stepIdx !== undefined && stepIdx !== null ? `agy:${{fKey}}:${{stepIdx}}` : null);
+          continue;
+        }}
+
+        if ("sessionUpdate" in rec) {{
+          if (String(rec.sessionUpdate || "").trim() !== "turn_completed") continue;
+          const uGrok = rec.usage && typeof rec.usage === "object" ? rec.usage : rec;
+          const inG = safeNum(firstVal(uGrok, ["inputTokens", "prompt_tokens", "input_tokens"]));
+          const crG = safeNum(firstVal(uGrok, ["cachedReadTokens", "cached_tokens", "cached_input_tokens"]));
+          const cwG = safeNum(firstVal(uGrok, ["cacheCreationTokens", "cache_creation_input_tokens"]));
+          const rowIn = Math.max(inG, crG) + cwG;
+          const rowCached = Math.min(rowIn, crG);
+          const outVal = safeNum(firstVal(uGrok, ["outputTokens", "completion_tokens", "output_tokens"]));
+          const reasonVal = safeNum(firstVal(uGrok, ["reasoningTokens", "reasoning_tokens"]));
+          if (rowIn <= 0 && outVal <= 0) continue;
+          const mGrok = String(firstVal(rec, ["model", "modelId", "model_id"]) || firstVal(uGrok, ["model", "modelId"]) || "x-ai/grok-4").trim() || "x-ai/grok-4";
+          const cUsd = firstVal(uGrok, ["costUsd", "cost", "cost_usd"]) ?? firstVal(rec, ["costUsd", "cost"]);
+          const rowCostRmb = cUsd !== null && cUsd !== undefined ? parseCurrencyRmb(cUsd, "costusd", fxRate) : 0;
+          const tId = firstVal(rec, ["turnId", "turn_id", "id"]);
+          pushEntry({{
+            model: mGrok,
+            requests: 1,
+            input_tokens: rowIn,
+            cached_input_tokens: rowCached,
+            output_tokens: outVal,
+            reasoning_tokens: reasonVal,
+            reported_cost_rmb: rowCostRmb,
+            source_file_idx: fKey
+          }}, tId !== null ? `grok:${{fKey}}:${{tId}}` : null);
+          continue;
+        }}
+
+        if (rec.tokens && typeof rec.tokens === "object" && ("modelID" in rec || "sessionID" in rec || "providerID" in rec)) {{
+          const roleOc = String(rec.role || "").trim().toLowerCase();
+          if (roleOc && roleOc !== "assistant") continue;
+          const toksOc = rec.tokens;
+          const cacheOc = toksOc.cache && typeof toksOc.cache === "object" ? toksOc.cache : {{}};
+          const rowIn = safeNum(toksOc.input) + safeNum(cacheOc.read) + safeNum(cacheOc.write);
+          const rowCached = safeNum(cacheOc.read);
+          const outVal = safeNum(toksOc.output);
+          const reasonVal = safeNum(toksOc.reasoning);
+          if (rowIn <= 0 && outVal <= 0) continue;
+          const mOc = String(firstVal(rec, ["modelID", "model_id", "model"]) || "anthropic/claude-sonnet-5.5").trim() || "anthropic/claude-sonnet-5.5";
+          const cUsd = firstVal(rec, ["cost", "cost_usd"]);
+          const rowCostRmb = cUsd !== null && cUsd !== undefined ? parseCurrencyRmb(cUsd, "costusd", fxRate) : 0;
+          const ocId = firstVal(rec, ["id", "messageID"]);
+          pushEntry({{
+            model: mOc,
+            requests: 1,
+            input_tokens: rowIn,
+            cached_input_tokens: rowCached,
+            output_tokens: outVal,
+            reasoning_tokens: reasonVal,
+            reported_cost_rmb: rowCostRmb,
+            source_file_idx: fKey
+          }}, ocId !== null ? `opencode_msg:${{ocId}}` : null);
+          continue;
+        }}
+
         const msg = rec.message && typeof rec.message === "object" ? rec.message : {{}};
         const resp = rec.response && typeof rec.response === "object" ? rec.response : {{}};
         const body = resp.body && typeof resp.body === "object" ? resp.body : {{}};
@@ -3610,8 +3690,26 @@ def render_html_template(
           const lbl = tail.length >= 2 ? tail.slice(-2).join("/") : tail[tail.length - 1];
           return lbl.slice(0, 80) || `file_${{fallbackIdx}}`;
         }}
-        if (pLow === ".codex" && pNext === "sessions" && i + 2 < parts.length) {{
+        if (pLow === ".codex" && ["sessions", "archived_sessions"].includes(pNext) && i + 2 < parts.length) {{
           return `codex/${{parts[parts.length - 1]}}`.slice(0, 80);
+        }}
+        if (pLow === "antigravity" && pNext === "brain" && i + 2 < parts.length) {{
+          return `antigravity/${{parts[i + 2]}}/${{parts[parts.length - 1]}}`.slice(0, 80);
+        }}
+        if (pLow === ".grok" && pNext === "sessions" && parts.length >= i + 4) {{
+          return `grok/${{parts[parts.length - 2]}}/${{parts[parts.length - 1]}}`.slice(0, 80);
+        }}
+        if (pLow === "opencode" && i + 1 < parts.length) {{
+          const tail = parts.length >= i + 3 ? parts.slice(-2).join("/") : parts[parts.length - 1];
+          return `opencode/${{tail}}`.slice(0, 80);
+        }}
+        if ([".workbuddy", ".codebuddy"].includes(pLow) && i + 1 < parts.length) {{
+          const tail = parts.length >= i + 3 ? parts.slice(-2).join("/") : parts[parts.length - 1];
+          return `workbuddy/${{tail}}`.slice(0, 80);
+        }}
+        if ([".qwen", ".qoder"].includes(pLow) && i + 1 < parts.length) {{
+          const tail = parts.length >= i + 3 ? parts.slice(-2).join("/") : parts[parts.length - 1];
+          return `qwen/${{tail}}`.slice(0, 80);
         }}
         if (pLow === "tasks" && i + 2 < parts.length && ["ui_messages.json", "api_conversation_history.json"].includes(parts[parts.length - 1].toLowerCase())) {{
           return `cline/${{parts[i + 1]}}/${{parts[parts.length - 1]}}`.slice(0, 80);
@@ -4129,6 +4227,14 @@ def render_html_template(
         aliasCands.push("anthropic/claude-opus-5.5", "anthropic/claude-opus-5");
       }} else if (slugBase.includes("claude") && slugBase.includes("haiku")) {{
         aliasCands.push("anthropic/claude-haiku-5.5");
+      }} else if (slugBase.includes("grok") && (slugBase.includes("fast") || slugBase.includes("code") || slugBase.includes("mini"))) {{
+        aliasCands.push("x-ai/grok-code-fast-1", "x-ai/grok-4");
+      }} else if (slugBase.includes("grok")) {{
+        aliasCands.push("x-ai/grok-4", "x-ai/grok-code-fast-1");
+      }} else if (slugBase.includes("gemini") && (slugBase.includes("flash") || slugBase.includes("lite"))) {{
+        aliasCands.push("google/gemini-3.8-flash", "google/gemini-3.7-flash", "google/gemini-2.5-flash");
+      }} else if (slugBase.includes("gemini") || slugBase === "antigravity" || slugBase === "antigravity-pro") {{
+        aliasCands.push("google/gemini-4-hydrogen", "google/gemini-2.5-pro", "google/gemini-3.8-flash");
       }}
       for (const ca of aliasCands) {{
         const hit = resolveCatalogStrictWeb(ca);
@@ -4266,8 +4372,16 @@ def render_html_template(
       const scale30d = 30 / days;
       const seats = getSeats();
       const round2 = v => Math.round((v + Number.EPSILON) * 100) / 100;
+      const isGlobalTarget = state.region === "global";
 
       const workhorses = MODELS.filter(m => {{
+        if (isGlobalTarget) {{
+          if (m.region !== "global" || m.is_free) return false;
+          if ((Number(m.context_length) || 0) < 64000) return false;
+          const midLow = String(m.id || "").toLowerCase();
+          if (midLow.includes("grok-code-fast")) return true;
+          return !["7b", "8b", "lite", "turbo", "nano", "flash"].some(tok => midLow.includes(tok));
+        }}
         if (m.region !== "cn_direct" || m.is_free) return false;
         if ((Number(m.context_length) || 0) < 64000) return false;
         const midLow = String(m.id || "").toLowerCase();
@@ -4412,7 +4526,7 @@ def render_html_template(
       const totalSavPct = totalBaseRmb > 0 ? Math.round(((totalSavRmb / totalBaseRmb) * 100) * 10) / 10 : 0;
 
       let codingPlanOption = null;
-      if (state.usageMode === "interactive_ide") {{
+      if (state.usageMode === "interactive_ide" && !isGlobalTarget) {{
         const subOffers = CODING_PLANS.filter(o => o && o.offer_type === "subscription");
         if (subOffers.length > 0) {{
           const fitsLite = totalMReqs <= LITE_MONTHLY_CAP * seats;
@@ -5963,15 +6077,25 @@ def render_html_template(
             </div>
             <span class="gpu-cta-link">View Tencent Lighthouse / HAI</span>
           </a>
-          <a class="gpu-cta-card" href="${{esc(AFF.runpod_affiliate_url)}}" target="_blank" rel="noopener" data-offer-id="runpod-gpu" data-card-slot="selfhost_banner">
+          <a class="gpu-cta-card" href="${{esc(AFF.runpod_affiliate_url)}}" target="_blank" rel="${{isSponsoredUrlWeb(AFF.runpod_affiliate_url, "https://www.runpod.io") ? "noopener sponsored" : "noopener"}}" data-offer-id="runpod-gpu" data-card-slot="selfhost_banner">
             <div>
               <div class="gpu-cta-head">
                 <span>RunPod Serverless / Per-Sec GPU</span>
                 <span class="badge badge-neutral">vLLM / SGLang</span>
               </div>
-              <div class="gpu-cta-sub">Global per-second RTX 4090 / A100 inference nodes; direct official link without referral markup.</div>
+              <div class="gpu-cta-sub">${{isSponsoredUrlWeb(AFF.runpod_affiliate_url, "https://www.runpod.io") ? "Global per-second RTX 4090 / A100 inference nodes; includes RunPod partner referral tracking." : "Global per-second RTX 4090 / A100 inference nodes; direct official link without referral markup."}}</div>
             </div>
             <span class="gpu-cta-link">Estimate RunPod GPU Cost</span>
+          </a>
+          <a class="gpu-cta-card" href="${{esc(AFF.railway_affiliate_url || "https://railway.com")}}" target="_blank" rel="${{isSponsoredUrlWeb(AFF.railway_affiliate_url, "https://railway.com") ? "noopener sponsored" : "noopener"}}" data-offer-id="railway-litellm-host" data-card-slot="selfhost_banner">
+            <div>
+              <div class="gpu-cta-head">
+                <span>Railway LiteLLM Cache Proxy</span>
+                <span class="badge badge-neutral">~$5/mo Host</span>
+              </div>
+              <div class="gpu-cta-sub">${{isSponsoredUrlWeb(AFF.railway_affiliate_url, "https://railway.com") ? "1-click LiteLLM Proxy + Redis semantic cache for global teams; includes Railway referral link." : "1-click LiteLLM Proxy + Redis semantic cache for global teams; direct official link."}}</div>
+            </div>
+            <span class="gpu-cta-link">Deploy on Railway</span>
           </a>
         </div>
       ` : `
@@ -6018,10 +6142,52 @@ def render_html_template(
       `;
     }}
 
+    function isSponsoredUrlWeb(rawUrl, cleanDefaultUrl) {{
+      const s = String(rawUrl || "").trim().replace(/\\/+$/, "");
+      const d = String(cleanDefaultUrl || "").trim().replace(/\\/+$/, "");
+      return Boolean(s && s !== d);
+    }}
+
     function renderPartnerMatrix() {{
       const grid = document.getElementById("partnerMatrixGrid");
       const isEn = state.lang === "en";
+      const runpodSponsored = isSponsoredUrlWeb(AFF.runpod_affiliate_url, "https://www.runpod.io");
+      const railwaySponsored = isSponsoredUrlWeb(AFF.railway_affiliate_url, "https://railway.com");
+      const apifySponsored = isSponsoredUrlWeb(AFF.apify_affiliate_url, "https://apify.com");
       const partners = isEn ? [
+        {{
+          id: "runpod-gpu",
+          name: "RunPod Serverless & Elastic GPU Pods",
+          badge: runpodSponsored ? "Global USD · Partner Link" : "Global USD · Official Direct",
+          desc: runpodSponsored
+            ? "Per-second RTX 4090 / A100 / H100 vLLM & SGLang inference nodes when monthly API spend exceeds ~$125/mo; includes partner referral tracking."
+            : "Per-second RTX 4090 / A100 / H100 vLLM & SGLang inference nodes when monthly API spend exceeds ~$125/mo; direct official link.",
+          cta: "Estimate RunPod GPU Cost",
+          url: AFF.runpod_affiliate_url || "https://www.runpod.io",
+          sponsored: runpodSponsored
+        }},
+        {{
+          id: "railway-litellm-host",
+          name: "Railway 1-Click LiteLLM Cache Gateway",
+          badge: railwaySponsored ? "Global USD · Referral Credits" : "Global USD · Official Direct",
+          desc: railwaySponsored
+            ? "Deploy a zero-code LiteLLM Proxy + Redis semantic cache in 60 seconds (~$5/mo base); carries Railway referral link."
+            : "Deploy a zero-code LiteLLM Proxy + Redis semantic cache in 60 seconds (~$5/mo base); direct official link.",
+          cta: "Deploy LiteLLM Proxy on Railway",
+          url: AFF.railway_affiliate_url || "https://railway.com",
+          sponsored: railwaySponsored
+        }},
+        {{
+          id: "apify-agent-tools",
+          name: "Apify AI Agent Scraping & MCP Actors",
+          badge: apifySponsored ? "Global USD · Partner Link" : "Global USD · Official Direct",
+          desc: apifySponsored
+            ? "Hosted MCP servers and headless browser Actors for AI agents with pay-per-event billing; carries partner referral tracking."
+            : "Hosted MCP servers and headless browser Actors for AI agents with pay-per-event billing; direct official link.",
+          cta: "Explore Apify MCP & Agent Store",
+          url: AFF.apify_affiliate_url || "https://apify.com",
+          sponsored: apifySponsored
+        }},
         {{
           id: "aliyun-ecs-agent-host",
           name: "Aliyun Cloud Deals (ECS / Lightweight Host)",
@@ -6774,6 +6940,9 @@ def render_html_template(
 
     function restoreFromPresetAndQuery() {{
       if (PAGE_PRESET) {{
+        if (PAGE_PRESET.lang === "en" || PAGE_PRESET.lang === "zh") {{
+          state.lang = PAGE_PRESET.lang;
+        }}
         if (PAGE_PRESET.region) {{
           state.region = PAGE_PRESET.region;
           state.currency = state.region === "global" ? "USD" : "RMB";
@@ -7385,6 +7554,11 @@ def render_html_template(
       const k = el.getAttribute("data-i18n");
       if (k && !(k in ORIG_ZH_I18N)) ORIG_ZH_I18N[k] = el.textContent;
     }});
+    if (PAGE_PRESET && PAGE_PRESET.heroZhMain) {{
+      ORIG_ZH_I18N.heroTitleMain = PAGE_PRESET.heroZhMain;
+      ORIG_ZH_I18N.heroTitleAccent = PAGE_PRESET.heroZhAccent || ORIG_ZH_I18N.heroTitleAccent;
+      ORIG_ZH_I18N.heroSubtitle = PAGE_PRESET.heroZhSub || ORIG_ZH_I18N.heroSubtitle;
+    }}
     const auditMetaEl = document.getElementById("auditMetaText");
     const ORIG_AUDIT_META_HTML = auditMetaEl ? auditMetaEl.innerHTML : "";
 
@@ -7396,13 +7570,14 @@ def render_html_template(
       navTopicDeepseekQwen: "DeepSeek vs Qwen",
       navTopicClaudeCode: "Claude Code Endpoints",
       navTopicDifyHost: "Backend Cache & GPU",
+      navTopicGlobalSpend: "Global Spend Auditor",
       metaLinkAliyun: "Aliyun Rules",
       metaLinkTencent: "Tencent Rules",
       metaLinkAtom: "Atom Price Feed",
       metaLinkJson: "Public JSON",
-      heroTitleMain: "Verify Real LLM API & Coding Plan Bills, ",
-      heroTitleAccent: "Avoid Quota Overruns & Wrong Endpoints",
-      heroSubtitle: "Verified against official Aliyun Bailian, Tencent Cloud, Volcengine & OpenRouter rules: split prompt-cache hit rates, reasoning multipliers, and Claude Code sk-sp- endpoints.",
+      heroTitleMain: (PAGE_PRESET && PAGE_PRESET.heroEnMain) || "Verify Real LLM API & Coding Plan Bills, ",
+      heroTitleAccent: (PAGE_PRESET && PAGE_PRESET.heroEnAccent) || "Avoid Quota Overruns & Wrong Endpoints",
+      heroSubtitle: (PAGE_PRESET && PAGE_PRESET.heroEnSub) || "Verified against official Aliyun Bailian, Tencent Cloud, Volcengine & OpenRouter rules: split prompt-cache hit rates, reasoning multipliers, and Claude Code sk-sp- endpoints.",
       jumpCodingPlan: "Coding Plan Audit",
       jumpModels: `Model Directory (${{MODELS.length}})`,
       jumpSelfHost: "Cache Gateway & GPU",
@@ -7524,6 +7699,13 @@ def render_html_template(
         livePill.textContent = isEn
           ? `Quotes Verified ${{QUOTE_VERIFIED_DATE}} · ${{MODELS.length}} Models`
           : `报价核验 ${{QUOTE_VERIFIED_DATE}} · ${{MODELS.length}} 款模型`;
+      }}
+      const cliCodeEl = document.getElementById("localCliCmdCode");
+      if (cliCodeEl) {{
+        const dVal = Number(document.getElementById("usageDaysSelect")?.value || 30) || 30;
+        cliCodeEl.textContent = isEn
+          ? `curl -fsSL https://ai-cost-radar-nlu.pages.dev/audit_ai_spend.py | python3 - --days ${{dVal}} --lang en --region global`
+          : `curl -fsSL https://ai-cost-radar-nlu.pages.dev/audit_local_claude.py | python3 - --days ${{dVal}}`;
       }}
       if (auditMetaEl) {{
         auditMetaEl.innerHTML = isEn
@@ -7812,7 +7994,9 @@ def render_html_template(
           const codeEl = document.getElementById("localCliCmdCode");
           const dVal = Number(usageDaysSelEl.value || 30) || 30;
           if (codeEl) {{
-            codeEl.textContent = `curl -fsSL https://ai-cost-radar-nlu.pages.dev/audit_local_claude.py | python3 - --days ${{dVal}}`;
+            codeEl.textContent = state.lang === "en"
+              ? `curl -fsSL https://ai-cost-radar-nlu.pages.dev/audit_ai_spend.py | python3 - --days ${{dVal}} --lang en --region global`
+              : `curl -fsSL https://ai-cost-radar-nlu.pages.dev/audit_local_claude.py | python3 - --days ${{dVal}}`;
           }}
         }});
       }}

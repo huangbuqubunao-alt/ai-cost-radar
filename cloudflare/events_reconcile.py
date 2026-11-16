@@ -35,6 +35,7 @@ ALLOWED_ROUTES: frozenset[str] = frozenset(
         "/deepseek-vs-qwen/",
         "/claude-code-domestic/",
         "/dify-openclaw-cloud-server/",
+        "/ai-coding-spend-auditor/",
     }
 )
 

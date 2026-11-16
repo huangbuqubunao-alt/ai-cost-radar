@@ -422,6 +422,14 @@ def resolve_model_query(models: list[dict[str, Any]], raw_query: str | None) -> 
         alias_candidates.extend(["anthropic/claude-opus-5.5", "anthropic/claude-opus-5"])
     elif "claude" in slug_base and "haiku" in slug_base:
         alias_candidates.append("anthropic/claude-haiku-5.5")
+    elif "grok" in slug_base and ("fast" in slug_base or "code" in slug_base or "mini" in slug_base):
+        alias_candidates.extend(["x-ai/grok-code-fast-1", "x-ai/grok-4"])
+    elif "grok" in slug_base:
+        alias_candidates.extend(["x-ai/grok-4", "x-ai/grok-code-fast-1"])
+    elif "gemini" in slug_base and ("flash" in slug_base or "lite" in slug_base):
+        alias_candidates.extend(["google/gemini-3.8-flash", "google/gemini-3.7-flash", "google/gemini-2.5-flash"])
+    elif "gemini" in slug_base or slug_base in ("antigravity", "antigravity-pro"):
+        alias_candidates.extend(["google/gemini-4-hydrogen", "google/gemini-2.5-pro", "google/gemini-3.8-flash"])
 
     for cand_alias in alias_candidates:
         ca_low = cand_alias.lower()
@@ -1775,6 +1783,109 @@ def _collect_json_record_entries(
             )
             continue
 
+        # 3. Google Antigravity transcript.jsonl (`type == "PLANNER_RESPONSE"`, additive input + cache_read_tokens)
+        rec_t_low = str(rec.get("type") or "").strip().lower()
+        if rec_t_low == "user_input":
+            continue
+        if rec_t_low == "planner_response" or ("cache_read_tokens" in rec and not rec_t_low):
+            u_in_agy = _safe_num(rec.get("input_tokens"))
+            c_read_agy = _safe_num(rec.get("cache_read_tokens"))
+            c_write_agy = _safe_num(rec.get("cache_creation_tokens"))
+            row_in = u_in_agy + c_read_agy + c_write_agy
+            row_cached = c_read_agy
+            out_val = _safe_num(rec.get("output_tokens"))
+            reason_val = _safe_num(rec.get("thinking_tokens"))
+            if row_in <= 0 and out_val <= 0:
+                continue
+            m_agy = str(_first_val(rec, ("model", "model_id", "model_name")) or "google/gemini-4-hydrogen").strip() or "google/gemini-4-hydrogen"
+            step_idx = rec.get("step_index")
+            _push_entry(
+                {
+                    "model": m_agy,
+                    "requests": 1.0,
+                    "input_tokens": row_in,
+                    "cached_input_tokens": row_cached,
+                    "output_tokens": out_val,
+                    "reasoning_tokens": reason_val,
+                    "reported_cost_rmb": 0.0,
+                    "source_file_idx": f_key,
+                },
+                f"agy:{f_key}:{step_idx}" if step_idx is not None else None,
+            )
+            continue
+
+        # 4. xAI Grok CLI updates.jsonl (`sessionUpdate == "turn_completed"`, inclusive inputTokens)
+        if "sessionUpdate" in rec:
+            if str(rec.get("sessionUpdate") or "").strip() != "turn_completed":
+                continue
+            u_grok = rec.get("usage") if isinstance(rec.get("usage"), dict) else rec
+            in_g = _safe_num(_first_val(u_grok, ("inputTokens", "prompt_tokens", "input_tokens")))
+            cr_g = _safe_num(_first_val(u_grok, ("cachedReadTokens", "cached_tokens", "cached_input_tokens")))
+            cw_g = _safe_num(_first_val(u_grok, ("cacheCreationTokens", "cache_creation_input_tokens")))
+            row_in = max(in_g, cr_g) + cw_g
+            row_cached = min(row_in, cr_g)
+            out_val = _safe_num(_first_val(u_grok, ("outputTokens", "completion_tokens", "output_tokens")))
+            reason_val = _safe_num(_first_val(u_grok, ("reasoningTokens", "reasoning_tokens")))
+            if row_in <= 0 and out_val <= 0:
+                continue
+            m_grok = str(
+                _first_val(rec, ("model", "modelId", "model_id"))
+                or _first_val(u_grok, ("model", "modelId"))
+                or "x-ai/grok-4"
+            ).strip() or "x-ai/grok-4"
+            c_usd = _first_val(u_grok, ("costUsd", "cost", "cost_usd")) or _first_val(rec, ("costUsd", "cost"))
+            row_cost_rmb = _parse_currency_rmb(c_usd, "costusd", fx_rate=fx_rate) if c_usd is not None else 0.0
+            t_id = _first_val(rec, ("turnId", "turn_id", "id"))
+            _push_entry(
+                {
+                    "model": m_grok,
+                    "requests": 1.0,
+                    "input_tokens": row_in,
+                    "cached_input_tokens": row_cached,
+                    "output_tokens": out_val,
+                    "reasoning_tokens": reason_val,
+                    "reported_cost_rmb": row_cost_rmb,
+                    "source_file_idx": f_key,
+                },
+                f"grok:{f_key}:{t_id}" if t_id is not None else None,
+            )
+            continue
+
+        # 5. OpenCode message JSON (`tokens: {input, output, reasoning, cache: {read, write}}`)
+        if isinstance(rec.get("tokens"), dict) and ("modelID" in rec or "sessionID" in rec or "providerID" in rec):
+            role_oc = str(rec.get("role") or "").strip().lower()
+            if role_oc and role_oc != "assistant":
+                continue
+            toks_oc = rec["tokens"]
+            cache_oc = toks_oc.get("cache") if isinstance(toks_oc.get("cache"), dict) else {}
+            t_in = _safe_num(toks_oc.get("input"))
+            c_read = _safe_num(cache_oc.get("read"))
+            c_write = _safe_num(cache_oc.get("write"))
+            row_in = t_in + c_read + c_write
+            row_cached = c_read
+            out_val = _safe_num(toks_oc.get("output"))
+            reason_val = _safe_num(toks_oc.get("reasoning"))
+            if row_in <= 0 and out_val <= 0:
+                continue
+            m_oc = str(_first_val(rec, ("modelID", "model_id", "model")) or "anthropic/claude-sonnet-5.5").strip() or "anthropic/claude-sonnet-5.5"
+            c_usd = _first_val(rec, ("cost", "cost_usd"))
+            row_cost_rmb = _parse_currency_rmb(c_usd, "costusd", fx_rate=fx_rate) if c_usd is not None else 0.0
+            oc_id = _first_val(rec, ("id", "messageID"))
+            _push_entry(
+                {
+                    "model": m_oc,
+                    "requests": 1.0,
+                    "input_tokens": row_in,
+                    "cached_input_tokens": row_cached,
+                    "output_tokens": out_val,
+                    "reasoning_tokens": reason_val,
+                    "reported_cost_rmb": row_cost_rmb,
+                    "source_file_idx": f_key,
+                },
+                f"opencode_msg:{oc_id}" if oc_id is not None else None,
+            )
+            continue
+
         msg = rec.get("message") if isinstance(rec.get("message"), dict) else {}
         resp = rec.get("response") if isinstance(rec.get("response"), dict) else {}
         body = resp.get("body") if isinstance(resp.get("body"), dict) else {}
@@ -2129,6 +2240,19 @@ def _is_workhorse_cn_candidate(model: dict[str, Any]) -> bool:
     return True
 
 
+def _is_workhorse_global_candidate(model: dict[str, Any]) -> bool:
+    if model.get("region") != "global" or model.get("is_free"):
+        return False
+    if int(model.get("context_length") or 0) < 64000:
+        return False
+    mid_low = str(model.get("id") or "").lower()
+    if "grok-code-fast" in mid_low:
+        return True
+    if any(tok in mid_low for tok in ("7b", "8b", "lite", "turbo", "nano", "flash")):
+        return False
+    return True
+
+
 def audit_csv_bill(
     models: list[dict[str, Any]],
     raw_text: str | dict[str, Any],
@@ -2138,6 +2262,7 @@ def audit_csv_bill(
     team_size: int = 1,
     offers: list[dict[str, Any]] | None = None,
     fx_rate: float = DEFAULT_FX_USD_TO_RMB,
+    target_region: str = "cn",
 ) -> dict[str, Any]:
     """
     Audit a multi-model CSV/TSV/JSON/JSONL billing statement:
@@ -2161,7 +2286,10 @@ def audit_csv_bill(
         "automated_backend", "backend", "api_service", "batch", "non_interactive"
     ) else "interactive_ide"
 
-    workhorses = [m for m in models if _is_workhorse_cn_candidate(m)]
+    is_global_target = str(target_region or "cn").strip().lower() == "global"
+    workhorses = [
+        m for m in models if (_is_workhorse_global_candidate(m) if is_global_target else _is_workhorse_cn_candidate(m))
+    ]
     line_items: list[dict[str, Any]] = []
     has_global_closed = False
 
@@ -2268,7 +2396,7 @@ def audit_csv_bill(
         if best_cand is not None and best_cand_rmb < baseline_rmb - 0.005:
             rec_model = best_cand
             opt_rmb = round(best_cand_rmb, 2)
-            action = "switch_cn_direct"
+            action = "switch_global_value" if is_global_target else "switch_cn_direct"
         else:
             rec_model = matched
             opt_rmb = round(baseline_rmb, 2)
@@ -2315,7 +2443,7 @@ def audit_csv_bill(
     total_sav_pct = round((total_sav_rmb / total_base_rmb) * 100.0, 1) if total_base_rmb > 0 else 0.0
 
     coding_plan_option: dict[str, Any] | None = None
-    if norm_mode == "interactive_ide":
+    if norm_mode == "interactive_ide" and not is_global_target:
         sub_offers = [
             o for o in (offers or OFFERS_CATALOG_2026)
             if isinstance(o, dict) and o.get("offer_type") == "subscription"
@@ -2668,6 +2796,54 @@ def _load_default_models_for_pricing() -> list[dict[str, Any]]:
             "value_score": 88.0,
         },
         {
+            "id": "x-ai/grok-4",
+            "api_model_id": "x-ai/grok-4",
+            "name": "xAI: Grok 4",
+            "provider": "OpenRouter",
+            "region": "global",
+            "input_rmb_per_1m": 21.60,
+            "output_rmb_per_1m": 108.00,
+            "cache_hit_factor": 0.25,
+            "is_free": False,
+            "value_score": 86.0,
+        },
+        {
+            "id": "x-ai/grok-code-fast-1",
+            "api_model_id": "x-ai/grok-code-fast-1",
+            "name": "xAI: Grok Code Fast 1",
+            "provider": "OpenRouter",
+            "region": "global",
+            "input_rmb_per_1m": 1.44,
+            "output_rmb_per_1m": 10.80,
+            "cache_hit_factor": 0.25,
+            "is_free": False,
+            "value_score": 92.0,
+        },
+        {
+            "id": "google/gemini-4-hydrogen",
+            "api_model_id": "google/gemini-4-hydrogen",
+            "name": "Google: Gemini 4 Hydrogen",
+            "provider": "OpenRouter",
+            "region": "global",
+            "input_rmb_per_1m": 10.80,
+            "output_rmb_per_1m": 54.00,
+            "cache_hit_factor": 0.50,
+            "is_free": False,
+            "value_score": 89.0,
+        },
+        {
+            "id": "google/gemini-3.8-flash",
+            "api_model_id": "google/gemini-3.8-flash",
+            "name": "Google: Gemini 3.8 Flash",
+            "provider": "OpenRouter",
+            "region": "global",
+            "input_rmb_per_1m": 5.94,
+            "output_rmb_per_1m": 29.70,
+            "cache_hit_factor": 0.50,
+            "is_free": False,
+            "value_score": 91.5,
+        },
+        {
             "id": "tencent-cloud/deepseek-r1",
             "api_model_id": "deepseek-r1",
             "name": "腾讯云 · DeepSeek-R1",
@@ -2729,8 +2905,21 @@ def sanitize_usage_file_label(raw_name: Any, fallback_idx: int = 1) -> str:
             tail = parts[idx + 2 :]
             label = "/".join(tail[-2:]) if len(tail) >= 2 else tail[-1]
             return label[:80] or f"file_{fallback_idx}"
-        if p_low == ".codex" and p_next == "sessions" and (idx + 2) < len(parts):
+        if p_low == ".codex" and p_next in ("sessions", "archived_sessions") and (idx + 2) < len(parts):
             return f"codex/{parts[-1]}"[:80]
+        if p_low == "antigravity" and p_next == "brain" and (idx + 2) < len(parts):
+            return f"antigravity/{parts[idx + 2]}/{parts[-1]}"[:80]
+        if p_low == ".grok" and p_next == "sessions" and len(parts) >= idx + 4:
+            return f"grok/{parts[-2]}/{parts[-1]}"[:80]
+        if p_low == "opencode" and idx + 1 < len(parts):
+            tail = "/".join(parts[-2:]) if len(parts) >= idx + 3 else parts[-1]
+            return f"opencode/{tail}"[:80]
+        if p_low in (".workbuddy", ".codebuddy") and idx + 1 < len(parts):
+            tail = "/".join(parts[-2:]) if len(parts) >= idx + 3 else parts[-1]
+            return f"workbuddy/{tail}"[:80]
+        if p_low in (".qwen", ".qoder") and idx + 1 < len(parts):
+            tail = "/".join(parts[-2:]) if len(parts) >= idx + 3 else parts[-1]
+            return f"qwen/{tail}"[:80]
         if p_low == "tasks" and (idx + 2) < len(parts) and parts[-1].lower() in ("ui_messages.json", "api_conversation_history.json"):
             return f"cline/{parts[idx + 1]}/{parts[-1]}"[:80]
 

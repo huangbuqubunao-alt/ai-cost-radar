@@ -1,8 +1,8 @@
 {
-  "updated_at": "2026-11-16T05:28:27Z",
-  "last_live_verified_at": "2026-11-16T05:28:27Z",
+  "updated_at": "2026-11-16T12:44:38Z",
+  "last_live_verified_at": "2026-11-16T11:47:50Z",
   "quote_verified_date": "2026-11-13",
-  "source": "openrouter_live+curated_cn_2026",
+  "source": "openrouter_cached+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
   "total_models": 86,
   "counts_by_region": {
@@ -10,7 +10,7 @@
     "global": 66
   },
   "official_rule_audit": {
-    "checked_at": "2026-11-16T05:28:27Z",
+    "checked_at": "2026-11-16T12:44:38Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -22,7 +22,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-16T05:28:27Z",
+        "last_verified_at": "2026-11-16T12:44:38Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -32,10 +32,15 @@
       {
         "plan_id": "tencent-coding-plan",
         "url": "https://cloud.tencent.com/document/product/1823/130092",
-        "status": "csr_shell_manual_check",
-        "matched_groups": [],
+        "status": "verified_markers",
+        "matched_groups": [
+          "lite_monthly_cap_18k",
+          "lite_renewal_40",
+          "pro_monthly_cap_90k",
+          "pro_renewal_200"
+        ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-16T04:49:30Z",
+        "last_verified_at": "2026-11-16T12:44:38Z",
         "last_verified_groups": [
           "lite_monthly_cap_18k",
           "lite_renewal_40",
@@ -54,7 +59,7 @@
           "interactive_ide_only"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-16T05:28:27Z",
+        "last_verified_at": "2026-11-16T12:44:38Z",
         "last_verified_groups": [
           "tiers_lite_pro",
           "quota_window_5h",
@@ -65,6 +70,14 @@
     ]
   },
   "price_changes": [
+    {
+      "detected_at": "2026-11-16T11:47:50Z",
+      "entity_type": "model",
+      "id": "google/gemma-4-26b-a4b-it",
+      "name": "Google: Gemma 4 26B A4B",
+      "change_type": "price_update",
+      "summary_zh": "输入单价 $0.0675 -> $0.09 / 1M，输出单价 $0.225 -> $0.3 / 1M"
+    },
     {
       "detected_at": "2026-11-16T04:49:30Z",
       "entity_type": "model",
@@ -1529,30 +1542,31 @@
       ]
     },
     {
-      "id": "google/gemma-4-26b-a4b-it",
-      "name": "Google: Gemma 4 26B A4B",
+      "id": "x-ai/grok-code-fast-1",
+      "name": "xAI: Grok Code Fast 1",
       "provider": "OpenRouter (Global)",
       "provider_config_key": "openrouter_url",
       "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "google/gemma-4-26b-a4b-it",
-      "cache_hit_factor": 0.5,
+      "api_model_id": "x-ai/grok-code-fast-1",
+      "cache_hit_factor": 0.25,
       "perf_note": "",
       "signup_url": "https://openrouter.ai",
       "affiliate_url": "https://openrouter.ai",
-      "model_page_url": "https://openrouter.ai/google/gemma-4-26b-a4b-it",
+      "model_page_url": "https://openrouter.ai/x-ai/grok-code-fast-1",
       "region": "global",
-      "input_usd_per_1m": 0.0675,
-      "output_usd_per_1m": 0.225,
-      "input_rmb_per_1m": 0.486,
-      "output_rmb_per_1m": 1.62,
-      "blended_usd_per_1m": 0.1069,
-      "blended_rmb_per_1m": 0.7697,
-      "context_length": 262144,
+      "input_usd_per_1m": 0.2,
+      "output_usd_per_1m": 1.5,
+      "input_rmb_per_1m": 1.44,
+      "output_rmb_per_1m": 10.8,
+      "blended_usd_per_1m": 0.525,
+      "blended_rmb_per_1m": 3.78,
+      "context_length": 256000,
       "supports_tools": true,
-      "modality": "text+image+video->text",
+      "modality": "text->text",
       "is_free": false,
       "value_score": 83.6,
       "tags": [
+        "coding",
         "reasoning",
         "cheap",
         "global"
@@ -1615,6 +1629,36 @@
       "tags": [
         "coding",
         "reasoning",
+        "global"
+      ]
+    },
+    {
+      "id": "google/gemma-4-26b-a4b-it",
+      "name": "Google: Gemma 4 26B A4B",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "google/gemma-4-26b-a4b-it",
+      "cache_hit_factor": 0.5,
+      "perf_note": "",
+      "signup_url": "https://openrouter.ai",
+      "affiliate_url": "https://openrouter.ai",
+      "model_page_url": "https://openrouter.ai/google/gemma-4-26b-a4b-it",
+      "region": "global",
+      "input_usd_per_1m": 0.09,
+      "output_usd_per_1m": 0.3,
+      "input_rmb_per_1m": 0.648,
+      "output_rmb_per_1m": 2.16,
+      "blended_usd_per_1m": 0.1425,
+      "blended_rmb_per_1m": 1.026,
+      "context_length": 262144,
+      "supports_tools": true,
+      "modality": "text+image+video->text",
+      "is_free": false,
+      "value_score": 82.9,
+      "tags": [
+        "reasoning",
+        "cheap",
         "global"
       ]
     },
@@ -2409,36 +2453,6 @@
       ]
     },
     {
-      "id": "openai/gpt-5.1-codex-max",
-      "name": "OpenAI: GPT-5.1-Codex-Max",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "openai/gpt-5.1-codex-max",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "signup_url": "https://openrouter.ai",
-      "affiliate_url": "https://openrouter.ai",
-      "model_page_url": "https://openrouter.ai/openai/gpt-5.1-codex-max",
-      "region": "global",
-      "input_usd_per_1m": 1.25,
-      "output_usd_per_1m": 10.0,
-      "input_rmb_per_1m": 9.0,
-      "output_rmb_per_1m": 72.0,
-      "blended_usd_per_1m": 3.4375,
-      "blended_rmb_per_1m": 24.75,
-      "context_length": 400000,
-      "supports_tools": true,
-      "modality": "text+image->text",
-      "is_free": false,
-      "value_score": 77.3,
-      "tags": [
-        "coding",
-        "reasoning",
-        "global"
-      ]
-    },
-    {
       "id": "dots-studio/dots-3-note-preview:free",
       "name": "Dots Studio: Dots3-Note Preview (free)",
       "provider": "OpenRouter (Global)",
@@ -2683,36 +2697,6 @@
       ]
     },
     {
-      "id": "openai/gpt-5.2-codex",
-      "name": "OpenAI: GPT-5.2-Codex",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "openai/gpt-5.2-codex",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "signup_url": "https://openrouter.ai",
-      "affiliate_url": "https://openrouter.ai",
-      "model_page_url": "https://openrouter.ai/openai/gpt-5.2-codex",
-      "region": "global",
-      "input_usd_per_1m": 1.75,
-      "output_usd_per_1m": 14.0,
-      "input_rmb_per_1m": 12.6,
-      "output_rmb_per_1m": 100.8,
-      "blended_usd_per_1m": 4.8125,
-      "blended_rmb_per_1m": 34.65,
-      "context_length": 400000,
-      "supports_tools": true,
-      "modality": "text+image->text",
-      "is_free": false,
-      "value_score": 75.3,
-      "tags": [
-        "coding",
-        "reasoning",
-        "global"
-      ]
-    },
-    {
       "id": "tencent-cloud/deepseek-v3",
       "name": "腾讯云: DeepSeek-V3.2 满血专线版",
       "provider": "腾讯云 (Tencent Cloud)",
@@ -2856,6 +2840,36 @@
       "modality": "text+image+file->text",
       "is_free": false,
       "value_score": 73.9,
+      "tags": [
+        "coding",
+        "reasoning",
+        "global"
+      ]
+    },
+    {
+      "id": "x-ai/grok-4",
+      "name": "xAI: Grok 4",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "x-ai/grok-4",
+      "cache_hit_factor": 0.25,
+      "perf_note": "",
+      "signup_url": "https://openrouter.ai",
+      "affiliate_url": "https://openrouter.ai",
+      "model_page_url": "https://openrouter.ai/x-ai/grok-4",
+      "region": "global",
+      "input_usd_per_1m": 3.0,
+      "output_usd_per_1m": 15.0,
+      "input_rmb_per_1m": 21.6,
+      "output_rmb_per_1m": 108.0,
+      "blended_usd_per_1m": 6.0,
+      "blended_rmb_per_1m": 43.2,
+      "context_length": 256000,
+      "supports_tools": true,
+      "modality": "text+image->text",
+      "is_free": false,
+      "value_score": 73.1,
       "tags": [
         "coding",
         "reasoning",
