@@ -652,6 +652,10 @@ def resolve_affiliate_map(config: dict[str, Any]) -> dict[str, str]:
             cn.get("volcengine_ark_url") or config.get("volcengine_ark_url"),
             "https://console.volcengine.com/ark",
         ),
+        "novita_affiliate_url": _clean_url(
+            gl.get("novita_affiliate_url") or config.get("novita_affiliate_url"),
+            "https://novita.ai",
+        ),
         "openrouter_url": _clean_url(
             gl.get("openrouter_url") or config.get("openrouter_url"),
             "https://openrouter.ai",
@@ -757,6 +761,7 @@ def compute_tags_and_score(
             "tencent-",
             "siliconflow/",
             "volcengine/",
+            "novita/",
         )
     ):
         capability += 4.0
@@ -940,6 +945,114 @@ def build_domestic_cn_models(affiliate_map: dict[str, str]) -> list[dict[str, An
                 "affiliate_url": channel_url,
                 "model_page_url": channel_url,
                 "region": "cn_direct",
+                "input_usd_per_1m": in_usd,
+                "output_usd_per_1m": out_usd,
+                "input_rmb_per_1m": in_rmb,
+                "output_rmb_per_1m": out_rmb,
+                "blended_usd_per_1m": blended_usd,
+                "blended_rmb_per_1m": blended_rmb,
+                "context_length": int(item["context_length"]),
+                "supports_tools": bool(item["supports_tools"]),
+                "modality": str(item["modality"]),
+                "is_free": "free" in tags,
+                "value_score": value_score,
+                "tags": tags,
+            }
+        )
+    return enriched
+
+
+CURATED_GLOBAL_PARTNER_MODELS: list[dict[str, Any]] = [
+    {
+        "id": "novita/deepseek/deepseek-v3.2",
+        "name": "Novita AI: DeepSeek V3.2 Serverless (Claude Code / OpenCode)",
+        "provider": "Novita AI (Global API + GPU)",
+        "provider_config_key": "novita_affiliate_url",
+        "api_base_url": "https://api.novita.ai/openai",
+        "api_model_id": "deepseek/deepseek-v3.2",
+        "cache_hit_factor": 0.5,
+        "perf_note": "⚡ OpenAI/Anthropic compatible + GPU cloud",
+        "input_usd_per_1m": 0.269,
+        "output_usd_per_1m": 0.40,
+        "context_length": 163840,
+        "supports_tools": True,
+        "modality": "text->text",
+        "extra_tags": ["coding", "cheap", "global"],
+    },
+    {
+        "id": "novita/qwen/qwen3-coder-next",
+        "name": "Novita AI: Qwen3-Coder-Next (SWE Agent Workhorse)",
+        "provider": "Novita AI (Global API + GPU)",
+        "provider_config_key": "novita_affiliate_url",
+        "api_base_url": "https://api.novita.ai/openai",
+        "api_model_id": "qwen/qwen3-coder-next",
+        "cache_hit_factor": 0.25,
+        "perf_note": "🛠️ 256K SWE Agent Serverless & Coding Plan",
+        "input_usd_per_1m": 0.20,
+        "output_usd_per_1m": 1.50,
+        "context_length": 262144,
+        "supports_tools": True,
+        "modality": "text->text",
+        "extra_tags": ["coding", "cheap", "global"],
+    },
+    {
+        "id": "novita/zai-org/glm-5",
+        "name": "Novita AI: GLM-5 1M Context (Anthropic Endpoint)",
+        "provider": "Novita AI (Global API + GPU)",
+        "provider_config_key": "novita_affiliate_url",
+        "api_base_url": "https://api.novita.ai/anthropic",
+        "api_model_id": "zai-org/glm-5",
+        "cache_hit_factor": 0.19,
+        "perf_note": "🧠 1M Context native Anthropic /claude-code endpoint",
+        "input_usd_per_1m": 1.40,
+        "output_usd_per_1m": 4.40,
+        "context_length": 1000000,
+        "supports_tools": True,
+        "modality": "text->text",
+        "extra_tags": ["coding", "reasoning", "global"],
+    },
+]
+
+
+def build_curated_global_partner_models(affiliate_map: dict[str, str]) -> list[dict[str, Any]]:
+    """Normalize verified Novita AI global serverless models mapped to novita_affiliate_url."""
+    enriched: list[dict[str, Any]] = []
+    for item in CURATED_GLOBAL_PARTNER_MODELS:
+        cfg_key = item["provider_config_key"]
+        channel_url = affiliate_map.get(cfg_key) or "https://novita.ai"
+        in_usd = round(float(item["input_usd_per_1m"]), 4)
+        out_usd = round(float(item["output_usd_per_1m"]), 4)
+        in_rmb = round(in_usd * FX_USD_TO_RMB, 4)
+        out_rmb = round(out_usd * FX_USD_TO_RMB, 4)
+        blended_usd = round(0.75 * in_usd + 0.25 * out_usd, 4)
+        blended_rmb = round(0.75 * in_rmb + 0.25 * out_rmb, 4)
+
+        tags, value_score = compute_tags_and_score(
+            model_id=item["id"],
+            name=item["name"],
+            input_usd=in_usd,
+            output_usd=out_usd,
+            context_length=int(item["context_length"]),
+            supports_tools=bool(item["supports_tools"]),
+            modality=str(item["modality"]),
+            region="global",
+            extra_tags=list(item.get("extra_tags") or []),
+        )
+
+        enriched.append(
+            {
+                "id": item["id"],
+                "name": item["name"],
+                "provider": item["provider"],
+                "provider_config_key": cfg_key,
+                "api_base_url": str(item["api_base_url"]),
+                "api_model_id": str(item["api_model_id"]),
+                "cache_hit_factor": float(item.get("cache_hit_factor", 0.25)),
+                "perf_note": str(item.get("perf_note") or ""),
+                "signup_url": channel_url,
+                "affiliate_url": channel_url,
+                "model_page_url": channel_url,
+                "region": "global",
                 "input_usd_per_1m": in_usd,
                 "output_usd_per_1m": out_usd,
                 "input_rmb_per_1m": in_rmb,
@@ -1341,10 +1454,15 @@ def refresh_models_live(output_path: Path = OUTPUT_PATH) -> dict[str, Any]:
                 "affiliate_url": or_url,
             }
             for m in prev_global_models
+            if m.get("provider_config_key") != "novita_affiliate_url"
         ]
     else:
         last_live_verified_at = prev_live_verified_at or f"{pricing_core.QUOTE_VERIFIED_DATE}T00:00:00Z"
         global_models = normalize_openrouter_models(raw_openrouter, affiliate_map, limit=TARGET_OPENROUTER_COUNT)
+
+    novita_global_models = build_curated_global_partner_models(affiliate_map)
+    novita_ids = {m["id"] for m in novita_global_models}
+    global_models = novita_global_models + [m for m in global_models if m.get("id") not in novita_ids]
 
     cn_models = build_domestic_cn_models(affiliate_map)
     coding_plans = build_coding_plans(affiliate_map)

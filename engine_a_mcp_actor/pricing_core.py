@@ -925,7 +925,7 @@ def evaluate_coding_plans(
 def _strip_gateway_model_prefix(raw_model_id: str | None) -> str:
     val = str(raw_model_id or "qwen3.5-plus").strip() or "qwen3.5-plus"
     lower = val.lower()
-    for prefix in ("aliyun-bailian/", "tencent-cloud/", "volcengine/", "siliconflow/", "aliyun/", "tencent/"):
+    for prefix in ("aliyun-bailian/", "tencent-cloud/", "volcengine/", "siliconflow/", "novita/", "aliyun/", "tencent/"):
         if lower.startswith(prefix):
             return val[len(prefix) :]
     return val
@@ -2121,6 +2121,8 @@ def _resolve_model_env_key_var(model: dict[str, Any]) -> str:
         return "VOLCENGINE_ARK_API_KEY"
     if pkey == "siliconflow_invite_url" or "siliconflow.cn" in base:
         return "SILICONFLOW_API_KEY"
+    if pkey == "novita_affiliate_url" or "novita.ai" in base:
+        return "NOVITA_API_KEY"
     return "OPENROUTER_API_KEY"
 
 

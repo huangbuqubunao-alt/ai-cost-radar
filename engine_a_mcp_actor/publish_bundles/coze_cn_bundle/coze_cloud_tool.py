@@ -1667,6 +1667,8 @@ def _resolve_coze_env_key_var(model: dict[str, Any]) -> str:
         return "VOLCENGINE_ARK_API_KEY"
     if pkey == "siliconflow_invite_url" or "siliconflow.cn" in base:
         return "SILICONFLOW_API_KEY"
+    if pkey == "novita_affiliate_url" or "novita.ai" in base:
+        return "NOVITA_API_KEY"
     return "OPENROUTER_API_KEY"
 
 

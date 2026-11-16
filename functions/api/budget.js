@@ -1284,6 +1284,7 @@ function resolveModelEnvKeyVar(model) {
   if (pkey === "tencent_cps_url" || base.includes("lkeap.cloud.tencent.com")) return "TENCENT_LKEAP_API_KEY";
   if (pkey === "volcengine_ark_url" || base.includes("volces.com")) return "VOLCENGINE_ARK_API_KEY";
   if (pkey === "siliconflow_invite_url" || base.includes("siliconflow.cn")) return "SILICONFLOW_API_KEY";
+  if (pkey === "novita_affiliate_url" || base.includes("novita.ai")) return "NOVITA_API_KEY";
   return "OPENROUTER_API_KEY";
 }
 

@@ -4,7 +4,7 @@
   <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml</id>
   <link href="https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml" rel="self" type="application/atom+xml"/>
   <link href="https://ai-cost-radar-nlu.pages.dev/" rel="alternate" type="text/html"/>
-  <updated>2026-11-16T16:09:01Z</updated>
+  <updated>2026-11-16T17:22:56Z</updated>
   <author>
     <name>AI Cost Radar</name>
   </author>
@@ -12,7 +12,7 @@
     <title>[价格异动 2026-11-16] DeepSeek: DeepSeek V4.1 Flash 1017 (deepseek/deepseek-v4.1-flash-1017)</title>
     <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-0-deepseek-deepseek-v4.1-flash-1017-2026-11-16</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/#model-deepseek-deepseek-v4-1-flash-1017"/>
-    <updated>2026-11-16T16:09:01Z</updated>
+    <updated>2026-11-16T17:22:56Z</updated>
     <summary>输入单价 $0.036 -&gt; $0.15 / 1M，输出单价 $0.5 -&gt; $0.6 / 1M</summary>
   </entry>
   <entry>
@@ -97,7 +97,7 @@
     <id>https://ai-cost-radar-nlu.pages.dev/coding-plan-2026/#verified-2026-11-13</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/coding-plan-2026/"/>
     <updated>2026-11-13T00:00:00Z</updated>
-    <summary>核验阿里云百炼（Lite 停新购，Pro 首月 ¥39.90 / 续费 ¥200，上限 6,000/5h · 45,000/周 · 90,000/月）、腾讯云（Lite ¥40 限 18,000/月，Pro ¥200 限 90,000/月）与火山方舟官方规则，同步 86 款海内外模型报价（构建日 2026-11-16）。</summary>
+    <summary>核验阿里云百炼（Lite 停新购，Pro 首月 ¥39.90 / 续费 ¥200，上限 6,000/5h · 45,000/周 · 90,000/月）、腾讯云（Lite ¥40 限 18,000/月，Pro ¥200 限 90,000/月）与火山方舟官方规则，同步 89 款海内外模型报价（构建日 2026-11-16）。</summary>
   </entry>
   <entry>
     <title>[计费模型升级 2026-11-13] Prompt 缓存拆分为「命中率 × 命中单价」并新增思考倍率防重算保护</title>

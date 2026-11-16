@@ -54,10 +54,11 @@ DEFAULT_AFFILIATES: dict[str, str] = {
     "siliconflow_invite_url": "https://cloud.siliconflow.cn/",
     "volcengine_ark_url": "https://console.volcengine.com/ark",
     # Global USD channels (clean official URLs when unconfigured)
+    "novita_affiliate_url": "https://novita.ai",
+    "railway_affiliate_url": "https://railway.com",
     "runpod_affiliate_url": "https://www.runpod.io",
     "apify_affiliate_url": "https://apify.com",
     "digitalocean_affiliate_url": "https://www.digitalocean.com",
-    "railway_affiliate_url": "https://railway.com",
     "openrouter_url": "https://openrouter.ai",
 }
 
@@ -569,6 +570,8 @@ def infer_config_key(raw_model: dict[str, Any], region: str) -> str:
         return "tencent_cps_url"
     if "volcengine" in hay or "doubao" in hay or "火山" in hay or "豆包" in hay:
         return "volcengine_ark_url"
+    if "novita" in hay:
+        return "novita_affiliate_url"
     if region == "cn_direct":
         return "aliyun_bailian_url"
     return "openrouter_url"
@@ -598,6 +601,7 @@ SPONSORED_URL_TOKENS = (
     "userCode=",
     "curl.qcloud.com",
     "siliconflow.cn/i/",
+    "referralCode=",
     "ref=",
     "aff=",
     "invite=",
@@ -611,7 +615,14 @@ def is_sponsored_link(url: str, config_key: str = "", commission_status: str = "
     raw_url = str(url or "")
     if any(tok in raw_url for tok in SPONSORED_URL_TOKENS):
         return True
-    if config_key in ("aliyun_bailian_url", "aliyun_ambassador_url", "tencent_cps_url", "siliconflow_invite_url") and "?" in raw_url:
+    if config_key in (
+        "aliyun_bailian_url",
+        "aliyun_ambassador_url",
+        "tencent_cps_url",
+        "siliconflow_invite_url",
+        "novita_affiliate_url",
+        "railway_affiliate_url",
+    ) and "?" in raw_url:
         return True
     return False
 
@@ -624,6 +635,7 @@ def channel_bonus_notes(config_key: str, is_free: bool) -> tuple[str, str]:
         "siliconflow_invite_url": ("按量池含免费小模型", "Pay-As-You-Go + Free Models"),
         "tencent_cps_url": ("腾讯云官方通道", "Tencent Cloud Official"),
         "volcengine_ark_url": ("火山方舟官方通道", "Volcengine Ark Official"),
+        "novita_affiliate_url": ("Claude Code/OpenCode 直连 + 弹性 GPU", "Claude Code / OpenCode + Elastic GPU"),
         "openrouter_url": ("统一多模型按量网关", "Unified Multi-LLM API"),
     }
     return mapping.get(config_key, ("", ""))
@@ -693,6 +705,7 @@ def normalize_model(raw: dict[str, Any], affiliates: dict[str, str], fx_rate: fl
         "tencent_cps_url": "https://api.lkeap.cloud.tencent.com/v1",
         "siliconflow_invite_url": "https://api.siliconflow.cn/v1",
         "volcengine_ark_url": "https://ark.cn-beijing.volces.com/api/v3",
+        "novita_affiliate_url": "https://api.novita.ai/openai",
         "openrouter_url": "https://openrouter.ai/api/v1",
     }
     api_base_url = str(raw.get("api_base_url") or default_base_map.get(config_key, "https://openrouter.ai/api/v1"))
@@ -701,7 +714,7 @@ def normalize_model(raw: dict[str, Any], affiliates: dict[str, str], fx_rate: fl
         or (
             model_id.split("/", 1)[-1]
             if region == "cn_direct" and not model_id.startswith("siliconflow/")
-            else model_id.removeprefix("siliconflow/")
+            else model_id.removeprefix("siliconflow/").removeprefix("novita/")
         )
     )
     cache_hit_factor = float(

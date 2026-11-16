@@ -7,10 +7,11 @@
     "volcengine_ark_url": "https://console.volcengine.com/ark"
   },
   "global_affiliates_usd": {
+    "novita_affiliate_url": "https://novita.ai/?ref=ngyxnguh&utm_source=affiliate",
+    "railway_affiliate_url": "https://railway.com?referralCode=aTaBV1",
     "runpod_affiliate_url": "https://www.runpod.io",
     "apify_affiliate_url": "https://apify.com",
     "digitalocean_affiliate_url": "https://www.digitalocean.com",
-    "railway_affiliate_url": "https://railway.com?referralCode=aTaBV1",
     "openrouter_url": "https://openrouter.ai"
   }
 }

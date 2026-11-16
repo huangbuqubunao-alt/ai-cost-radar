@@ -4276,6 +4276,7 @@ def render_html_template(
       if (pkey === "tencent_cps_url" || base.includes("lkeap.cloud.tencent.com")) return "TENCENT_LKEAP_API_KEY";
       if (pkey === "volcengine_ark_url" || base.includes("volces.com")) return "VOLCENGINE_ARK_API_KEY";
       if (pkey === "siliconflow_invite_url" || base.includes("siliconflow.cn")) return "SILICONFLOW_API_KEY";
+      if (pkey === "novita_affiliate_url" || base.includes("novita.ai")) return "NOVITA_API_KEY";
       return "OPENROUTER_API_KEY";
     }}
 
@@ -5413,10 +5414,10 @@ def render_html_template(
     function isSponsoredUrl(url, configKey, offer) {{
       if (offer && offer.commission_status === "none") return false;
       const u = String(url || "");
-      if (["userCode=", "curl.qcloud.com", "siliconflow.cn/i/", "ref=", "aff=", "invite="].some(tok => u.includes(tok))) {{
+      if (["userCode=", "curl.qcloud.com", "siliconflow.cn/i/", "referralCode=", "ref=", "aff=", "invite="].some(tok => u.includes(tok))) {{
         return true;
       }}
-      if (["aliyun_bailian_url", "aliyun_ambassador_url", "tencent_cps_url", "siliconflow_invite_url"].includes(String(configKey || "")) && u.includes("?")) {{
+      if (["aliyun_bailian_url", "aliyun_ambassador_url", "tencent_cps_url", "siliconflow_invite_url", "novita_affiliate_url", "railway_affiliate_url"].includes(String(configKey || "")) && u.includes("?")) {{
         return true;
       }}
       return false;
@@ -5444,6 +5445,9 @@ def render_html_template(
       }}
       if (key === "volcengine_ark_url") {{
         return {{ url, offerId: "volcengine-payg", label: isEn ? "Open Volcengine Ark Console" : "前往火山方舟控制台", isCn: true }};
+      }}
+      if (key === "novita_affiliate_url") {{
+        return {{ url: AFF.novita_affiliate_url || url, offerId: "novita-ai-cloud", label: isEn ? "Get Novita AI API / GPU" : "前往 Novita AI 控制台", isCn: false }};
       }}
       return {{ url: AFF.openrouter_url || url, offerId: "openrouter-global-coding", label: isEn ? "Visit OpenRouter" : "前往 OpenRouter 官网", isCn: false }};
     }}
@@ -6077,15 +6081,15 @@ def render_html_template(
             </div>
             <span class="gpu-cta-link">View Tencent Lighthouse / HAI</span>
           </a>
-          <a class="gpu-cta-card" href="${{esc(AFF.runpod_affiliate_url)}}" target="_blank" rel="${{isSponsoredUrlWeb(AFF.runpod_affiliate_url, "https://www.runpod.io") ? "noopener sponsored" : "noopener"}}" data-offer-id="runpod-gpu" data-card-slot="selfhost_banner">
+          <a class="gpu-cta-card" href="${{esc(AFF.novita_affiliate_url || "https://novita.ai")}}" target="_blank" rel="${{isSponsoredUrlWeb(AFF.novita_affiliate_url, "https://novita.ai") ? "noopener sponsored" : "noopener"}}" data-offer-id="novita-ai-cloud" data-card-slot="selfhost_banner">
             <div>
               <div class="gpu-cta-head">
-                <span>RunPod Serverless / Per-Sec GPU</span>
-                <span class="badge badge-neutral">vLLM / SGLang</span>
+                <span>Novita AI Unified API &amp; GPU</span>
+                <span class="badge badge-neutral">API + Coding Plan + GPU</span>
               </div>
-              <div class="gpu-cta-sub">${{isSponsoredUrlWeb(AFF.runpod_affiliate_url, "https://www.runpod.io") ? "Global per-second RTX 4090 / A100 inference nodes; includes RunPod partner referral tracking." : "Global per-second RTX 4090 / A100 inference nodes; direct official link without referral markup."}}</div>
+              <div class="gpu-cta-sub">${{isSponsoredUrlWeb(AFF.novita_affiliate_url, "https://novita.ai") ? "All-in-one DeepSeek / Qwen3-Coder / GLM-5 API, Coding Plan &amp; RTX 4090 / A100 GPUs; includes Novita partner link." : "All-in-one DeepSeek / Qwen3-Coder / GLM-5 API, Coding Plan &amp; RTX 4090 / A100 GPUs; direct official link."}}</div>
             </div>
-            <span class="gpu-cta-link">Estimate RunPod GPU Cost</span>
+            <span class="gpu-cta-link">Open Novita AI Console</span>
           </a>
           <a class="gpu-cta-card" href="${{esc(AFF.railway_affiliate_url || "https://railway.com")}}" target="_blank" rel="${{isSponsoredUrlWeb(AFF.railway_affiliate_url, "https://railway.com") ? "noopener sponsored" : "noopener"}}" data-offer-id="railway-litellm-host" data-card-slot="selfhost_banner">
             <div>
@@ -6128,15 +6132,15 @@ def render_html_template(
             </div>
             <span class="gpu-cta-link">查看腾讯云轻量云 / HAI 配置</span>
           </a>
-          <a class="gpu-cta-card" href="${{esc(AFF.runpod_affiliate_url)}}" target="_blank" rel="noopener" data-offer-id="runpod-gpu" data-card-slot="selfhost_banner">
+          <a class="gpu-cta-card" href="${{esc(AFF.novita_affiliate_url || "https://novita.ai")}}" target="_blank" rel="${{isSponsoredUrlWeb(AFF.novita_affiliate_url, "https://novita.ai") ? "noopener sponsored" : "noopener"}}" data-offer-id="novita-ai-cloud" data-card-slot="selfhost_banner">
             <div>
               <div class="gpu-cta-head">
-                <span>RunPod 弹性按秒 GPU (海外 USD)</span>
-                <span class="badge badge-neutral">vLLM / SGLang</span>
+                <span>Novita AI 海外一站式 API &amp; GPU</span>
+                <span class="badge badge-neutral">API + 套餐 + GPU</span>
               </div>
-              <div class="gpu-cta-sub">海外业务按秒起停 RTX 4090 / A100 推理节点，无推广参数直达官网。</div>
+              <div class="gpu-cta-sub">${{isSponsoredUrlWeb(AFF.novita_affiliate_url, "https://novita.ai") ? "一站式提供 Claude Code 兼容按量 API、海外 Coding Plan 与按秒 RTX 4090 / A100 实例，含合作推广参数。" : "一站式提供 Claude Code 兼容按量 API、海外 Coding Plan 与按秒 RTX 4090 / A100 实例，官方直达。"}}</div>
             </div>
-            <span class="gpu-cta-link">前往 RunPod 测算实例成本</span>
+            <span class="gpu-cta-link">前往 Novita AI 控制台</span>
           </a>
         </div>
       `;
@@ -6151,42 +6155,30 @@ def render_html_template(
     function renderPartnerMatrix() {{
       const grid = document.getElementById("partnerMatrixGrid");
       const isEn = state.lang === "en";
-      const runpodSponsored = isSponsoredUrlWeb(AFF.runpod_affiliate_url, "https://www.runpod.io");
+      const novitaSponsored = isSponsoredUrlWeb(AFF.novita_affiliate_url, "https://novita.ai");
       const railwaySponsored = isSponsoredUrlWeb(AFF.railway_affiliate_url, "https://railway.com");
-      const apifySponsored = isSponsoredUrlWeb(AFF.apify_affiliate_url, "https://apify.com");
       const partners = isEn ? [
         {{
-          id: "runpod-gpu",
-          name: "RunPod Serverless & Elastic GPU Pods",
-          badge: runpodSponsored ? "Global USD · Partner Link" : "Global USD · Official Direct",
-          desc: runpodSponsored
-            ? "Per-second RTX 4090 / A100 / H100 vLLM & SGLang inference nodes when monthly API spend exceeds ~$125/mo; includes partner referral tracking."
-            : "Per-second RTX 4090 / A100 / H100 vLLM & SGLang inference nodes when monthly API spend exceeds ~$125/mo; direct official link.",
-          cta: "Estimate RunPod GPU Cost",
-          url: AFF.runpod_affiliate_url || "https://www.runpod.io",
-          sponsored: runpodSponsored
+          id: "novita-ai-cloud",
+          name: "Novita AI Unified LLM API, Coding Plan & GPU Cloud",
+          badge: novitaSponsored ? "Global USD · Partner Link" : "Global USD · Official Direct",
+          desc: novitaSponsored
+            ? "One-stop OpenAI/Anthropic-compatible Serverless API (DeepSeek V3.2, Qwen3-Coder, GLM-5), Coding Plan ($49.9/mo) for Claude Code / Codex / OpenCode, plus per-second RTX 4090 / A100 GPU pods; includes partner referral tracking."
+            : "One-stop OpenAI/Anthropic-compatible Serverless API (DeepSeek V3.2, Qwen3-Coder, GLM-5), Coding Plan ($49.9/mo) for Claude Code / Codex / OpenCode, plus per-second RTX 4090 / A100 GPU pods; direct official link.",
+          cta: "Open Novita AI API & GPU Console",
+          url: AFF.novita_affiliate_url || "https://novita.ai",
+          sponsored: novitaSponsored
         }},
         {{
           id: "railway-litellm-host",
           name: "Railway 1-Click LiteLLM Cache Gateway",
-          badge: railwaySponsored ? "Global USD · Referral Credits" : "Global USD · Official Direct",
+          badge: railwaySponsored ? "Global USD · $20 Signup Credit" : "Global USD · Official Direct",
           desc: railwaySponsored
-            ? "Deploy a zero-code LiteLLM Proxy + Redis semantic cache in 60 seconds (~$5/mo base); carries Railway referral link."
+            ? "Deploy a zero-code LiteLLM Proxy + Redis semantic cache in 60 seconds (~$5/mo base, $20 referral credit upon signup); carries Railway referral link."
             : "Deploy a zero-code LiteLLM Proxy + Redis semantic cache in 60 seconds (~$5/mo base); direct official link.",
           cta: "Deploy LiteLLM Proxy on Railway",
           url: AFF.railway_affiliate_url || "https://railway.com",
           sponsored: railwaySponsored
-        }},
-        {{
-          id: "apify-agent-tools",
-          name: "Apify AI Agent Scraping & MCP Actors",
-          badge: apifySponsored ? "Global USD · Partner Link" : "Global USD · Official Direct",
-          desc: apifySponsored
-            ? "Hosted MCP servers and headless browser Actors for AI agents with pay-per-event billing; carries partner referral tracking."
-            : "Hosted MCP servers and headless browser Actors for AI agents with pay-per-event billing; direct official link.",
-          cta: "Explore Apify MCP & Agent Store",
-          url: AFF.apify_affiliate_url || "https://apify.com",
-          sponsored: apifySponsored
         }},
         {{
           id: "aliyun-ecs-agent-host",
@@ -6289,6 +6281,17 @@ def render_html_template(
           sponsored: false
         }},
         {{
+          id: "novita-ai-cloud",
+          name: "Novita AI 海外一站式大模型 API · Coding Plan · 弹性 GPU",
+          badge: novitaSponsored ? "Global USD · 合作推广" : "Global USD · 官方直达",
+          desc: novitaSponsored
+            ? "同一站点集成 OpenAI/Anthropic 兼容按量 API（DeepSeek V3.2 / Qwen3-Coder / GLM-5）、海外 Coding Plan（$49.9/月，支持 Claude Code / Codex / OpenCode）与 RTX 4090 / A100 按秒实例，含推广参数。"
+            : "同一站点集成 OpenAI/Anthropic 兼容按量 API、海外 Coding Plan 与 RTX 4090 / A100 按秒实例，官方直达。",
+          cta: "前往 Novita AI 控制台",
+          url: AFF.novita_affiliate_url || "https://novita.ai",
+          sponsored: novitaSponsored
+        }},
+        {{
           id: "openrouter-global-coding",
           name: "OpenRouter 海外统一多模型网关",
           badge: "Global USD · 纯官方直达",
@@ -6316,7 +6319,7 @@ def render_html_template(
     function stripGatewayModelPrefix(rawMid) {{
       const val = String(rawMid || "qwen3.5-plus").trim() || "qwen3.5-plus";
       const lower = val.toLowerCase();
-      for (const prefix of ["aliyun-bailian/", "tencent-cloud/", "volcengine/", "siliconflow/", "aliyun/", "tencent/"]) {{
+      for (const prefix of ["aliyun-bailian/", "tencent-cloud/", "volcengine/", "siliconflow/", "novita/", "aliyun/", "tencent/"]) {{
         if (lower.startsWith(prefix)) return val.slice(prefix.length);
       }}
       return val;

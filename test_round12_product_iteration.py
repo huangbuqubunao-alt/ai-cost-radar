@@ -582,7 +582,7 @@ console.log(JSON.stringify(outputs));
             if item["action"] != "keep_current":
                 self.assertNotIn("aliyun-bailian/", item["recommended_model_id"])
                 self.assertNotIn("tencent-cloud/", item["recommended_model_id"])
-                self.assertEqual(item["recommended_env_key_var"], "OPENROUTER_API_KEY")
+                self.assertIn(item["recommended_env_key_var"], {"NOVITA_API_KEY", "OPENROUTER_API_KEY"})
 
         # Cloudflare /api/budget parity (both CN default and region=global)
         cf_q_gl: list[tuple[str, str]] = [
@@ -725,6 +725,50 @@ console.log(JSON.stringify(outputs));
             self.assertTrue((pub_target / "engine_a_mcp_actor" / "audit_ai_spend.py").is_file())
             self.assertTrue((pub_target / "test_round12_product_iteration.py").is_file())
             self.assertFalse((pub_target / "docs" / "GLOBAL_LAUNCH_PLAYBOOK.md").exists())
+
+    def test_06_unified_novita_ai_and_railway_global_monetization_consolidation(self) -> None:
+        """Verify Plan A consolidation: unified Novita AI (API + Coding Plan + GPU) + Railway proxy, Apify removed from UI matrix."""
+        import build_site
+        import fetch_and_enrich
+
+        # 1. Config & DEFAULT_AFFILIATES support novita_affiliate_url + active user referral URLs
+        self.assertIn("novita_affiliate_url", build_site.DEFAULT_AFFILIATES)
+        cfg_json = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+        gl_cfg = cfg_json.get("global_affiliates_usd", {})
+        self.assertIn("novita.ai", gl_cfg.get("novita_affiliate_url", ""))
+        self.assertIn("railway.com", gl_cfg.get("railway_affiliate_url", ""))
+
+        # 2. Curated Novita AI global models carry novita_affiliate_url, api.novita.ai base URL, and NOVITA_API_KEY
+        aff_map = fetch_and_enrich.resolve_affiliate_map(cfg_json)
+        self.assertIn("novita_affiliate_url", aff_map)
+        novita_models = fetch_and_enrich.build_curated_global_partner_models(aff_map)
+        self.assertGreaterEqual(len(novita_models), 3)
+        for nm in novita_models:
+            self.assertEqual(nm["region"], "global")
+            self.assertEqual(nm["provider_config_key"], "novita_affiliate_url")
+            self.assertIn("api.novita.ai", nm["api_base_url"])
+            self.assertEqual(pricing_core._resolve_model_env_key_var(nm), "NOVITA_API_KEY")
+
+        # 3. Built HTML surfaces Novita AI + Railway in partner matrix and removes off-topic apify-agent-tools card
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dist_tmp = Path(tmpdir) / "dist"
+            build_site.build_site(dist_dir=dist_tmp, site_url="https://ai-cost-radar-nlu.pages.dev/")
+            en_html = (dist_tmp / "ai-coding-spend-auditor" / "index.html").read_text(encoding="utf-8")
+            self.assertIn("novita-ai-cloud", en_html)
+            self.assertIn("railway-litellm-host", en_html)
+            self.assertNotIn('id: "apify-agent-tools"', en_html)
+            self.assertTrue(
+                build_site.is_sponsored_link(
+                    "https://railway.com?referralCode=aTaBV1",
+                    config_key="railway_affiliate_url",
+                )
+            )
+            self.assertTrue(
+                build_site.is_sponsored_link(
+                    "https://novita.ai/?ref=ngyxnguh&utm_source=affiliate",
+                    config_key="novita_affiliate_url",
+                )
+            )
 
 
 if __name__ == "__main__":

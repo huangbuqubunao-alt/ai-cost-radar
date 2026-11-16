@@ -1,17 +1,17 @@
 {
-  "total_models": 86,
+  "total_models": 89,
   "counts_by_region": {
     "cn_direct": 20,
-    "global": 66
+    "global": 69
   },
   "build_date": "2026-11-16",
   "updated_at": "2026-11-16",
   "quote_verified_date": "2026-11-13",
-  "last_live_verified_at": "2026-11-16 16:11:41",
+  "last_live_verified_at": "2026-11-16 17:23:54",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
   "official_rule_audit": {
-    "checked_at": "2026-11-16T16:11:41Z",
+    "checked_at": "2026-11-16T17:23:54Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -23,7 +23,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-16T16:11:41Z",
+        "last_verified_at": "2026-11-16T17:23:54Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -33,10 +33,15 @@
       {
         "plan_id": "tencent-coding-plan",
         "url": "https://cloud.tencent.com/document/product/1823/130092",
-        "status": "csr_shell_manual_check",
-        "matched_groups": [],
+        "status": "verified_markers",
+        "matched_groups": [
+          "lite_monthly_cap_18k",
+          "lite_renewal_40",
+          "pro_monthly_cap_90k",
+          "pro_renewal_200"
+        ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-16T16:09:01Z",
+        "last_verified_at": "2026-11-16T17:23:54Z",
         "last_verified_groups": [
           "lite_monthly_cap_18k",
           "lite_renewal_40",
@@ -55,7 +60,7 @@
           "interactive_ide_only"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-16T16:11:41Z",
+        "last_verified_at": "2026-11-16T17:23:54Z",
         "last_verified_groups": [
           "tiers_lite_pro",
           "quota_window_5h",
@@ -67,7 +72,7 @@
   },
   "price_changes": [
     {
-      "detected_at": "2026-11-16T16:09:01Z",
+      "detected_at": "2026-11-16T17:22:56Z",
       "entity_type": "model",
       "id": "deepseek/deepseek-v4.1-flash-1017",
       "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
@@ -1666,6 +1671,41 @@
       "signup_url": "https://openrouter.ai"
     },
     {
+      "id": "novita/qwen/qwen3-coder-next",
+      "anchor_id": "model-novita-qwen-qwen3-coder-next",
+      "name": "Novita AI: Qwen3-Coder-Next (SWE Agent Workhorse)",
+      "provider": "Novita AI (Global API + GPU)",
+      "provider_config_key": "novita_affiliate_url",
+      "api_base_url": "https://api.novita.ai/openai",
+      "api_model_id": "qwen/qwen3-coder-next",
+      "cache_hit_factor": 0.25,
+      "perf_note": "🛠️ 256K SWE Agent Serverless & Coding Plan",
+      "affiliate_url": "https://novita.ai/?ref=ngyxnguh&utm_source=affiliate",
+      "region": "global",
+      "input_usd_per_1m": 0.2,
+      "output_usd_per_1m": 1.5,
+      "input_rmb_per_1m": 1.44,
+      "output_rmb_per_1m": 10.8,
+      "blended_usd_per_1m": 0.525,
+      "blended_rmb_per_1m": 3.78,
+      "context_length": 262144,
+      "supports_tools": true,
+      "is_free": false,
+      "has_free_quota": false,
+      "is_batch": false,
+      "open_weights": true,
+      "value_score": 83.7,
+      "tags": [
+        "cheap",
+        "coding",
+        "global",
+        "reasoning"
+      ],
+      "bonus_note": "Claude Code/OpenCode 直连 + 弹性 GPU",
+      "bonus_note_en": "Claude Code / OpenCode + Elastic GPU",
+      "signup_url": "https://novita.ai/?ref=ngyxnguh&utm_source=affiliate"
+    },
+    {
       "id": "x-ai/grok-code-fast-1",
       "anchor_id": "model-x-ai-grok-code-fast-1",
       "name": "xAI: Grok Code Fast 1",
@@ -2180,6 +2220,40 @@
       "bonus_note": "¥0 免费调用层",
       "bonus_note_en": "$0 Free API Tier",
       "signup_url": "https://openrouter.ai"
+    },
+    {
+      "id": "novita/zai-org/glm-5",
+      "anchor_id": "model-novita-zai-org-glm-5",
+      "name": "Novita AI: GLM-5 1M Context (Anthropic Endpoint)",
+      "provider": "Novita AI (Global API + GPU)",
+      "provider_config_key": "novita_affiliate_url",
+      "api_base_url": "https://api.novita.ai/anthropic",
+      "api_model_id": "zai-org/glm-5",
+      "cache_hit_factor": 0.19,
+      "perf_note": "🧠 1M Context native Anthropic /claude-code endpoint",
+      "affiliate_url": "https://novita.ai/?ref=ngyxnguh&utm_source=affiliate",
+      "region": "global",
+      "input_usd_per_1m": 1.4,
+      "output_usd_per_1m": 4.4,
+      "input_rmb_per_1m": 10.08,
+      "output_rmb_per_1m": 31.68,
+      "blended_usd_per_1m": 2.15,
+      "blended_rmb_per_1m": 15.48,
+      "context_length": 1000000,
+      "supports_tools": true,
+      "is_free": false,
+      "has_free_quota": false,
+      "is_batch": false,
+      "open_weights": true,
+      "value_score": 78.8,
+      "tags": [
+        "coding",
+        "global",
+        "reasoning"
+      ],
+      "bonus_note": "Claude Code/OpenCode 直连 + 弹性 GPU",
+      "bonus_note_en": "Claude Code / OpenCode + Elastic GPU",
+      "signup_url": "https://novita.ai/?ref=ngyxnguh&utm_source=affiliate"
     },
     {
       "id": "inclusionai/ling-3.2-flash:free",
@@ -2730,6 +2804,40 @@
       "bonus_note": "¥0 免费调用层",
       "bonus_note_en": "$0 Free API Tier",
       "signup_url": "https://openrouter.ai"
+    },
+    {
+      "id": "novita/deepseek/deepseek-v3.2",
+      "anchor_id": "model-novita-deepseek-deepseek-v3-2",
+      "name": "Novita AI: DeepSeek V3.2 Serverless (Claude Code / OpenCode)",
+      "provider": "Novita AI (Global API + GPU)",
+      "provider_config_key": "novita_affiliate_url",
+      "api_base_url": "https://api.novita.ai/openai",
+      "api_model_id": "deepseek/deepseek-v3.2",
+      "cache_hit_factor": 0.5,
+      "perf_note": "⚡ OpenAI/Anthropic compatible + GPU cloud",
+      "affiliate_url": "https://novita.ai/?ref=ngyxnguh&utm_source=affiliate",
+      "region": "global",
+      "input_usd_per_1m": 0.269,
+      "output_usd_per_1m": 0.4,
+      "input_rmb_per_1m": 1.9368,
+      "output_rmb_per_1m": 2.88,
+      "blended_usd_per_1m": 0.3018,
+      "blended_rmb_per_1m": 2.1726,
+      "context_length": 163840,
+      "supports_tools": true,
+      "is_free": false,
+      "has_free_quota": false,
+      "is_batch": false,
+      "open_weights": true,
+      "value_score": 76.6,
+      "tags": [
+        "cheap",
+        "coding",
+        "global"
+      ],
+      "bonus_note": "Claude Code/OpenCode 直连 + 弹性 GPU",
+      "bonus_note_en": "Claude Code / OpenCode + Elastic GPU",
+      "signup_url": "https://novita.ai/?ref=ngyxnguh&utm_source=affiliate"
     },
     {
       "id": "openai/gpt-5.4",
