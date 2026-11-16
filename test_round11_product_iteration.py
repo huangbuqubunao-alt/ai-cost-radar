@@ -956,6 +956,14 @@ console.log(JSON.stringify({
         self.assertIn("scan_local_coding_logs", verify_txt)
         self.assertNotIn("scan_local_coding_clients", verify_txt)
         self.assertIn("def scan_local_coding_logs(", cli_src_txt)
+        self.assertIn("radar_data.json", verify_txt)
+
+        # Coze v0.0.1 live bot backward-compatibility feed (`dist/radar_data.json`)
+        radar_legacy_path = self.dist_dir / "radar_data.json"
+        self.assertTrue(radar_legacy_path.is_file(), "Missing dist/radar_data.json for live Coze bot compatibility")
+        radar_payload = json.loads(radar_legacy_path.read_text(encoding="utf-8"))
+        api_payload = json.loads((self.dist_dir / "api" / "models_live.json").read_text(encoding="utf-8"))
+        self.assertEqual(radar_payload, api_payload)
 
         if (ROOT / "sync_config_to_cloud.sh").is_file():
             sync_txt = (ROOT / "sync_config_to_cloud.sh").read_text(encoding="utf-8")

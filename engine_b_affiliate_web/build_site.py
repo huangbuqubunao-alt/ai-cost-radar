@@ -1494,10 +1494,10 @@ def build_site(
         "coding_plans": coding_plans,
         "models": [{**model, "signup_url": model.get("affiliate_url", "")} for model in models],
     }
-    (api_dir / "models_live.json").write_text(
-        json.dumps(api_payload, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    api_json_str = json.dumps(api_payload, ensure_ascii=False, indent=2) + "\n"
+    (api_dir / "models_live.json").write_text(api_json_str, encoding="utf-8")
+    # Backward-compatible root JSON feed for published Coze.cn Bot (`get_live_ai_models_pricing` -> `/radar_data.json`)
+    (target_dist / "radar_data.json").write_text(api_json_str, encoding="utf-8")
     coze_spec = PROJECT_ROOT / "engine_a_mcp_actor/publish_bundles/coze_cn_bundle/openapi_coze_live.json"
     (api_dir / "openapi.json").write_text(coze_spec.read_text(encoding="utf-8"), encoding="utf-8")
 

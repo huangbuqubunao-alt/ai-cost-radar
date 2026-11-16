@@ -59,6 +59,8 @@ def main():
         for data in page.json_blocks:
             json.loads(data)
     catalog = json.loads((DIST / "api/models_live.json").read_text())
+    radar_compat = json.loads((DIST / "radar_data.json").read_text())
+    assert radar_compat == catalog, "dist/radar_data.json differs from dist/api/models_live.json"
     assert catalog["total_models"] == len(catalog["models"])
     assert catalog["quote_verified_date"], "Missing manual quote verification date"
     assert isinstance(catalog.get("price_changes"), list), "Missing price_changes list in catalog"
@@ -112,6 +114,10 @@ def main():
             assert st_live == 200, f"models_live.json returned HTTP {st_live}"
             live = json.loads(body_live)
             assert live == catalog, "Production catalog differs from release artifact"
+            st_radar, body_radar = request_remote("radar_data.json")
+            assert st_radar == 200 and json.loads(body_radar) == catalog, (
+                f"radar_data.json returned HTTP {st_radar} or differed from catalog"
+            )
             st_budget, body_budget = request_remote("api/budget?model_id=qwen3-coder-next&daily_requests=5000&cache_hit_rate=0.5")
             assert st_budget == 200, f"/api/budget returned HTTP {st_budget}: {body_budget}"
             budget = json.loads(body_budget)
