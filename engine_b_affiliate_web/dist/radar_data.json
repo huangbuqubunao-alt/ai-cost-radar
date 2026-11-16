@@ -7,11 +7,11 @@
   "build_date": "2026-11-16",
   "updated_at": "2026-11-16",
   "quote_verified_date": "2026-11-13",
-  "last_live_verified_at": "2026-11-16 04:51:41",
+  "last_live_verified_at": "2026-11-16 05:28:27",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
   "official_rule_audit": {
-    "checked_at": "2026-11-16T04:51:41Z",
+    "checked_at": "2026-11-16T05:28:27Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -23,7 +23,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-16T04:51:41Z",
+        "last_verified_at": "2026-11-16T05:28:27Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -55,7 +55,7 @@
           "interactive_ide_only"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-16T04:51:41Z",
+        "last_verified_at": "2026-11-16T05:28:27Z",
         "last_verified_groups": [
           "tiers_lite_pro",
           "quota_window_5h",
