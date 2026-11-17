@@ -4,14 +4,14 @@
     "cn_direct": 20,
     "global": 69
   },
-  "build_date": "2026-11-16",
-  "updated_at": "2026-11-16",
+  "build_date": "2026-11-17",
+  "updated_at": "2026-11-17",
   "quote_verified_date": "2026-11-13",
-  "last_live_verified_at": "2026-11-16 17:25:57",
+  "last_live_verified_at": "2026-11-17 07:06:09",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
   "official_rule_audit": {
-    "checked_at": "2026-11-16T17:25:57Z",
+    "checked_at": "2026-11-17T07:06:09Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -23,7 +23,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-16T17:25:57Z",
+        "last_verified_at": "2026-11-17T07:06:09Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -55,7 +55,7 @@
           "interactive_ide_only"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-16T17:25:57Z",
+        "last_verified_at": "2026-11-17T07:06:09Z",
         "last_verified_groups": [
           "tiers_lite_pro",
           "quota_window_5h",
@@ -67,20 +67,28 @@
   },
   "price_changes": [
     {
+      "detected_at": "2026-11-17T07:06:09Z",
+      "entity_type": "model",
+      "id": "deepseek/deepseek-v4.1-flash-1017",
+      "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
+      "change_type": "price_update",
+      "summary_zh": "输入单价 $0.15 -> $0.036 / 1M，输出单价 $0.6 -> $0.5 / 1M"
+    },
+    {
+      "detected_at": "2026-11-17T07:06:09Z",
+      "entity_type": "model",
+      "id": "qwen/qwen4-max",
+      "name": "Qwen: Qwen4 Max",
+      "change_type": "price_update",
+      "summary_zh": "输入单价 $1.5 -> $1.425 / 1M，输出单价 $4.5 -> $4.275 / 1M"
+    },
+    {
       "detected_at": "2026-11-16T17:22:56Z",
       "entity_type": "model",
       "id": "deepseek/deepseek-v4.1-flash-1017",
       "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
       "change_type": "price_update",
       "summary_zh": "输入单价 $0.036 -> $0.15 / 1M，输出单价 $0.5 -> $0.6 / 1M"
-    },
-    {
-      "detected_at": "2026-11-16T12:47:19Z",
-      "entity_type": "model",
-      "id": "deepseek/deepseek-v4.1-flash-1017",
-      "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
-      "change_type": "price_update",
-      "summary_zh": "输入单价 $0.15 -> $0.036 / 1M，输出单价 $0.6 -> $0.5 / 1M"
     },
     {
       "detected_at": "2026-11-16T11:47:50Z",
@@ -177,14 +185,6 @@
       "name": "Qwen: Qwen3.5-9B",
       "change_type": "price_update",
       "summary_zh": "输入单价 $0.029 -> $0.03 / 1M，输出单价 $0.043 -> $0.044 / 1M"
-    },
-    {
-      "detected_at": "2026-11-15T01:47:06Z",
-      "entity_type": "model",
-      "id": "qwen/qwen3.5-9b",
-      "name": "Qwen: Qwen3.5-9B",
-      "change_type": "price_update",
-      "summary_zh": "输入单价 $0.054 -> $0.029 / 1M，输出单价 $0.079 -> $0.043 / 1M"
     }
   ],
   "coding_plans": [
@@ -622,6 +622,41 @@
       "signup_url": "https://openrouter.ai"
     },
     {
+      "id": "deepseek/deepseek-v4.1-flash-1017",
+      "anchor_id": "model-deepseek-deepseek-v4-1-flash-1017",
+      "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "deepseek/deepseek-v4.1-flash-1017",
+      "cache_hit_factor": 0.5,
+      "perf_note": "",
+      "affiliate_url": "https://openrouter.ai",
+      "region": "global",
+      "input_usd_per_1m": 0.036,
+      "output_usd_per_1m": 0.5,
+      "input_rmb_per_1m": 0.2592,
+      "output_rmb_per_1m": 3.6,
+      "blended_usd_per_1m": 0.152,
+      "blended_rmb_per_1m": 1.0944,
+      "context_length": 1048576,
+      "supports_tools": true,
+      "is_free": false,
+      "has_free_quota": false,
+      "is_batch": false,
+      "open_weights": true,
+      "value_score": 93.8,
+      "tags": [
+        "cheap",
+        "coding",
+        "global",
+        "reasoning"
+      ],
+      "bonus_note": "统一多模型按量网关",
+      "bonus_note_en": "Unified Multi-LLM API",
+      "signup_url": "https://openrouter.ai"
+    },
+    {
       "id": "aliyun-bailian/qwen3.5-plus",
       "anchor_id": "model-aliyun-bailian-qwen3-5-plus",
       "name": "阿里云百炼: Qwen3.5-Plus (百万长文本全能旗舰)",
@@ -919,41 +954,6 @@
       "output_rmb_per_1m": 1.296,
       "blended_usd_per_1m": 0.09,
       "blended_rmb_per_1m": 0.648,
-      "context_length": 1048576,
-      "supports_tools": true,
-      "is_free": false,
-      "has_free_quota": false,
-      "is_batch": false,
-      "open_weights": true,
-      "value_score": 92.1,
-      "tags": [
-        "cheap",
-        "coding",
-        "global",
-        "reasoning"
-      ],
-      "bonus_note": "统一多模型按量网关",
-      "bonus_note_en": "Unified Multi-LLM API",
-      "signup_url": "https://openrouter.ai"
-    },
-    {
-      "id": "deepseek/deepseek-v4.1-flash-1017",
-      "anchor_id": "model-deepseek-deepseek-v4-1-flash-1017",
-      "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "deepseek/deepseek-v4.1-flash-1017",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "affiliate_url": "https://openrouter.ai",
-      "region": "global",
-      "input_usd_per_1m": 0.15,
-      "output_usd_per_1m": 0.6,
-      "input_rmb_per_1m": 1.08,
-      "output_rmb_per_1m": 4.32,
-      "blended_usd_per_1m": 0.2625,
-      "blended_rmb_per_1m": 1.89,
       "context_length": 1048576,
       "supports_tools": true,
       "is_free": false,
@@ -2009,6 +2009,40 @@
       "signup_url": "https://openrouter.ai"
     },
     {
+      "id": "qwen/qwen4-max",
+      "anchor_id": "model-qwen-qwen4-max",
+      "name": "Qwen: Qwen4 Max",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "qwen/qwen4-max",
+      "cache_hit_factor": 0.5,
+      "perf_note": "",
+      "affiliate_url": "https://openrouter.ai",
+      "region": "global",
+      "input_usd_per_1m": 1.425,
+      "output_usd_per_1m": 4.275,
+      "input_rmb_per_1m": 10.26,
+      "output_rmb_per_1m": 30.78,
+      "blended_usd_per_1m": 2.1375,
+      "blended_rmb_per_1m": 15.39,
+      "context_length": 1000000,
+      "supports_tools": true,
+      "is_free": false,
+      "has_free_quota": false,
+      "is_batch": false,
+      "open_weights": true,
+      "value_score": 81.8,
+      "tags": [
+        "coding",
+        "global",
+        "reasoning"
+      ],
+      "bonus_note": "统一多模型按量网关",
+      "bonus_note_en": "Unified Multi-LLM API",
+      "signup_url": "https://openrouter.ai"
+    },
+    {
       "id": "openai/gpt-5.4-mini",
       "anchor_id": "model-openai-gpt-5-4-mini",
       "name": "OpenAI: GPT-5.4 Mini",
@@ -2032,40 +2066,6 @@
       "has_free_quota": false,
       "is_batch": false,
       "open_weights": false,
-      "value_score": 81.5,
-      "tags": [
-        "coding",
-        "global",
-        "reasoning"
-      ],
-      "bonus_note": "统一多模型按量网关",
-      "bonus_note_en": "Unified Multi-LLM API",
-      "signup_url": "https://openrouter.ai"
-    },
-    {
-      "id": "qwen/qwen4-max",
-      "anchor_id": "model-qwen-qwen4-max",
-      "name": "Qwen: Qwen4 Max",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "qwen/qwen4-max",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "affiliate_url": "https://openrouter.ai",
-      "region": "global",
-      "input_usd_per_1m": 1.5,
-      "output_usd_per_1m": 4.5,
-      "input_rmb_per_1m": 10.8,
-      "output_rmb_per_1m": 32.4,
-      "blended_usd_per_1m": 2.25,
-      "blended_rmb_per_1m": 16.2,
-      "context_length": 1000000,
-      "supports_tools": true,
-      "is_free": false,
-      "has_free_quota": false,
-      "is_batch": false,
-      "open_weights": true,
       "value_score": 81.5,
       "tags": [
         "coding",
