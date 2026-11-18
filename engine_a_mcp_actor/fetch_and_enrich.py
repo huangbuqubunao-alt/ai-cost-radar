@@ -603,10 +603,19 @@ FALLBACK_OPENROUTER_RAW: list[dict[str, Any]] = [
         "pricing": {"prompt": "0.0000002", "completion": "0.0000015"},
         "supported_parameters": ["tools", "reasoning"],
     },
+    {
+        "id": "google/gemini-4-hydrogen",
+        "name": "Google: Gemini 4 Hydrogen",
+        "created": 1760000000,
+        "context_length": 1048576,
+        "architecture": {"modality": "text+image+file+audio+video->text"},
+        "pricing": {"prompt": "0.0000015", "completion": "0.0000075"},
+        "supported_parameters": ["tools", "reasoning"],
+    },
 ]
 
 PINNED_GLOBAL_RAW: list[dict[str, Any]] = [
-    item for item in FALLBACK_OPENROUTER_RAW if item["id"] in {"x-ai/grok-4", "x-ai/grok-code-fast-1"}
+    item for item in FALLBACK_OPENROUTER_RAW if item["id"] in {"x-ai/grok-4", "x-ai/grok-code-fast-1", "google/gemini-4-hydrogen"}
 ]
 
 

@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-17T07:06:09Z",
-  "last_live_verified_at": "2026-11-17T07:06:09Z",
+  "updated_at": "2026-11-18T02:24:25Z",
+  "last_live_verified_at": "2026-11-18T02:24:25Z",
   "quote_verified_date": "2026-11-13",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
@@ -10,7 +10,7 @@
     "global": 69
   },
   "official_rule_audit": {
-    "checked_at": "2026-11-17T07:06:09Z",
+    "checked_at": "2026-11-18T02:24:25Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -22,7 +22,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-17T07:06:09Z",
+        "last_verified_at": "2026-11-18T02:24:25Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -32,10 +32,15 @@
       {
         "plan_id": "tencent-coding-plan",
         "url": "https://cloud.tencent.com/document/product/1823/130092",
-        "status": "csr_shell_manual_check",
-        "matched_groups": [],
+        "status": "verified_markers",
+        "matched_groups": [
+          "lite_monthly_cap_18k",
+          "lite_renewal_40",
+          "pro_monthly_cap_90k",
+          "pro_renewal_200"
+        ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-16T17:23:54Z",
+        "last_verified_at": "2026-11-18T02:24:25Z",
         "last_verified_groups": [
           "lite_monthly_cap_18k",
           "lite_renewal_40",
@@ -54,7 +59,7 @@
           "interactive_ide_only"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-17T07:06:09Z",
+        "last_verified_at": "2026-11-18T02:24:25Z",
         "last_verified_groups": [
           "tiers_lite_pro",
           "quota_window_5h",
@@ -66,7 +71,7 @@
   },
   "price_changes": [
     {
-      "detected_at": "2026-11-17T07:06:09Z",
+      "detected_at": "2026-11-18T02:00:55Z",
       "entity_type": "model",
       "id": "deepseek/deepseek-v4.1-flash-1017",
       "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
@@ -74,12 +79,28 @@
       "summary_zh": "输入单价 $0.15 -> $0.036 / 1M，输出单价 $0.6 -> $0.5 / 1M"
     },
     {
-      "detected_at": "2026-11-17T07:06:09Z",
+      "detected_at": "2026-11-18T02:00:55Z",
       "entity_type": "model",
-      "id": "qwen/qwen4-max",
-      "name": "Qwen: Qwen4 Max",
+      "id": "deepseek/deepseek-v4.1-flash",
+      "name": "DeepSeek: DeepSeek V4.1 Flash",
       "change_type": "price_update",
-      "summary_zh": "输入单价 $1.5 -> $1.425 / 1M，输出单价 $4.5 -> $4.275 / 1M"
+      "summary_zh": "输入单价 $0.14 -> $0.051 / 1M，输出单价 $0.42 -> $0.567 / 1M"
+    },
+    {
+      "detected_at": "2026-11-18T02:00:55Z",
+      "entity_type": "model",
+      "id": "qwen/qwen3.8-27b",
+      "name": "Qwen: Qwen3.8 27B",
+      "change_type": "price_update",
+      "summary_zh": "输入单价 $0.15 -> $0.06 / 1M，输出单价 $1.875 -> $2.2 / 1M"
+    },
+    {
+      "detected_at": "2026-11-18T02:00:55Z",
+      "entity_type": "model",
+      "id": "google/gemma-4-26b-a4b-it",
+      "name": "Google: Gemma 4 26B A4B",
+      "change_type": "price_update",
+      "summary_zh": "输入单价 $0.09 -> $0.0765 / 1M，输出单价 $0.3 -> $0.255 / 1M"
     },
     {
       "detected_at": "2026-11-16T17:22:56Z",
@@ -168,22 +189,6 @@
       "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
       "change_type": "price_update",
       "summary_zh": "输入单价 $0.038 -> $0.15 / 1M，输出单价 $0.5 -> $0.6 / 1M"
-    },
-    {
-      "detected_at": "2026-11-15T02:01:59Z",
-      "entity_type": "model",
-      "id": "qwen/qwen3.5-9b",
-      "name": "Qwen: Qwen3.5-9B",
-      "change_type": "price_update",
-      "summary_zh": "输入单价 $0.03 -> $0.035 / 1M，输出单价 $0.044 -> $0.051 / 1M"
-    },
-    {
-      "detected_at": "2026-11-15T01:50:55Z",
-      "entity_type": "model",
-      "id": "qwen/qwen3.5-9b",
-      "name": "Qwen: Qwen3.5-9B",
-      "change_type": "price_update",
-      "summary_zh": "输入单价 $0.029 -> $0.03 / 1M，输出单价 $0.043 -> $0.044 / 1M"
     }
   ],
   "coding_plans": [
@@ -582,37 +587,6 @@
       ]
     },
     {
-      "id": "qwen/qwen3.5-flash-02-23",
-      "name": "Qwen: Qwen3.5-Flash",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "qwen/qwen3.5-flash-02-23",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "signup_url": "https://openrouter.ai",
-      "affiliate_url": "https://openrouter.ai",
-      "model_page_url": "https://openrouter.ai/qwen/qwen3.5-flash-02-23",
-      "region": "global",
-      "input_usd_per_1m": 0.065,
-      "output_usd_per_1m": 0.26,
-      "input_rmb_per_1m": 0.468,
-      "output_rmb_per_1m": 1.872,
-      "blended_usd_per_1m": 0.1138,
-      "blended_rmb_per_1m": 0.8194,
-      "context_length": 1000000,
-      "supports_tools": true,
-      "modality": "text+image+video->text",
-      "is_free": false,
-      "value_score": 94.5,
-      "tags": [
-        "coding",
-        "reasoning",
-        "cheap",
-        "global"
-      ]
-    },
-    {
       "id": "deepseek/deepseek-v4.1-flash-1017",
       "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
       "provider": "OpenRouter (Global)",
@@ -672,6 +646,37 @@
         "reasoning",
         "cheap",
         "cn_direct"
+      ]
+    },
+    {
+      "id": "deepseek/deepseek-v4.1-flash",
+      "name": "DeepSeek: DeepSeek V4.1 Flash",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "deepseek/deepseek-v4.1-flash",
+      "cache_hit_factor": 0.5,
+      "perf_note": "",
+      "signup_url": "https://openrouter.ai",
+      "affiliate_url": "https://openrouter.ai",
+      "model_page_url": "https://openrouter.ai/deepseek/deepseek-v4.1-flash",
+      "region": "global",
+      "input_usd_per_1m": 0.051,
+      "output_usd_per_1m": 0.567,
+      "input_rmb_per_1m": 0.3672,
+      "output_rmb_per_1m": 4.0824,
+      "blended_usd_per_1m": 0.18,
+      "blended_rmb_per_1m": 1.296,
+      "context_length": 1048576,
+      "supports_tools": true,
+      "modality": "text+image->text",
+      "is_free": false,
+      "value_score": 93.4,
+      "tags": [
+        "coding",
+        "reasoning",
+        "cheap",
+        "global"
       ]
     },
     {
@@ -758,37 +763,6 @@
       "context_length": 1000000,
       "supports_tools": true,
       "modality": "text+image+file->text",
-      "is_free": false,
-      "value_score": 92.9,
-      "tags": [
-        "coding",
-        "reasoning",
-        "cheap",
-        "global"
-      ]
-    },
-    {
-      "id": "deepseek/deepseek-v4.1-flash",
-      "name": "DeepSeek: DeepSeek V4.1 Flash",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "deepseek/deepseek-v4.1-flash",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "signup_url": "https://openrouter.ai",
-      "affiliate_url": "https://openrouter.ai",
-      "model_page_url": "https://openrouter.ai/deepseek/deepseek-v4.1-flash",
-      "region": "global",
-      "input_usd_per_1m": 0.14,
-      "output_usd_per_1m": 0.42,
-      "input_rmb_per_1m": 1.008,
-      "output_rmb_per_1m": 3.024,
-      "blended_usd_per_1m": 0.21,
-      "blended_rmb_per_1m": 1.512,
-      "context_length": 1048576,
-      "supports_tools": true,
-      "modality": "text+image->text",
       "is_free": false,
       "value_score": 92.9,
       "tags": [
@@ -1090,17 +1064,17 @@
       "affiliate_url": "https://openrouter.ai",
       "model_page_url": "https://openrouter.ai/qwen/qwen3.8-27b",
       "region": "global",
-      "input_usd_per_1m": 0.15,
-      "output_usd_per_1m": 1.875,
-      "input_rmb_per_1m": 1.08,
-      "output_rmb_per_1m": 13.5,
-      "blended_usd_per_1m": 0.5813,
-      "blended_rmb_per_1m": 4.1854,
+      "input_usd_per_1m": 0.06,
+      "output_usd_per_1m": 2.2,
+      "input_rmb_per_1m": 0.432,
+      "output_rmb_per_1m": 15.84,
+      "blended_usd_per_1m": 0.595,
+      "blended_rmb_per_1m": 4.284,
       "context_length": 1024000,
       "supports_tools": true,
       "modality": "text+image+video->text",
       "is_free": false,
-      "value_score": 88.8,
+      "value_score": 88.7,
       "tags": [
         "coding",
         "reasoning",
@@ -1671,17 +1645,17 @@
       "affiliate_url": "https://openrouter.ai",
       "model_page_url": "https://openrouter.ai/google/gemma-4-26b-a4b-it",
       "region": "global",
-      "input_usd_per_1m": 0.09,
-      "output_usd_per_1m": 0.3,
-      "input_rmb_per_1m": 0.648,
-      "output_rmb_per_1m": 2.16,
-      "blended_usd_per_1m": 0.1425,
-      "blended_rmb_per_1m": 1.026,
+      "input_usd_per_1m": 0.0765,
+      "output_usd_per_1m": 0.255,
+      "input_rmb_per_1m": 0.5508,
+      "output_rmb_per_1m": 1.836,
+      "blended_usd_per_1m": 0.1211,
+      "blended_rmb_per_1m": 0.8719,
       "context_length": 262144,
       "supports_tools": true,
       "modality": "text+image+video->text",
       "is_free": false,
-      "value_score": 82.9,
+      "value_score": 83.3,
       "tags": [
         "reasoning",
         "cheap",
@@ -1833,36 +1807,6 @@
       "modality": "text->text",
       "is_free": false,
       "value_score": 82.2,
-      "tags": [
-        "coding",
-        "reasoning",
-        "global"
-      ]
-    },
-    {
-      "id": "qwen/qwen4-max",
-      "name": "Qwen: Qwen4 Max",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "qwen/qwen4-max",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "signup_url": "https://openrouter.ai",
-      "affiliate_url": "https://openrouter.ai",
-      "model_page_url": "https://openrouter.ai/qwen/qwen4-max",
-      "region": "global",
-      "input_usd_per_1m": 1.425,
-      "output_usd_per_1m": 4.275,
-      "input_rmb_per_1m": 10.26,
-      "output_rmb_per_1m": 30.78,
-      "blended_usd_per_1m": 2.1375,
-      "blended_rmb_per_1m": 15.39,
-      "context_length": 1000000,
-      "supports_tools": true,
-      "modality": "text+image+video->text",
-      "is_free": false,
-      "value_score": 81.8,
       "tags": [
         "coding",
         "reasoning",
@@ -2178,33 +2122,62 @@
       ]
     },
     {
-      "id": "google/gemini-3.1-flash-lite-image",
-      "name": "Google: Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image)",
+      "id": "openai/gpt-6.2-sol-pro",
+      "name": "OpenAI: GPT-6.2 Sol Pro",
       "provider": "OpenRouter (Global)",
       "provider_config_key": "openrouter_url",
       "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "google/gemini-3.1-flash-lite-image",
+      "api_model_id": "openai/gpt-6.2-sol-pro",
       "cache_hit_factor": 0.5,
       "perf_note": "",
       "signup_url": "https://openrouter.ai",
       "affiliate_url": "https://openrouter.ai",
-      "model_page_url": "https://openrouter.ai/google/gemini-3.1-flash-lite-image",
+      "model_page_url": "https://openrouter.ai/openai/gpt-6.2-sol-pro",
       "region": "global",
-      "input_usd_per_1m": 0.25,
-      "output_usd_per_1m": 1.5,
-      "input_rmb_per_1m": 1.8,
-      "output_rmb_per_1m": 10.8,
-      "blended_usd_per_1m": 0.5625,
-      "blended_rmb_per_1m": 4.05,
-      "context_length": 65536,
-      "supports_tools": false,
-      "modality": "text+image->text+image",
+      "input_usd_per_1m": 2.0,
+      "output_usd_per_1m": 10.0,
+      "input_rmb_per_1m": 14.4,
+      "output_rmb_per_1m": 72.0,
+      "blended_usd_per_1m": 4.0,
+      "blended_rmb_per_1m": 28.8,
+      "context_length": 1050000,
+      "supports_tools": true,
+      "modality": "text+image+file->text",
       "is_free": false,
-      "value_score": 78.3,
+      "value_score": 78.2,
       "tags": [
         "coding",
         "reasoning",
-        "cheap",
+        "global"
+      ]
+    },
+    {
+      "id": "openai/gpt-6.2-sol",
+      "name": "OpenAI: GPT-6.2 Sol",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "openai/gpt-6.2-sol",
+      "cache_hit_factor": 0.5,
+      "perf_note": "",
+      "signup_url": "https://openrouter.ai",
+      "affiliate_url": "https://openrouter.ai",
+      "model_page_url": "https://openrouter.ai/openai/gpt-6.2-sol",
+      "region": "global",
+      "input_usd_per_1m": 2.0,
+      "output_usd_per_1m": 10.0,
+      "input_rmb_per_1m": 14.4,
+      "output_rmb_per_1m": 72.0,
+      "blended_usd_per_1m": 4.0,
+      "blended_rmb_per_1m": 28.8,
+      "context_length": 1050000,
+      "supports_tools": true,
+      "modality": "text+image+file->text",
+      "is_free": false,
+      "value_score": 78.2,
+      "tags": [
+        "coding",
+        "reasoning",
         "global"
       ]
     },
@@ -3024,36 +2997,6 @@
       ]
     },
     {
-      "id": "openai/gpt-5.5",
-      "name": "OpenAI: GPT-5.5",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "openai/gpt-5.5",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "signup_url": "https://openrouter.ai",
-      "affiliate_url": "https://openrouter.ai",
-      "model_page_url": "https://openrouter.ai/openai/gpt-5.5",
-      "region": "global",
-      "input_usd_per_1m": 5.0,
-      "output_usd_per_1m": 30.0,
-      "input_rmb_per_1m": 36.0,
-      "output_rmb_per_1m": 216.0,
-      "blended_usd_per_1m": 11.25,
-      "blended_rmb_per_1m": 81.0,
-      "context_length": 1050000,
-      "supports_tools": true,
-      "modality": "text+image+file->text",
-      "is_free": false,
-      "value_score": 71.9,
-      "tags": [
-        "coding",
-        "reasoning",
-        "global"
-      ]
-    },
-    {
       "id": "google/gemini-4-hydrogen",
       "name": "Google: Gemini 4 Hydrogen",
       "provider": "OpenRouter (Global)",
@@ -3109,6 +3052,66 @@
       "tags": [
         "cheap",
         "cn_direct"
+      ]
+    },
+    {
+      "id": "openai/gpt-6.2-astra-pro",
+      "name": "OpenAI: GPT-6.2 Astra Pro",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "openai/gpt-6.2-astra-pro",
+      "cache_hit_factor": 0.5,
+      "perf_note": "",
+      "signup_url": "https://openrouter.ai",
+      "affiliate_url": "https://openrouter.ai",
+      "model_page_url": "https://openrouter.ai/openai/gpt-6.2-astra-pro",
+      "region": "global",
+      "input_usd_per_1m": 8.0,
+      "output_usd_per_1m": 40.0,
+      "input_rmb_per_1m": 57.6,
+      "output_rmb_per_1m": 288.0,
+      "blended_usd_per_1m": 16.0,
+      "blended_rmb_per_1m": 115.2,
+      "context_length": 1050000,
+      "supports_tools": true,
+      "modality": "text+image+file->text",
+      "is_free": false,
+      "value_score": 69.7,
+      "tags": [
+        "coding",
+        "reasoning",
+        "global"
+      ]
+    },
+    {
+      "id": "openai/gpt-6.2-astra",
+      "name": "OpenAI: GPT-6.2 Astra",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "openai/gpt-6.2-astra",
+      "cache_hit_factor": 0.5,
+      "perf_note": "",
+      "signup_url": "https://openrouter.ai",
+      "affiliate_url": "https://openrouter.ai",
+      "model_page_url": "https://openrouter.ai/openai/gpt-6.2-astra",
+      "region": "global",
+      "input_usd_per_1m": 8.0,
+      "output_usd_per_1m": 40.0,
+      "input_rmb_per_1m": 57.6,
+      "output_rmb_per_1m": 288.0,
+      "blended_usd_per_1m": 16.0,
+      "blended_rmb_per_1m": 115.2,
+      "context_length": 1050000,
+      "supports_tools": true,
+      "modality": "text+image+file->text",
+      "is_free": false,
+      "value_score": 69.7,
+      "tags": [
+        "coding",
+        "reasoning",
+        "global"
       ]
     },
     {

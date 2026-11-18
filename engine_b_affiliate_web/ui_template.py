@@ -6272,15 +6272,6 @@ def render_html_template(
           sponsored: true
         }},
         {{
-          id: "volcengine-coding-plan",
-          name: "字节跳动 · 火山引擎方舟",
-          badge: "无推广参数 · 纯客观对比",
-          desc: "提供 Doubao-Seed-2.0-Pro 按量接口与个人 Coding Plan（Lite ¥40 / Pro ¥200），链接为无返佣纯官方直达。",
-          cta: "前往火山方舟官方控制台",
-          url: AFF.volcengine_ark_url,
-          sponsored: false
-        }},
-        {{
           id: "novita-ai-cloud",
           name: "Novita AI 海外一站式大模型 API · Coding Plan · 弹性 GPU",
           badge: novitaSponsored ? "Global USD · 合作推广" : "Global USD · 官方直达",
@@ -6290,6 +6281,15 @@ def render_html_template(
           cta: "前往 Novita AI 控制台",
           url: AFF.novita_affiliate_url || "https://novita.ai",
           sponsored: novitaSponsored
+        }},
+        {{
+          id: "volcengine-coding-plan",
+          name: "字节跳动 · 火山引擎方舟",
+          badge: "无推广参数 · 纯客观对比",
+          desc: "提供 Doubao-Seed-2.0-Pro 按量接口与个人 Coding Plan（Lite ¥40 / Pro ¥200），链接为无返佣纯官方直达。",
+          cta: "前往火山方舟官方控制台",
+          url: AFF.volcengine_ark_url,
+          sponsored: false
         }},
         {{
           id: "openrouter-global-coding",
@@ -7908,6 +7908,7 @@ def render_html_template(
           const ds = document.getElementById("usageDaysSelect");
           if (ta) ta.value = sampleCsv;
           if (ds) ds.value = "30";
+          importUsageBatchWeb([sampleCsv], 30, null, "sample_csv");
         }});
       }}
 
@@ -7952,6 +7953,7 @@ def render_html_template(
           const ds = document.getElementById("usageDaysSelect");
           if (ta) ta.value = sampleJsonl;
           if (ds) ds.value = "1";
+          importUsageBatchWeb([sampleJsonl], 1, null, "sample_jsonl");
         }});
       }}
 
@@ -7970,6 +7972,7 @@ def render_html_template(
           const ds = document.getElementById("usageDaysSelect");
           if (ta) ta.value = sampleText;
           if (ds) ds.value = "30";
+          importUsageBatchWeb([sampleText], 30, null, "sample_log");
         }});
       }}
 
