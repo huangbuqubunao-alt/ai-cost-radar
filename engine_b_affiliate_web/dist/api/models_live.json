@@ -7,11 +7,11 @@
   "build_date": "2026-11-18",
   "updated_at": "2026-11-18",
   "quote_verified_date": "2026-11-13",
-  "last_live_verified_at": "2026-11-18 02:26:55",
+  "last_live_verified_at": "2026-11-18 06:30:45",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
   "official_rule_audit": {
-    "checked_at": "2026-11-18T02:26:55Z",
+    "checked_at": "2026-11-18T06:30:45Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -23,7 +23,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-18T02:26:55Z",
+        "last_verified_at": "2026-11-18T06:30:45Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -55,7 +55,7 @@
           "interactive_ide_only"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-18T02:26:55Z",
+        "last_verified_at": "2026-11-18T06:30:45Z",
         "last_verified_groups": [
           "tiers_lite_pro",
           "quota_window_5h",
@@ -1769,40 +1769,6 @@
       "signup_url": "https://openrouter.ai"
     },
     {
-      "id": "google/gemma-4-26b-a4b-it",
-      "anchor_id": "model-google-gemma-4-26b-a4b-it",
-      "name": "Google: Gemma 4 26B A4B",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "google/gemma-4-26b-a4b-it",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "affiliate_url": "https://openrouter.ai",
-      "region": "global",
-      "input_usd_per_1m": 0.0765,
-      "output_usd_per_1m": 0.255,
-      "input_rmb_per_1m": 0.5508,
-      "output_rmb_per_1m": 1.836,
-      "blended_usd_per_1m": 0.1211,
-      "blended_rmb_per_1m": 0.8721,
-      "context_length": 262144,
-      "supports_tools": true,
-      "is_free": false,
-      "has_free_quota": false,
-      "is_batch": false,
-      "open_weights": true,
-      "value_score": 83.3,
-      "tags": [
-        "cheap",
-        "global",
-        "reasoning"
-      ],
-      "bonus_note": "统一多模型按量网关",
-      "bonus_note_en": "Unified Multi-LLM API",
-      "signup_url": "https://openrouter.ai"
-    },
-    {
       "id": "volcengine/doubao-seed-2.0-pro",
       "anchor_id": "model-volcengine-doubao-seed-2-0-pro",
       "name": "火山引擎方舟: 豆包 Doubao-Seed-2.0-Pro (旗舰高并发)",
@@ -3304,6 +3270,40 @@
       "is_batch": false,
       "open_weights": false,
       "value_score": 72.6,
+      "tags": [
+        "coding",
+        "global",
+        "reasoning"
+      ],
+      "bonus_note": "统一多模型按量网关",
+      "bonus_note_en": "Unified Multi-LLM API",
+      "signup_url": "https://openrouter.ai"
+    },
+    {
+      "id": "openai/gpt-5.5",
+      "anchor_id": "model-openai-gpt-5-5",
+      "name": "OpenAI: GPT-5.5",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "openai/gpt-5.5",
+      "cache_hit_factor": 0.5,
+      "perf_note": "",
+      "affiliate_url": "https://openrouter.ai",
+      "region": "global",
+      "input_usd_per_1m": 5.0,
+      "output_usd_per_1m": 30.0,
+      "input_rmb_per_1m": 36.0,
+      "output_rmb_per_1m": 216.0,
+      "blended_usd_per_1m": 11.25,
+      "blended_rmb_per_1m": 81.0,
+      "context_length": 1050000,
+      "supports_tools": true,
+      "is_free": false,
+      "has_free_quota": false,
+      "is_batch": false,
+      "open_weights": false,
+      "value_score": 71.9,
       "tags": [
         "coding",
         "global",
