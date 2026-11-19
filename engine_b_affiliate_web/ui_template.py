@@ -2729,7 +2729,10 @@ def render_html_template(
 
       <div style="padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
         <a id="cfgModalDocLink" href="https://help.aliyun.com/zh/model-studio/coding-plan" target="_blank" rel="noopener" style="font-size:0.79rem;color:var(--emerald-text);text-decoration:underline;" data-i18n="cfgModalDocLink">查阅该厂商官方接入文档</a>
-        <a class="cta-primary cn-cta" id="cfgModalOfficialCta" href="https://bailian.console.aliyun.com/" target="_blank" rel="noopener sponsored" style="width:auto;padding:8px 16px;" data-i18n="cfgModalOfficialCta">前往官方控制台获取密钥</a>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+          <a class="cta-primary cn-cta" id="cfgModalPartnerCta" href="https://novita.ai" target="_blank" rel="noopener sponsored" data-offer-id="novita-ai-cloud" data-card-slot="config_modal_novita" style="display:none;width:auto;padding:8px 14px;">或使用 Novita AI 兼容网关</a>
+          <a class="cta-primary cn-cta" id="cfgModalOfficialCta" href="https://bailian.console.aliyun.com/" target="_blank" rel="noopener sponsored" style="width:auto;padding:8px 16px;" data-i18n="cfgModalOfficialCta">前往官方控制台获取密钥</a>
+        </div>
       </div>
     </div>
   </div>
@@ -5452,6 +5455,28 @@ def render_html_template(
       return {{ url: AFF.openrouter_url || url, offerId: "openrouter-global-coding", label: isEn ? "Visit OpenRouter" : "前往 OpenRouter 官网", isCn: false }};
     }}
 
+    function getNovitaCompanionInfo(offerId, isEn) {{
+      if (offerId !== "openrouter-global-coding") return null;
+      const novitaUrl = AFF.novita_affiliate_url || "";
+      if (!isSponsoredUrlWeb(novitaUrl, "https://novita.ai")) return null;
+      return {{
+        url: novitaUrl,
+        offerId: "novita-ai-cloud",
+        label: isEn
+          ? "Or Try Novita AI (OpenAI/Anthropic API + $49.9 Coding Plan · Partner)"
+          : "或换用 Novita AI 海外兼容网关（含 $49.9 Coding Plan · 推广）",
+        shortLabel: isEn
+          ? "Try Novita AI API / Coding Plan"
+          : "或换用 Novita AI 兼容网关"
+      }};
+    }}
+
+    function renderNovitaCompanionCtaHtml(offerId, slotId, isEn) {{
+      const info = getNovitaCompanionInfo(offerId, isEn);
+      if (!info) return "";
+      return `<a class="cta-primary cn-cta" style="margin-top:8px;" href="${{esc(info.url)}}" target="_blank" rel="noopener sponsored" data-offer-id="${{esc(info.offerId)}}" data-card-slot="${{esc(slotId)}}">${{esc(info.label)}}</a>`;
+    }}
+
     function planCoversModel(plan, model) {{
       if (!plan || plan.offer_type !== "subscription" || !model) return false;
       const text = `${{model.id || ""}} ${{model.api_model_id || ""}} ${{model.name || ""}}`.toLowerCase();
@@ -5840,6 +5865,7 @@ def render_html_template(
             <a class="cta-primary ${{mCta.isCn ? "cn-cta" : ""}}" href="${{esc(mCta.url)}}" target="_blank" rel="${{relAttr(mCta.url, baselineModel.provider_config_key)}}" data-offer-id="${{esc(mCta.offerId)}}" data-card-slot="primary_result">
               ${{esc(mCta.label)}}${{isEn ? " (Same-Model PayG)" : "（同模型按量开通）"}}
             </a>
+            ${{renderNovitaCompanionCtaHtml(mCta.offerId, "primary_result_novita", isEn)}}
           `;
         }} else {{
           const mCta = getModelCtaInfo(baselineModel);
@@ -5861,6 +5887,7 @@ def render_html_template(
             <a class="cta-primary ${{mCta.isCn ? "cn-cta" : ""}}" href="${{esc(mCta.url)}}" target="_blank" rel="${{relAttr(mCta.url, baselineModel.provider_config_key)}}" data-offer-id="${{esc(mCta.offerId)}}" data-card-slot="primary_result">
               ${{esc(mCta.label)}}${{isEn ? " (Pay-As-You-Go)" : "（按量开通）"}}
             </a>
+            ${{renderNovitaCompanionCtaHtml(mCta.offerId, "primary_result_novita", isEn)}}
           `;
         }}
       }}
@@ -6467,6 +6494,22 @@ def render_html_template(
       }};
     }}
 
+    function syncConfigModalPartnerCta(offerId, slotId, isEn) {{
+      const partnerEl = document.getElementById("cfgModalPartnerCta");
+      if (!partnerEl) return;
+      const info = getNovitaCompanionInfo(offerId, isEn);
+      if (!info) {{
+        partnerEl.style.display = "none";
+        return;
+      }}
+      partnerEl.href = info.url;
+      partnerEl.rel = "noopener sponsored";
+      partnerEl.dataset.offerId = info.offerId;
+      partnerEl.dataset.cardSlot = slotId;
+      partnerEl.textContent = info.shortLabel;
+      partnerEl.style.display = "";
+    }}
+
     function refreshConfigModalSnippets() {{
       const isEn = state.lang === "en";
       const selectorGrid = document.getElementById("cfgSelectorGrid");
@@ -6529,6 +6572,7 @@ def render_html_template(
         ctaEl.dataset.offerId = rCta.offerId;
         ctaEl.dataset.cardSlot = "bill_migration_modal";
         ctaEl.textContent = isEn ? `Get ${{shortModelName(primaryRec, true)}} PayG Key` : `获取 ${{shortModelName(primaryRec, false)}} 按量密钥`;
+        syncConfigModalPartnerCta(rCta.offerId, "bill_migration_modal_novita", isEn);
         return;
       }}
 
@@ -6574,6 +6618,7 @@ def render_html_template(
         ctaEl.dataset.offerId = rCta.offerId;
         ctaEl.dataset.cardSlot = "hybrid_modal";
         ctaEl.textContent = isEn ? `Get ${{shortModelName(hy.routineModel, true)}} API Key` : `获取 ${{shortModelName(hy.routineModel, false)}} 按量密钥`;
+        syncConfigModalPartnerCta(rCta.offerId, "hybrid_modal_novita", isEn);
         return;
       }}
 
@@ -6634,6 +6679,7 @@ def render_html_template(
       ctaEl.dataset.offerId = state.modalOfferId;
       ctaEl.dataset.cardSlot = "config_modal";
       ctaEl.textContent = isEn ? I18N_EN.cfgModalOfficialCta : (ORIG_ZH_I18N.cfgModalOfficialCta || "前往官方控制台获取密钥");
+      syncConfigModalPartnerCta(state.modalOfferId, "config_modal_novita", isEn);
     }}
 
     function openHybridRoutingModal(triggerEl) {{

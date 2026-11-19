@@ -769,6 +769,11 @@ console.log(JSON.stringify(outputs));
                     config_key="novita_affiliate_url",
                 )
             )
+            self.assertIn('id="cfgModalPartnerCta"', en_html)
+            self.assertIn("renderNovitaCompanionCtaHtml", en_html)
+            self.assertIn("syncConfigModalPartnerCta", en_html)
+            self.assertIn("primary_result_novita", en_html)
+            self.assertIn("config_modal_novita", en_html)
 
 
 if __name__ == "__main__":
