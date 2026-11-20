@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-19T06:32:30Z",
-  "last_live_verified_at": "2026-11-19T06:32:30Z",
+  "updated_at": "2026-11-20T06:19:42Z",
+  "last_live_verified_at": "2026-11-20T06:19:42Z",
   "quote_verified_date": "2026-11-13",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
@@ -10,7 +10,7 @@
     "global": 69
   },
   "official_rule_audit": {
-    "checked_at": "2026-11-19T06:32:30Z",
+    "checked_at": "2026-11-20T06:19:42Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -22,7 +22,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-19T06:32:30Z",
+        "last_verified_at": "2026-11-20T06:19:42Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -54,7 +54,7 @@
           "interactive_ide_only"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-19T06:32:30Z",
+        "last_verified_at": "2026-11-20T06:19:42Z",
         "last_verified_groups": [
           "tiers_lite_pro",
           "quota_window_5h",
@@ -65,6 +65,14 @@
     ]
   },
   "price_changes": [
+    {
+      "detected_at": "2026-11-20T06:19:42Z",
+      "entity_type": "model",
+      "id": "deepseek/deepseek-v4-flash-0731",
+      "name": "DeepSeek: DeepSeek V4 Flash 0731",
+      "change_type": "price_update",
+      "summary_zh": "输入单价 $0.055 -> $0.047 / 1M，输出单价 $0.3 -> $0.3 / 1M"
+    },
     {
       "detected_at": "2026-11-19T06:32:30Z",
       "entity_type": "model",
@@ -176,14 +184,6 @@
       "name": "DeepSeek: DeepSeek V4.1 Flash",
       "change_type": "price_update",
       "summary_zh": "输入单价 $0.0507 -> $0.14 / 1M，输出单价 $0.2028 -> $0.42 / 1M"
-    },
-    {
-      "detected_at": "2026-11-16T02:03:05Z",
-      "entity_type": "model",
-      "id": "deepseek/deepseek-v4-flash-0731",
-      "name": "DeepSeek: DeepSeek V4 Flash 0731",
-      "change_type": "price_update",
-      "summary_zh": "输入单价 $0.0434 -> $0.06 / 1M，输出单价 $0.3 -> $0.18 / 1M"
     }
   ],
   "coding_plans": [
@@ -799,6 +799,37 @@
       ]
     },
     {
+      "id": "deepseek/deepseek-v4-flash-0731",
+      "name": "DeepSeek: DeepSeek V4 Flash 0731",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "deepseek/deepseek-v4-flash-0731",
+      "cache_hit_factor": 0.5,
+      "perf_note": "",
+      "signup_url": "https://openrouter.ai",
+      "affiliate_url": "https://openrouter.ai",
+      "model_page_url": "https://openrouter.ai/deepseek/deepseek-v4-flash-0731",
+      "region": "global",
+      "input_usd_per_1m": 0.047,
+      "output_usd_per_1m": 0.3,
+      "input_rmb_per_1m": 0.3384,
+      "output_rmb_per_1m": 2.16,
+      "blended_usd_per_1m": 0.1103,
+      "blended_rmb_per_1m": 0.7942,
+      "context_length": 1048576,
+      "supports_tools": true,
+      "modality": "text->text",
+      "is_free": false,
+      "value_score": 91.6,
+      "tags": [
+        "coding",
+        "reasoning",
+        "cheap",
+        "global"
+      ]
+    },
+    {
       "id": "deepseek/deepseek-v4-flash",
       "name": "DeepSeek: DeepSeek V4 Flash 0423",
       "provider": "OpenRouter (Global)",
@@ -822,37 +853,6 @@
       "modality": "text->text",
       "is_free": false,
       "value_score": 91.6,
-      "tags": [
-        "coding",
-        "reasoning",
-        "cheap",
-        "global"
-      ]
-    },
-    {
-      "id": "deepseek/deepseek-v4-flash-0731",
-      "name": "DeepSeek: DeepSeek V4 Flash 0731",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "deepseek/deepseek-v4-flash-0731",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "signup_url": "https://openrouter.ai",
-      "affiliate_url": "https://openrouter.ai",
-      "model_page_url": "https://openrouter.ai/deepseek/deepseek-v4-flash-0731",
-      "region": "global",
-      "input_usd_per_1m": 0.055,
-      "output_usd_per_1m": 0.3,
-      "input_rmb_per_1m": 0.396,
-      "output_rmb_per_1m": 2.16,
-      "blended_usd_per_1m": 0.1162,
-      "blended_rmb_per_1m": 0.8366,
-      "context_length": 1048576,
-      "supports_tools": true,
-      "modality": "text->text",
-      "is_free": false,
-      "value_score": 91.5,
       "tags": [
         "coding",
         "reasoning",
@@ -1628,6 +1628,36 @@
       ]
     },
     {
+      "id": "google/gemma-4-26b-a4b-it",
+      "name": "Google: Gemma 4 26B A4B",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "google/gemma-4-26b-a4b-it",
+      "cache_hit_factor": 0.5,
+      "perf_note": "",
+      "signup_url": "https://openrouter.ai",
+      "affiliate_url": "https://openrouter.ai",
+      "model_page_url": "https://openrouter.ai/google/gemma-4-26b-a4b-it",
+      "region": "global",
+      "input_usd_per_1m": 0.09,
+      "output_usd_per_1m": 0.3,
+      "input_rmb_per_1m": 0.648,
+      "output_rmb_per_1m": 2.16,
+      "blended_usd_per_1m": 0.1425,
+      "blended_rmb_per_1m": 1.026,
+      "context_length": 262144,
+      "supports_tools": true,
+      "modality": "text+image+video->text",
+      "is_free": false,
+      "value_score": 82.9,
+      "tags": [
+        "reasoning",
+        "cheap",
+        "global"
+      ]
+    },
+    {
       "id": "volcengine/doubao-seed-2.0-pro",
       "name": "火山引擎方舟: 豆包 Doubao-Seed-2.0-Pro (旗舰高并发)",
       "provider": "火山引擎 (Volcengine Ark)",
@@ -1749,36 +1779,6 @@
       ]
     },
     {
-      "id": "deepseek/deepseek-v4-pro-0813",
-      "name": "DeepSeek: DeepSeek V4 Pro 0813",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "deepseek/deepseek-v4-pro-0813",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "signup_url": "https://openrouter.ai",
-      "affiliate_url": "https://openrouter.ai",
-      "model_page_url": "https://openrouter.ai/deepseek/deepseek-v4-pro-0813",
-      "region": "global",
-      "input_usd_per_1m": 0.111,
-      "output_usd_per_1m": 4.44,
-      "input_rmb_per_1m": 0.7992,
-      "output_rmb_per_1m": 31.968,
-      "blended_usd_per_1m": 1.1933,
-      "blended_rmb_per_1m": 8.5918,
-      "context_length": 1048576,
-      "supports_tools": true,
-      "modality": "text->text",
-      "is_free": false,
-      "value_score": 82.2,
-      "tags": [
-        "coding",
-        "reasoning",
-        "global"
-      ]
-    },
-    {
       "id": "openai/gpt-5.4-mini",
       "name": "OpenAI: GPT-5.4 Mini",
       "provider": "OpenRouter (Global)",
@@ -1805,38 +1805,6 @@
       "tags": [
         "coding",
         "reasoning",
-        "global"
-      ]
-    },
-    {
-      "id": "cohere/north-mini-code:free",
-      "name": "Cohere: North Mini Code (free)",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "cohere/north-mini-code:free",
-      "cache_hit_factor": 1.0,
-      "perf_note": "",
-      "signup_url": "https://openrouter.ai",
-      "affiliate_url": "https://openrouter.ai",
-      "model_page_url": "https://openrouter.ai/cohere/north-mini-code:free",
-      "region": "global",
-      "input_usd_per_1m": 0.0,
-      "output_usd_per_1m": 0.0,
-      "input_rmb_per_1m": 0.0,
-      "output_rmb_per_1m": 0.0,
-      "blended_usd_per_1m": 0.0,
-      "blended_rmb_per_1m": 0.0,
-      "context_length": 256000,
-      "supports_tools": true,
-      "modality": "text->text",
-      "is_free": true,
-      "value_score": 81.3,
-      "tags": [
-        "coding",
-        "reasoning",
-        "cheap",
-        "free",
         "global"
       ]
     },
@@ -1974,37 +1942,6 @@
       "signup_url": "https://openrouter.ai",
       "affiliate_url": "https://openrouter.ai",
       "model_page_url": "https://openrouter.ai/inclusionai/ling-3.2-flash:free",
-      "region": "global",
-      "input_usd_per_1m": 0.0,
-      "output_usd_per_1m": 0.0,
-      "input_rmb_per_1m": 0.0,
-      "output_rmb_per_1m": 0.0,
-      "blended_usd_per_1m": 0.0,
-      "blended_rmb_per_1m": 0.0,
-      "context_length": 1048576,
-      "supports_tools": true,
-      "modality": "text+image->text",
-      "is_free": true,
-      "value_score": 78.4,
-      "tags": [
-        "reasoning",
-        "cheap",
-        "free",
-        "global"
-      ]
-    },
-    {
-      "id": "thinkingmachines/inkling-2-small:free",
-      "name": "Thinking Machines: Inkling 2 Small (free)",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "thinkingmachines/inkling-2-small:free",
-      "cache_hit_factor": 1.0,
-      "perf_note": "",
-      "signup_url": "https://openrouter.ai",
-      "affiliate_url": "https://openrouter.ai",
-      "model_page_url": "https://openrouter.ai/thinkingmachines/inkling-2-small:free",
       "region": "global",
       "input_usd_per_1m": 0.0,
       "output_usd_per_1m": 0.0,
@@ -2929,6 +2866,68 @@
         "cheap",
         "free",
         "cn_direct"
+      ]
+    },
+    {
+      "id": "liquid/lfm-3-1.7b:free",
+      "name": "LiquidAI: LFM3-1.7B (free)",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "liquid/lfm-3-1.7b:free",
+      "cache_hit_factor": 1.0,
+      "perf_note": "",
+      "signup_url": "https://openrouter.ai",
+      "affiliate_url": "https://openrouter.ai",
+      "model_page_url": "https://openrouter.ai/liquid/lfm-3-1.7b:free",
+      "region": "global",
+      "input_usd_per_1m": 0.0,
+      "output_usd_per_1m": 0.0,
+      "input_rmb_per_1m": 0.0,
+      "output_rmb_per_1m": 0.0,
+      "blended_usd_per_1m": 0.0,
+      "blended_rmb_per_1m": 0.0,
+      "context_length": 262144,
+      "supports_tools": true,
+      "modality": "text->text",
+      "is_free": true,
+      "value_score": 72.8,
+      "tags": [
+        "reasoning",
+        "cheap",
+        "free",
+        "global"
+      ]
+    },
+    {
+      "id": "recursive/flint-v1.0:free",
+      "name": "Recursive: Flint (free)",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "recursive/flint-v1.0:free",
+      "cache_hit_factor": 1.0,
+      "perf_note": "",
+      "signup_url": "https://openrouter.ai",
+      "affiliate_url": "https://openrouter.ai",
+      "model_page_url": "https://openrouter.ai/recursive/flint-v1.0:free",
+      "region": "global",
+      "input_usd_per_1m": 0.0,
+      "output_usd_per_1m": 0.0,
+      "input_rmb_per_1m": 0.0,
+      "output_rmb_per_1m": 0.0,
+      "blended_usd_per_1m": 0.0,
+      "blended_rmb_per_1m": 0.0,
+      "context_length": 262144,
+      "supports_tools": true,
+      "modality": "text->text",
+      "is_free": true,
+      "value_score": 72.8,
+      "tags": [
+        "reasoning",
+        "cheap",
+        "free",
+        "global"
       ]
     },
     {
