@@ -4,7 +4,7 @@
   <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml</id>
   <link href="https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml" rel="self" type="application/atom+xml"/>
   <link href="https://ai-cost-radar-nlu.pages.dev/" rel="alternate" type="text/html"/>
-  <updated>2026-11-21T05:20:01Z</updated>
+  <updated>2026-11-21T05:22:50Z</updated>
   <author>
     <name>AI Cost Radar</name>
   </author>
@@ -12,7 +12,7 @@
     <title>[规则巡检预警 2026-11-21] 火山方舟 Coding Plan 编程套餐 (volcengine-coding-plan)</title>
     <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-0-volcengine-coding-plan-2026-11-21</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/coding-plan-2026/"/>
-    <updated>2026-11-21T05:20:01Z</updated>
+    <updated>2026-11-21T05:22:50Z</updated>
     <summary>官方规则页指纹异动（未命中指标：dedicated_coding_endpoint），请核对最新月上限、首购特惠与续费原价：https://www.volcengine.com/docs/82379/1925114</summary>
   </entry>
   <entry>

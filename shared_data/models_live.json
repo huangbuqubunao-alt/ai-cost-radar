@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-21T05:20:01Z",
-  "last_live_verified_at": "2026-11-21T05:20:01Z",
+  "updated_at": "2026-11-21T05:22:50Z",
+  "last_live_verified_at": "2026-11-21T05:22:50Z",
   "quote_verified_date": "2026-11-13",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
@@ -10,7 +10,7 @@
     "global": 69
   },
   "official_rule_audit": {
-    "checked_at": "2026-11-21T05:20:01Z",
+    "checked_at": "2026-11-21T05:22:50Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -22,7 +22,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-21T05:20:01Z",
+        "last_verified_at": "2026-11-21T05:22:50Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -40,7 +40,7 @@
           "pro_renewal_200"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-21T05:20:01Z",
+        "last_verified_at": "2026-11-21T05:22:50Z",
         "last_verified_groups": [
           "lite_monthly_cap_18k",
           "lite_renewal_40",
@@ -65,7 +65,7 @@
   },
   "price_changes": [
     {
-      "detected_at": "2026-11-21T05:20:01Z",
+      "detected_at": "2026-11-21T05:22:50Z",
       "entity_type": "coding_plan",
       "id": "volcengine-coding-plan",
       "name": "火山方舟 Coding Plan 编程套餐",
