@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 import subprocess
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "engine_b_affiliate_web" / "dist"
@@ -47,17 +48,34 @@ def main():
     parser.add_argument("--remote", help="Read-only HTTP verification of deployed assets")
     args = parser.parse_args()
     pages = sorted(DIST.rglob("*.html"))
-    assert len(pages) == 6, f"Expected 6 landing pages, found {len(pages)}"
+    assert len(pages) >= 6, f"Expected >= 6 landing pages, found {len(pages)}"
+    page_canonicals: set[str] = set()
     for file in pages:
         page = Page()
         page.feed(file.read_text())
         relative = file.relative_to(DIST).as_posix().removesuffix("index.html")
         assert page.canonical == SITE + relative, f"Wrong canonical: {file}"
+        page_canonicals.add(page.canonical)
         assert page.tables >= 4, f"Missing static comparison tables: {file}"
         for script in page.scripts:
             subprocess.run(["node", "--check"], input=script, text=True, check=True)
         for data in page.json_blocks:
             json.loads(data)
+    sitemap_xml = (DIST / "sitemap.xml").read_text(encoding="utf-8")
+    sitemap_tree = ET.fromstring(sitemap_xml)
+    sitemap_ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+    sitemap_locs = [el.text.strip() for el in sitemap_tree.findall("sm:url/sm:loc", sitemap_ns) if el.text]
+    assert len(sitemap_locs) >= len(pages), (
+        f"sitemap.xml route count ({len(sitemap_locs)}) is smaller than generated pages ({len(pages)})"
+    )
+    for loc in sitemap_locs:
+        assert loc.startswith(SITE), f"Unexpected sitemap loc outside canonical base {SITE}: {loc}"
+        rel = loc[len(SITE):].strip("/")
+        expected_html = (DIST / "index.html") if not rel else (DIST / rel / "index.html")
+        assert expected_html.is_file(), f"sitemap.xml route missing generated HTML file: {loc} -> {expected_html}"
+    assert set(sitemap_locs) == page_canonicals, (
+        f"sitemap.xml routes {sorted(sitemap_locs)} differ from generated pages {sorted(page_canonicals)}"
+    )
     catalog = json.loads((DIST / "api/models_live.json").read_text())
     radar_compat = json.loads((DIST / "radar_data.json").read_text())
     assert radar_compat == catalog, "dist/radar_data.json differs from dist/api/models_live.json"

@@ -511,6 +511,60 @@ SEO_ROUTES: list[dict[str, Any]] = [
             "heroZhSub": "零依赖本地扫描 Claude Code、Codex（含 .zst 归档）、Antigravity、OpenCode、Grok、WorkBuddy、Qwen 与 Cline，精准对比海外低价 API、Railway 缓存网关与 RunPod 弹性 GPU。",
         },
     },
+    {
+        "slug": "agent-guardian/",
+        "nav_label": "Agent Guardian 隔离台",
+        "page_kind": "product_landing",
+        "priority": "0.95",
+        "title": "Agent Guardian (v3.20.0) — macOS 原生 AI Agent 多账号零污染隔离与安全工作台",
+        "description": "面向 Claude Code、OpenAI Codex CLI、Google Gemini CLI 与 OpenCode 的 macOS Apple Silicon 原生多账号零污染隔离、XNU Seatbelt (Mode A) + Apple VZ HostNetworkBroker (Mode B) 双模沙箱、Fail-Closed 502 零直连回退、403 零载荷出站域名防火墙、离线 5h 额度雷达与并行 Git Worktree 工作台。",
+        "hero_main": "Agent Guardian (v3.20.0)：",
+        "hero_accent": "AI Agent 多账号零污染隔离与安全工作台",
+        "hero_sub": "macOS Apple Silicon 原生（Rust 2021 + Swift Cocoa，MIT 开源）：并发隔离 Claude Code / Codex CLI / Gemini CLI / OpenCode 多账号，提供 XNU Seatbelt 与 Apple VZ 双模沙箱、Fail-Closed 502 零直连回退、403 出站域名防火墙与离线 5h 滚动额度雷达。",
+        "preset": {
+            "lang": "zh",
+            "heroEnMain": "Agent Guardian (v3.20.0): ",
+            "heroEnAccent": "Zero-Pollution Multi-Account Isolation & Sandbox Workbench",
+            "heroEnSub": "Native macOS Apple Silicon (Rust 2021 + Swift Cocoa, MIT): Concurrent isolation for Claude Code, Codex CLI, Gemini CLI & OpenCode with XNU Seatbelt (Mode A) & Apple VZ HostNetworkBroker (Mode B), Fail-Closed 502, 403 zero-payload domain firewall, offline 5h quota radar & Git Worktree guardrails.",
+            "heroZhMain": "Agent Guardian (v3.20.0)：",
+            "heroZhAccent": "AI Agent 多账号零污染隔离与安全工作台",
+            "heroZhSub": "macOS Apple Silicon 原生（Rust 2021 + Swift Cocoa，MIT 开源）：并发隔离 Claude Code / Codex CLI / Gemini CLI / OpenCode 多账号，提供 XNU Seatbelt 与 Apple VZ 双模沙箱、Fail-Closed 502 零直连回退、403 出站域名防火墙与离线 5h 滚动额度雷达。",
+        },
+    },
+]
+
+
+AGENT_GUARDIAN_FAQ_ENTRIES: list[dict[str, str]] = [
+    {
+        "q": "为什么需要 Fail-Closed 502 零直连回退，而不是在代理断线时回退本地宽带？",
+        "a": "当上游 SOCKS5 / HTTP CONNECT 代理断线或握手超时时，若静默回退宿主机物理宽带直连，会立即暴露真实住宅/办公 IP 与出口国家错配，触发平台风控或跨区关联。Agent Guardian 为主备上游连接、鉴权与握手设置统一截止时间，异常即刻返回 502 Bad Gateway（X-Claude-Guardian-Fail-Closed: 1）并切断流，绝不回退宿主机直连。",
+        "q_en": "Why enforce Fail-Closed 502 instead of falling back to direct host broadband when a proxy drops?",
+        "a_en": "Silent fallback to host broadband exposes your physical IP and breaks region/timezone hygiene, risking cross-account correlation. Agent Guardian enforces a unified deadline across upstream SOCKS5 / HTTP CONNECT connect, auth, and handshake, immediately returning 502 Bad Gateway (X-Claude-Guardian-Fail-Closed: 1) and severing the stream without ever falling back to direct egress.",
+    },
+    {
+        "q": "Mode A (XNU Seatbelt) 与 Mode B (Apple VZ + HostNetworkBroker) 怎么选？",
+        "a": "Mode A 是日常主力模式，零毫秒启动，通过 macOS XNU Sandbox.kext 内核级拦截一切非代理直连 Socket、禁读 ~/.ssh / ~/.aws / ~/.config/gh / Keychain / 跨账号目录，并锁死工作区控制面文件（.guardian.toml、.mcp.json、.claude/settings*.json、.codex/config.toml 等）。Mode B 用于高敏任务，通过 Apple Virtualization.framework 为每个安全域分配独立 Linux VM、gn-<domain> 虚拟交换机与宿主用户态帧级过滤（零 gvproxy NAT、单网卡零默认路由），仅在受管 VM 通过帧级往返验证（verified_roundtrips > 0）时才显示 PROTECTED。",
+        "q_en": "When should I use Mode A (XNU Seatbelt) vs Mode B (Apple VZ + HostNetworkBroker)?",
+        "a_en": "Mode A is the zero-millisecond daily driver: macOS XNU Sandbox.kext blocks non-proxy direct sockets, denies reads to ~/.ssh / ~/.aws / ~/.config/gh / Keychain / sibling account directories, and write-locks workspace control files (.guardian.toml, .mcp.json, .claude/settings*.json, .codex/config.toml). Mode B isolates high-sensitivity tasks inside per-domain Apple VZ Linux VMs with a gn-<domain> virtual switch and host user-space ARP/DHCP/TCP frame filtering (zero gvproxy NAT, single NIC with no default route), reporting PROTECTED only when verified_roundtrips > 0.",
+    },
+    {
+        "q": "四大 AI CLI 多账号隔离会污染宿主的 ~/.zshrc 或已有真实 HOME 吗？",
+        "a": "不会。每个 Claude Code、Codex CLI、Gemini CLI（GEMINI_CLI_HOME）与 OpenCode（OPENCODE_HOME + XDG_* 保留真实 HOME）账号均拥有独立 0700 目录与 0600 凭据保险箱（Keychain + AES-256-GCM），派生子进程前会自动清洗宿主机残留 API Key 环境变量；eval \"$(ag shell-hook zsh)\" 仅在进入绑定工作区时设置轻量上下文，离开目录自动 unset，绝不污染全局 HTTP_PROXY。",
+        "q_en": "Does isolating 4 AI CLIs pollute ~/.zshrc or overwrite my real HOME directory?",
+        "a_en": "No. Each Claude Code, Codex CLI, Gemini CLI (GEMINI_CLI_HOME), and OpenCode (OPENCODE_HOME + XDG_* preserving real HOME) profile lives in an isolated 0700 directory with a 0600 Keychain + AES-256-GCM vault. Residual host API keys are scrubbed before spawning, and eval \"$(ag shell-hook zsh)\" sets lightweight directory-scoped context that unsets on exit without polluting global HTTP_PROXY.",
+    },
+    {
+        "q": "离线 5h 滚动额度雷达如何做到零联网统计 Codex SQLite 与 90% 缓存折扣？",
+        "a": "Agent Guardian 100% 本地只读解析 .jsonl / .json 会话日志、2026 新版 Codex state_*.sqlite（SQLITE_OPEN_READ_ONLY + PRAGMA query_only = ON，联动 rollout_path 提取 cached_input_tokens 90% 提示词缓存折扣）以及 OpenCode opencode.db，并按 account_id 与 thread_id 去重，避免长上下文缓存命中导致的额度虚高，支持 ag workspace usage --export 导出防公式注入的 CSV/JSON 报表。",
+        "q_en": "How does the 100% offline 5h quota radar parse Codex SQLite & 90% prompt cache discounts without network calls?",
+        "a_en": "It reads local .jsonl/.json logs, Codex state_*.sqlite (SQLITE_OPEN_READ_ONLY + PRAGMA query_only = ON, joining rollout_path tail metrics for 90% cached_input_tokens discounts), and OpenCode opencode.db, deduplicating by account_id and thread_id so long-context cache hits do not inflate 5h load. You can export formula-injection-safe CSV/JSON FinOps reports via ag workspace usage --export.",
+    },
+    {
+        "q": "ag mcp vault-secrets 如何在不停用 MCP 服务的前提下消除明文密钥泄漏风险？",
+        "a": "运行 ag mcp vault-secrets <account> 会把 MCP 配置中内嵌的明文 API Key 迁入 XNU 内核沙箱不可读的 mcp_vault/<account>.enc（0600 AES-256-GCM），并将配置文件自动改写为四大 CLI 原生动态环境变量占位符（Codex env_vars、Claude/Gemini ${VAR}、OpenCode {env:VAR}），在受管会话启动前安全注入；对于无需保留的高危服务，也可使用 ag mcp quarantine 一键无损停用。",
+        "q_en": "How does ag mcp vault-secrets remove plaintext MCP keys without disabling active MCP servers?",
+        "a_en": "ag mcp vault-secrets <account> migrates embedded plaintext API keys into mcp_vault/<account>.enc (0600 AES-256-GCM, unreadable inside XNU Seatbelt), rewrites configs to native dynamic env syntax (Codex env_vars, Claude/Gemini ${VAR}, OpenCode {env:VAR}), and injects them only when launching a managed session. High-risk servers can also be non-destructively disabled via ag mcp quarantine.",
+    },
 ]
 
 
@@ -1206,6 +1260,292 @@ def build_ssr_models_table_html(
     """
 
 
+def build_agent_guardian_main_html(base_prefix: str, quote_verified_date: str) -> str:
+    """
+    Build SSR HTML for /agent-guardian/ using strictly verified facts from Agent Guardian v3.20.0.
+    Includes >= 4 structured comparison <table>s, 6 core capability pillars, and first-party
+    offer_impression / affiliate_click conversion hooks.
+    """
+    calc_home = html.escape(base_prefix or "./")
+    auditor_href = html.escape(f"{base_prefix}ai-coding-spend-auditor/")
+    qver = html.escape(quote_verified_date)
+
+    return f"""<section class="hero">
+      <div class="hero-top">
+        <div>
+          <h1>
+            <span data-i18n="heroTitleMain">Agent Guardian (v3.20.0)：</span><span class="hero-accent" data-i18n="heroTitleAccent">AI Agent 多账号零污染隔离与安全工作台</span>
+          </h1>
+          <p data-i18n="heroSubtitle">macOS Apple Silicon 原生（Rust 2021 + Swift Cocoa，MIT 开源）：并发隔离 Claude Code / Codex CLI / Gemini CLI / OpenCode 多账号，提供 XNU Seatbelt 与 Apple VZ 双模沙箱、Fail-Closed 502 零直连回退、403 出站域名防火墙与离线 5h 滚动额度雷达。</p>
+          <div class="guardian-cta-row">
+            <a href="#guardian-dmg-panel" class="guardian-cta-btn primary" data-offer-id="agent-guardian-mac-dmg" data-card-slot="guardian_hero_dmg" data-zh="获取 macOS Apple Silicon (v3.20.0) 安装指引" data-en="Get macOS Apple Silicon (v3.20.0) DMG Guide">获取 macOS Apple Silicon (v3.20.0) 安装指引</a>
+            <a href="#guardian-waitlist-panel" class="guardian-cta-btn secondary" data-offer-id="agent-guardian-waitlist" data-card-slot="guardian_hero_waitlist" data-zh="源码构建 / 团队发行版意向登记" data-en="Source Build &amp; Team Release Intent">源码构建 / 团队发行版意向登记</a>
+          </div>
+          <div id="guardianIntentStatus" class="guardian-status-toast" role="status" hidden></div>
+        </div>
+        <nav class="quick-jumps" aria-label="Agent Guardian sections">
+          <a href="#agBareCompareSection" class="jump-chip" data-zh="裸奔多号 vs 隔离台" data-en="Bare vs Isolated">裸奔多号 vs 隔离台</a>
+          <a href="#agModeCompareSection" class="jump-chip" data-zh="Mode A vs Mode B" data-en="Mode A vs Mode B">Mode A vs Mode B</a>
+          <a href="#agCliMatrixSection" class="jump-chip" data-zh="四大 CLI 矩阵" data-en="4-CLI Matrix">四大 CLI 矩阵</a>
+          <a href="#agReleaseSection" class="jump-chip" data-zh="交付与快速上手" data-en="Install &amp; CLI">交付与快速上手</a>
+          <a href="#faqSection" class="jump-chip" data-zh="安全与隔离 FAQ" data-en="Security FAQ">安全与隔离 FAQ</a>
+        </nav>
+      </div>
+
+      <div class="guardian-pillar-grid">
+        <article class="guardian-pillar-card">
+          <h3 data-zh="1. 四大 CLI 隔离 + 零密钥 MCP 保险箱" data-en="1. 4-CLI Isolation + Zero-Key MCP Vault">1. 四大 CLI 隔离 + 零密钥 MCP 保险箱</h3>
+          <p data-zh="同机并发运行 Claude Code / Codex CLI / Gemini CLI (GEMINI_CLI_HOME) / OpenCode (OPENCODE_HOME + XDG_* 保真实 HOME)；0700 目录与 0600 AES-256-GCM 凭据仓，支持 ag mcp vault-secrets 迁出明文密钥与 ag mcp quarantine 无损停用。" data-en="Run Claude Code, Codex CLI, Gemini CLI (GEMINI_CLI_HOME), and OpenCode (OPENCODE_HOME + XDG_* preserving real HOME) concurrently in 0700/0600 AES-256-GCM sandboxes; migrate plaintext MCP keys via ag mcp vault-secrets or disable safely via ag mcp quarantine.">同机并发运行 Claude Code / Codex CLI / Gemini CLI (GEMINI_CLI_HOME) / OpenCode (OPENCODE_HOME + XDG_* 保真实 HOME)；0700 目录与 0600 AES-256-GCM 凭据仓，支持 ag mcp vault-secrets 迁出明文密钥与 ag mcp quarantine 无损停用。</p>
+        </article>
+        <article class="guardian-pillar-card">
+          <h3 data-zh="2. Fail-Closed 502 + 403 出站域名防火墙" data-en="2. Fail-Closed 502 + 403 Domain Firewall">2. Fail-Closed 502 + 403 出站域名防火墙</h3>
+          <p data-zh="上游 SOCKS5 / HTTP CONNECT 共享统一截止时间，断线直返 502 Bad Gateway 绝不回退宿主宽带；内置 Mihomo 托管核心 (:17896..=17915) 与 ag doctor --probe-ai，支持零载荷 403 会话域名白名单（ai_and_git_only / ai_git_and_pkg）。" data-en="Unified deadline across upstream SOCKS5/HTTP CONNECT handshakes returns 502 Bad Gateway with zero direct fallback; built-in Mihomo Managed Core (:17896..=17915), ag doctor --probe-ai, and zero-payload 403 outbound domain allowlists (ai_and_git_only / ai_git_and_pkg).">上游 SOCKS5 / HTTP CONNECT 共享统一截止时间，断线直返 502 Bad Gateway 绝不回退宿主宽带；内置 Mihomo 托管核心 (:17896..=17915) 与 ag doctor --probe-ai，支持零载荷 403 会话域名白名单（ai_and_git_only / ai_git_and_pkg）。</p>
+        </article>
+        <article class="guardian-pillar-card">
+          <h3 data-zh="3. XNU Seatbelt + Apple VZ 双模沙箱" data-en="3. XNU Seatbelt + Apple VZ Dual Sandbox">3. XNU Seatbelt + Apple VZ 双模沙箱</h3>
+          <p data-zh="Mode A 零毫秒启动内核拦截非代理直连 Socket、禁读 ~/.ssh / ~/.aws / ~/.config/gh / Keychain 并写锁 .guardian.toml 与 .mcp.json；Mode B 为每个安全域启动独立 Apple VZ Linux VM 与 HostNetworkBroker 宿主帧级门禁。" data-en="Mode A boots in 0ms using macOS XNU Sandbox.kext to block direct sockets, deny reads to ~/.ssh, ~/.aws, ~/.config/gh &amp; Keychain, and write-lock .guardian.toml / .mcp.json; Mode B runs per-domain Apple VZ Linux VMs behind host frame-level filtering.">Mode A 零毫秒启动内核拦截非代理直连 Socket、禁读 ~/.ssh / ~/.aws / ~/.config/gh / Keychain 并写锁 .guardian.toml 与 .mcp.json；Mode B 为每个安全域启动独立 Apple VZ Linux VM 与 HostNetworkBroker 宿主帧级门禁。</p>
+        </article>
+        <article class="guardian-pillar-card">
+          <h3 data-zh="4. 100% 离线缓存感知 5h 滚动额度雷达" data-en="4. 100% Offline Cache-Aware 5h Quota Radar">4. 100% 离线缓存感知 5h 滚动额度雷达</h3>
+          <p data-zh="零联网只读解析 .jsonl / .json、Codex state_*.sqlite（提取 cached_input_tokens 90% 缓存折扣）与 OpenCode opencode.db，按 account_id / thread_id 去重，提供 14 天周环比预警、--smart 避峰换号与防公式注入 CSV 导出。" data-en="Offline read-only parsing of .jsonl/.json logs, Codex state_*.sqlite (90% cached_input_tokens discount), and OpenCode opencode.db with account_id/thread_id dedupe, 14-day WoW surge alerts, --smart failover, and formula-safe CSV export.">零联网只读解析 .jsonl / .json、Codex state_*.sqlite（提取 cached_input_tokens 90% 缓存折扣）与 OpenCode opencode.db，按 account_id / thread_id 去重，提供 14 天周环比预警、--smart 避峰换号与防公式注入 CSV 导出。</p>
+        </article>
+        <article class="guardian-pillar-card">
+          <h3 data-zh="5. 工作区四维护栏与并行 Git Worktree" data-en="5. Workspace Guardrails &amp; Parallel Worktrees">5. 工作区四维护栏与并行 Git Worktree</h3>
+          <p data-zh="内置 strict_core / balanced_dev / open_experiment 三档预设与 .guardian.toml 单调收窄校验；--worktree &lt;slug&gt; 自动隔离至 .ag-worktrees/&lt;repo&gt;/&lt;slug&gt;（分支 ag/&lt;slug&gt;），XNU 内核阻断篡改 main 或兄弟分支。" data-en="Ships strict_core / balanced_dev / open_experiment presets and monotonic .guardian.toml tightening; --worktree &lt;slug&gt; isolates into .ag-worktrees/&lt;repo&gt;/&lt;slug&gt; (branch ag/&lt;slug&gt;) with XNU locks preventing main or sibling branch tampering.">内置 strict_core / balanced_dev / open_experiment 三档预设与 .guardian.toml 单调收窄校验；--worktree &lt;slug&gt; 自动隔离至 .ag-worktrees/&lt;repo&gt;/&lt;slug&gt;（分支 ag/&lt;slug&gt;），XNU 内核阻断篡改 main 或兄弟分支。</p>
+        </article>
+        <article class="guardian-pillar-card">
+          <h3 data-zh="6. 原生 Swift 桌面端与零弹窗静默运维" data-en="6. Native Swift Cocoa App &amp; Quiet Diagnostics">6. 原生 Swift 桌面端与零弹窗静默运维</h3>
+          <p data-zh="Swift Cocoa + WKWebView 严格校验 /api/daemon/info 服务身份防伪握手，默认端口冲突自动协商 18765..=18779 / 18443..=18459；采用 1.1.1.1 字面 IP 防 DNS 泄漏探测，支持边沿锁存悬停单次「知道了」永久消音。" data-en="Swift Cocoa + WKWebView enforces /api/daemon/info anti-spoof handshake and conflict-free port negotiation (18765..=18779 / 18443..=18459); uses literal 1.1.1.1 probes to eliminate plaintext DNS leaks and replaces popup spam with edge-triggered dismissible cards.">Swift Cocoa + WKWebView 严格校验 /api/daemon/info 服务身份防伪握手，默认端口冲突自动协商 18765..=18779 / 18443..=18459；采用 1.1.1.1 字面 IP 防 DNS 泄漏探测，支持边沿锁存悬停单次「知道了」永久消音。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section-block" id="agBareCompareSection">
+      <div class="section-head">
+        <h2 data-zh="1. 裸奔多账号切换 vs Agent Guardian (v3.20.0) 安全与可靠性对比" data-en="1. Bare Multi-Account Switching vs Agent Guardian (v3.20.0)">1. 裸奔多账号切换 vs Agent Guardian (v3.20.0) 安全与可靠性对比</h2>
+        <p data-zh="以下全部对比条目均来自 v3.20.0 已实测架构边界（绝不虚标状态或依赖宿主机全局代理）。" data-en="Every capability row below reflects verified v3.20.0 architecture guarantees with honest status reporting.">以下全部对比条目均来自 v3.20.0 已实测架构边界（绝不虚标状态或依赖宿主机全局代理）。</p>
+      </div>
+      <div class="table-scroll">
+        <table class="ssr-table" id="agBareVsGuardianTable">
+          <caption data-zh="表 1：同机多账号运行 AI Coding CLI 时「裸奔环境变量」与「Agent Guardian 隔离工作台」核心差异（核验基线：{qver}）" data-en="Table 1: Bare CLI multi-account switching vs Agent Guardian v3.20.0 isolation workbench (Verified: {qver})">表 1：同机多账号运行 AI Coding CLI 时「裸奔环境变量」与「Agent Guardian 隔离工作台」核心差异（核验基线：{qver}）</caption>
+          <thead>
+            <tr>
+              <th scope="col" data-zh="风险与工程维度" data-en="Risk &amp; Engineering Dimension">风险与工程维度</th>
+              <th scope="col" data-zh="传统裸奔 / 手动切环境变量" data-en="Bare CLI / Manual Env Switching">传统裸奔 / 手动切环境变量</th>
+              <th scope="col" data-zh="Agent Guardian (v3.20.0)" data-en="Agent Guardian (v3.20.0)">Agent Guardian (v3.20.0)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong data-zh="凭据目录与环境变量污染" data-en="Credential &amp; Env Pollution">凭据目录与环境变量污染</strong></td>
+              <td data-zh="共享 ~/.claude / ~/.codex / ~/.gemini，残留 ANTHROPIC_API_KEY 或 OPENAI_API_KEY 极易串号或误走按量余额" data-en="Shared ~/.claude / ~/.codex / ~/.gemini dirs; stale API key env vars easily cross-contaminate profiles">共享 ~/.claude / ~/.codex / ~/.gemini，残留 ANTHROPIC_API_KEY 或 OPENAI_API_KEY 极易串号或误走按量余额</td>
+              <td data-zh="每账号独立 0700 目录 + 0600 保险箱（Keychain + AES-256-GCM），启动前自动清洗宿主残留 Key，支持两阶段可恢复删号" data-en="Isolated 0700 profile dirs + 0600 Keychain &amp; AES-256-GCM vault; scrubs host API keys before spawn and supports 2-stage recoverable deletion">每账号独立 0700 目录 + 0600 保险箱（Keychain + AES-256-GCM），启动前自动清洗宿主残留 Key，支持两阶段可恢复删号</td>
+            </tr>
+            <tr>
+              <td><strong data-zh="代理断流与直连泄漏" data-en="Proxy Drop &amp; Direct Fallback">代理断流与直连泄漏</strong></td>
+              <td data-zh="VPN 断开或端口变更时，CLI 静默回退宿主机物理宽带直连，暴露真实 IP 与时区" data-en="Silent fallback to physical host broadband on VPN drop, exposing host IP and mismatched locale">VPN 断开或端口变更时，CLI 静默回退宿主机物理宽带直连，暴露真实 IP 与时区</td>
+              <td data-zh="Fail-Closed 502 硬熔断（X-Claude-Guardian-Fail-Closed: 1）严禁直连回退；Stealth 自动对齐实测出口国家 TZ / LANG / LC_CTYPE" data-en="Fail-Closed 502 (X-Claude-Guardian-Fail-Closed: 1) severs stream with zero direct fallback; Stealth aligns TZ / LANG / LC_CTYPE to probed egress country">Fail-Closed 502 硬熔断（X-Claude-Guardian-Fail-Closed: 1）严禁直连回退；Stealth 自动对齐实测出口国家 TZ / LANG / LC_CTYPE</td>
+            </tr>
+            <tr>
+              <td><strong data-zh="未授权外联与密钥外泄" data-en="Unauthorized Egress &amp; Secret Exfil">未授权外联与密钥外泄</strong></td>
+              <td data-zh="受管 Agent 可直接访问 ~/.ssh、~/.aws、Keychain 或将源码发往任意第三方 webhook" data-en="Agent subprocesses can read ~/.ssh, ~/.aws, Keychain, or exfiltrate payloads to arbitrary webhooks">受管 Agent 可直接访问 ~/.ssh、~/.aws、Keychain 或将源码发往任意第三方 webhook</td>
+              <td data-zh="XNU 内核禁读敏感凭证目录 + 控制面文件不可变写锁 + 零载荷 403 出站域名防火墙（ai_and_git_only / 自定义黑名单）" data-en="XNU kernel blocks ~/.ssh, ~/.aws &amp; Keychain reads, write-locks control files, and enforces zero-payload 403 domain allowlists/blocklists">XNU 内核禁读敏感凭证目录 + 控制面文件不可变写锁 + 零载荷 403 出站域名防火墙（ai_and_git_only / 自定义黑名单）</td>
+            </tr>
+            <tr>
+              <td><strong data-zh="5h 滚动额度与并行分支" data-en="5h Rolling Quota &amp; Parallel Worktree">5h 滚动额度与并行分支</strong></td>
+              <td data-zh="手工估测是否接近 5h 限额；同目录多 Agent 并发改文件极易互相覆盖或污染 main" data-en="Guessing 5h limits manually; concurrent agents in one checkout overwrite files or mutate main">手工估测是否接近 5h 限额；同目录多 Agent 并发改文件极易互相覆盖或污染 main</td>
+              <td data-zh="100% 离线 5h 雷达（含 Codex 90% 缓存折扣）+ --smart 避峰换号 + --worktree 内核收窄防篡改 main/兄弟分支" data-en="100% offline 5h radar (with Codex 90% cache discount), --smart failover, and --worktree XNU lock protecting main &amp; sibling branches">100% 离线 5h 雷达（含 Codex 90% 缓存折扣）+ --smart 避峰换号 + --worktree 内核收窄防篡改 main/兄弟分支</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section-block" id="agModeCompareSection">
+      <div class="section-head">
+        <h2 data-zh="2. Mode A (XNU Seatbelt) vs Mode B (Apple VZ + HostNetworkBroker) 双模架构对比" data-en="2. Mode A (XNU Seatbelt) vs Mode B (Apple VZ + HostNetworkBroker)">2. Mode A (XNU Seatbelt) vs Mode B (Apple VZ + HostNetworkBroker) 双模架构对比</h2>
+        <p data-zh="支持日常高频编码与高敏源码审计按需切换，守护未验证连通性时绝不虚标 PROTECTED。" data-en="Switch between 0ms daily sandboxing and hardware-isolated Linux VMs without dishonest PROTECTED badges.">支持日常高频编码与高敏源码审计按需切换，守护未验证连通性时绝不虚标 PROTECTED。</p>
+      </div>
+      <div class="table-scroll">
+        <table class="ssr-table" id="agModeCompareTable">
+          <caption data-zh="表 2：Agent Guardian v3.20.0 双模强制隔离边界与适用场景对比" data-en="Table 2: Mode A vs Mode B enforcement boundaries and operational characteristics">表 2：Agent Guardian v3.20.0 双模强制隔离边界与适用场景对比</caption>
+          <thead>
+            <tr>
+              <th scope="col" data-zh="技术指标" data-en="Architecture Aspect">技术指标</th>
+              <th scope="col" data-zh="Mode A：XNU Seatbelt 内核沙箱（日常主力）" data-en="Mode A: XNU Seatbelt Kernel Sandbox (Daily Driver)">Mode A：XNU Seatbelt 内核沙箱（日常主力）</th>
+              <th scope="col" data-zh="Mode B：Apple VZ + HostNetworkBroker（高敏隔离）" data-en="Mode B: Apple VZ + HostNetworkBroker (High-Sensitivity)">Mode B：Apple VZ + HostNetworkBroker（高敏隔离）</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong data-zh="底层隔离技术" data-en="Isolation Primitive">底层隔离技术</strong></td>
+              <td data-zh="macOS XNU Sandbox.kext 内核强制策略（零 Root）" data-en="macOS XNU Sandbox.kext kernel mandatory policy (rootless)">macOS XNU Sandbox.kext 内核强制策略（零 Root）</td>
+              <td data-zh="Apple Virtualization.framework Linux VM + 宿主用户态帧级门禁" data-en="Apple Virtualization.framework Linux VM + host user-space frame broker">Apple Virtualization.framework Linux VM + 宿主用户态帧级门禁</td>
+            </tr>
+            <tr>
+              <td><strong data-zh="启动延迟与触发命令" data-en="Startup Latency &amp; Command">启动延迟与触发命令</strong></td>
+              <td data-zh="零毫秒瞬时启动：ag claude / ag codex / ag gemini / ag opencode" data-en="0ms instant launch: ag claude / ag codex / ag gemini / ag opencode">零毫秒瞬时启动：ag claude / ag codex / ag gemini / ag opencode</td>
+              <td data-zh="支持黄金基础 VM 秒级克隆（ag domain clone）与 ag exec --mode vm" data-en="Second-level clone from golden base VM (ag domain clone) + ag exec --mode vm">支持黄金基础 VM 秒级克隆（ag domain clone）与 ag exec --mode vm</td>
+            </tr>
+            <tr>
+              <td><strong data-zh="网络旁路阻断方式" data-en="Network Bypass Blocking">网络旁路阻断方式</strong></td>
+              <td data-zh="内核级阻断一切非本地受控代理网关（:8443）直连 Socket" data-en="Kernel-blocks all direct outbound sockets outside local proxy gateway (:8443)">内核级阻断一切非本地受控代理网关（:8443）直连 Socket</td>
+              <td data-zh="独立 gn-&lt;domain&gt; 虚拟交换机，单网卡零默认路由、无 gvproxy NAT，公网 IP 直连与 UDP 帧物理丢弃" data-en="Dedicated gn-&lt;domain&gt; vSwitch, single NIC zero default route, no gvproxy NAT; direct public IP &amp; UDP frames dropped on host">独立 gn-&lt;domain&gt; 虚拟交换机，单网卡零默认路由、无 gvproxy NAT，公网 IP 直连与 UDP 帧物理丢弃</td>
+            </tr>
+            <tr>
+              <td><strong data-zh="文件系统与控制面保护" data-en="Filesystem &amp; Control-Plane Lock">文件系统与控制面保护</strong></td>
+              <td data-zh="禁读 ~/.ssh / ~/.aws / ~/.config/gh / Keychain；写锁 .guardian.toml、.mcp.json、.claude/settings*.json 等" data-en="Denies ~/.ssh, ~/.aws, ~/.config/gh &amp; Keychain; write-locks .guardian.toml, .mcp.json, .claude/settings*.json">禁读 ~/.ssh / ~/.aws / ~/.config/gh / Keychain；写锁 .guardian.toml、.mcp.json、.claude/settings*.json 等</td>
+              <td data-zh="工作区按白名单授权挂载、强制 .git 只读选项、自动回收 Guest NOPASSWD 免密 sudo" data-en="Allowlisted workspace mounts, forced .git read-only option, and automatic Guest NOPASSWD sudo revocation">工作区按白名单授权挂载、强制 .git 只读选项、自动回收 Guest NOPASSWD 免密 sudo</td>
+            </tr>
+            <tr>
+              <td><strong data-zh="诚实健康探针" data-en="Honest Liveness Probe">诚实健康探针</strong></td>
+              <td data-zh="非阻塞 flock 锁 + :8443 TCP 探活，离线诚实报告 OFFLINE" data-en="Non-blocking flock + :8443 TCP probe; reports OFFLINE when daemon is stopped">非阻塞 flock 锁 + :8443 TCP 探活，离线诚实报告 OFFLINE</td>
+              <td data-zh="仅当受管 guardian-&lt;domain&gt; VM 通过 verified_roundtrips &gt; 0 才亮 PROTECTED，否则报告 DEGRADED" data-en="Reports PROTECTED only when managed guardian-&lt;domain&gt; VM passes verified_roundtrips &gt; 0; otherwise DEGRADED">仅当受管 guardian-&lt;domain&gt; VM 通过 verified_roundtrips &gt; 0 才亮 PROTECTED，否则报告 DEGRADED</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section-block" id="agCliMatrixSection">
+      <div class="section-head">
+        <h2 data-zh="3. 四大 AI CLI 支持与离线审计矩阵" data-en="3. 4-CLI Isolation, MCP Vault &amp; Offline Radar Matrix">3. 四大 AI CLI 支持与离线审计矩阵</h2>
+        <p data-zh="覆盖主流终端 AI 编程工具的隔离环境变量、MCP 密钥托管与 5h 离线用量数据源。" data-en="Isolation paths, MCP secret injection formats, and offline 5h usage data sources across all 4 supported CLIs.">覆盖主流终端 AI 编程工具的隔离环境变量、MCP 密钥托管与 5h 离线用量数据源。</p>
+      </div>
+      <div class="table-scroll">
+        <table class="ssr-table" id="agCliMatrixTable">
+          <caption data-zh="表 3：Agent Guardian v3.20.0 对 Claude Code、Codex CLI、Gemini CLI 与 OpenCode 的全链路适配规格" data-en="Table 3: Full-stack support matrix for Claude Code, Codex CLI, Gemini CLI, and OpenCode">表 3：Agent Guardian v3.20.0 对 Claude Code、Codex CLI、Gemini CLI 与 OpenCode 的全链路适配规格</caption>
+          <thead>
+            <tr>
+              <th scope="col" data-zh="受管客户端" data-en="Managed CLI">受管客户端</th>
+              <th scope="col" data-zh="隔离目录与环境变量机制" data-en="Profile &amp; Env Isolation">隔离目录与环境变量机制</th>
+              <th scope="col" data-zh="MCP 保险箱动态占位符" data-en="MCP Vault Dynamic Syntax">MCP 保险箱动态占位符</th>
+              <th scope="col" data-zh="离线 5h 额度数据源与特殊适配" data-en="Offline 5h Radar &amp; Special Adapter">离线 5h 额度数据源与特殊适配</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Claude Code</strong><br><span class="table-sub">ag claude</span></td>
+              <td class="mono-cell">CLAUDE_CONFIG_DIR + 0700 目录（自动清洗宿主 ANTHROPIC_API_KEY）</td>
+              <td class="mono-cell">${{VAR}} + mcp_vault/&lt;account&gt;.enc</td>
+              <td data-zh="只读 .jsonl 会话日志 + 增量游标缓存 + --worktree / --smart 避峰换号" data-en="Read-only .jsonl logs + incremental cursor cache + --worktree / --smart failover">只读 .jsonl 会话日志 + 增量游标缓存 + --worktree / --smart 避峰换号</td>
+            </tr>
+            <tr>
+              <td><strong>OpenAI Codex CLI</strong><br><span class="table-sub">ag codex</span></td>
+              <td class="mono-cell">CODEX_HOME + 0700 目录（无损保留 config.toml 嵌套子表）</td>
+              <td class="mono-cell">env_vars + mcp_vault/&lt;account&gt;.enc</td>
+              <td data-zh="state_*.sqlite 只读解析（90% cached_input_tokens 折扣）+ auth.json.bak 0600 桌面原子交接 + ag desktop doctor Fake-IP 排障" data-en="state_*.sqlite read-only parsing (90% cached_input_tokens discount) + 0600 auth.json.bak desktop handoff + ag desktop doctor Fake-IP diagnostics">state_*.sqlite 只读解析（90% cached_input_tokens 折扣）+ 0600 auth.json.bak 桌面原子交接 + ag desktop doctor Fake-IP 排障</td>
+            </tr>
+            <tr>
+              <td><strong>Google Gemini CLI</strong><br><span class="table-sub">ag gemini</span></td>
+              <td class="mono-cell">GEMINI_CLI_HOME（独立隔离 .gemini，不碰宿主全局目录）</td>
+              <td class="mono-cell">${{VAR}} + mcp_vault/&lt;account&gt;.enc</td>
+              <td data-zh="本地会话日志解析 + 内置 xterm.js 一键 OAuth 登录核验入库 + Stealth TZ/LANG 对齐" data-en="Local session log parsing + built-in xterm.js OAuth login verification + Stealth TZ/LANG alignment">本地会话日志解析 + 内置 xterm.js 一键 OAuth 登录核验入库 + Stealth TZ/LANG 对齐</td>
+            </tr>
+            <tr>
+              <td><strong>OpenCode</strong><br><span class="table-sub">ag opencode</span></td>
+              <td class="mono-cell">OPENCODE_HOME + XDG_*（完整保留真实 $HOME）</td>
+              <td class="mono-cell">{{env:VAR}} + 原生 opencode.jsonc 解析</td>
+              <td data-zh="opencode.db SQLite 只读聚合 + 字符串感知 JSONC 解析（保留注释与尾随逗号）" data-en="opencode.db SQLite read-only aggregation + string-aware JSONC parser (preserves comments &amp; trailing commas)">opencode.db SQLite 只读聚合 + 字符串感知 JSONC 解析（保留注释与尾随逗号）</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section-block" id="agReleaseSection">
+      <div class="section-head">
+        <h2 data-zh="4. Agent Guardian v3.20.0 交付形态、高频命令与源码构建矩阵" data-en="4. Distribution, CLI Quick Reference &amp; Source Build Matrix">4. Agent Guardian v3.20.0 交付形态、高频命令与源码构建矩阵</h2>
+        <p data-zh="MIT 开源协议，支持 Apple Silicon 原生 DMG、Homebrew Cask 与 Rust 2021 + Swift Cocoa 离线自编译。" data-en="Licensed under MIT; available as macOS Apple Silicon DMG, Homebrew Cask recipe, or offline Rust 2021 + Swift Cocoa source build.">MIT 开源协议，支持 Apple Silicon 原生 DMG、Homebrew Cask 与 Rust 2021 + Swift Cocoa 离线自编译。</p>
+      </div>
+      <div class="table-scroll">
+        <table class="ssr-table" id="agReleaseMatrixTable">
+          <caption data-zh="表 4：Agent Guardian v3.20.0 交付包、工作区护栏预设与本地校验入口" data-en="Table 4: Agent Guardian v3.20.0 distribution artifacts, presets, and local verification gates">表 4：Agent Guardian v3.20.0 交付包、工作区护栏预设与本地校验入口</caption>
+          <thead>
+            <tr>
+              <th scope="col" data-zh="交付形态 / 模块" data-en="Artifact / Module">交付形态 / 模块</th>
+              <th scope="col" data-zh="文件路径或核心命令" data-en="Artifact Path or Command">文件路径或核心命令</th>
+              <th scope="col" data-zh="关键约束与校验方式" data-en="Guarantees &amp; Verification">关键约束与校验方式</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong data-zh="macOS 原生桌面端 DMG" data-en="Native macOS Desktop DMG">macOS 原生桌面端 DMG</strong></td>
+              <td class="mono-cell">dist/Agent-Guardian-3.20.0-arm64.dmg</td>
+              <td data-zh="Swift Cocoa + WKWebView，拖入 /Applications 即用；内置默认 0700 体验沙箱，无需先建账号即可启动" data-en="Swift Cocoa + WKWebView; drag to /Applications; includes default 0700 sandbox terminal for instant Day-0 trial">Swift Cocoa + WKWebView，拖入 /Applications 即用；内置默认 0700 体验沙箱，无需先建账号即可启动</td>
+            </tr>
+            <tr>
+              <td><strong data-zh="Homebrew Cask 配方" data-en="Homebrew Cask Recipe">Homebrew Cask 配方</strong></td>
+              <td class="mono-cell">packaging/homebrew/Cask/agent-guardian.rb</td>
+              <td data-zh="通过 scripts/generate_homebrew_cask.sh 与 ag release-check 自动校验版本号与 DMG SHA-256 一致性" data-en="Version &amp; SHA-256 parity verified via scripts/generate_homebrew_cask.sh and ag release-check">通过 scripts/generate_homebrew_cask.sh 与 ag release-check 自动校验版本号与 DMG SHA-256 一致性</td>
+            </tr>
+            <tr>
+              <td><strong data-zh="终端零污染 Shell Hook" data-en="Zero-Pollution Shell Hook">终端零污染 Shell Hook</strong></td>
+              <td class="mono-cell">eval "$(ag shell-hook zsh)"</td>
+              <td data-zh="提供 ag / ag-claude / ag-codex / ag-gemini / ag-opencode，离开绑定目录自动 unset，绝不污染全局代理" data-en="Provides ag / ag-claude / ag-codex / ag-gemini / ag-opencode; auto-unsets outside bound workspaces">提供 ag / ag-claude / ag-codex / ag-gemini / ag-opencode，离开绑定目录自动 unset，绝不污染全局代理</td>
+            </tr>
+            <tr>
+              <td><strong data-zh="全量离线测试与发版自检" data-en="Offline Tests &amp; Release Check">全量离线测试与发版自检</strong></td>
+              <td class="mono-cell">cargo test --locked --offline &amp;&amp; ag release-check</td>
+              <td data-zh="自动隔离临时目录运行测试，绝不触碰本机 ~/.agent-guardian；核验 Entitlements 与签名边界" data-en="Runs in isolated temp dirs without touching ~/.agent-guardian; verifies Entitlements and signing boundaries">自动隔离临时目录运行测试，绝不触碰本机 ~/.agent-guardian；核验 Entitlements 与签名边界</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="guardian-action-grid">
+        <article class="guardian-action-card" id="guardian-dmg-panel" data-offer-id="agent-guardian-mac-dmg" data-card-slot="guardian_dmg_card">
+          <div class="partner-title">
+            <span data-zh="macOS Apple Silicon (v3.20.0) 快速启用" data-en="macOS Apple Silicon (v3.20.0) Quick Setup">macOS Apple Silicon (v3.20.0) 快速启用</span>
+            <span class="badge badge-save">macOS arm64 · MIT</span>
+          </div>
+          <p class="partner-desc" data-zh="拖入 /Applications 后，将以下两行写入 ~/.zshrc 即可启用零污染 ag 终端命令，并在守护未运行时自动按需唤醒：" data-en="After dragging Agent Guardian.app into /Applications, add these two lines to ~/.zshrc to enable zero-pollution ag commands with on-demand daemon auto-bootstrap:">拖入 /Applications 后，将以下两行写入 ~/.zshrc 即可启用零污染 ag 终端命令，并在守护未运行时自动按需唤醒：</p>
+          <pre class="cfg-code-block" id="agZshHookCode">export PATH="$HOME/.local/bin:/Applications/Agent Guardian.app/Contents/MacOS:$PATH"
+eval "$(ag shell-hook zsh)"</pre>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="cta-copy-cfg" style="flex:1 1 180px;" data-copy-target="#agZshHookCode" data-copy-slot="guardian_zsh_hook" data-zh="复制 ~/.zshrc 配置片段" data-en="Copy ~/.zshrc Hook Snippet">复制 ~/.zshrc 配置片段</button>
+            <a href="#agCliQuickCmds" class="guardian-cta-btn primary" style="flex:1 1 180px;" data-offer-id="agent-guardian-mac-dmg" data-card-slot="guardian_dmg_card" data-zh="确认 DMG 接入步骤" data-en="Use DMG Setup Guide">确认 DMG 接入步骤</a>
+          </div>
+        </article>
+
+        <article class="guardian-action-card" id="guardian-waitlist-panel" data-offer-id="agent-guardian-waitlist" data-card-slot="guardian_waitlist_card">
+          <div class="partner-title">
+            <span data-zh="源码自编译 &amp; 团队发行意向记录" data-en="Source Build &amp; Team Release Intent">源码自编译 &amp; 团队发行意向记录</span>
+            <span class="badge badge-global">Rust 2021 + Swift</span>
+          </div>
+          <p class="partner-desc" data-zh="支持完全离线校验与打包（cargo test --locked --offline 与 package_commercial_dmg.sh）；若需团队策略模板或 Linux/CI 版优先通知，可点击下方按钮记录意向：" data-en="Build and verify 100% offline (cargo test --locked --offline &amp; package_commercial_dmg.sh). Click below to record team/release interest or copy the full build pipeline:">支持完全离线校验与打包（cargo test --locked --offline 与 package_commercial_dmg.sh）；若需团队策略模板或 Linux/CI 版优先通知，可点击下方按钮记录意向：</p>
+          <pre class="cfg-code-block" id="agSourceBuildCode">python3 scripts/build_ui_v3.py &amp;&amp; cargo test --locked --offline
+bash scripts/build_mac_app.sh &amp;&amp; bash scripts/package_commercial_dmg.sh</pre>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="cta-copy-cfg" style="flex:1 1 180px;" data-copy-target="#agSourceBuildCode" data-copy-slot="guardian_source_build" data-zh="复制构建与离线测试命令" data-en="Copy Build &amp; Test Commands">复制构建与离线测试命令</button>
+            <button type="button" class="guardian-cta-btn secondary" style="flex:1 1 180px;" data-offer-id="agent-guardian-waitlist" data-card-slot="guardian_waitlist_card" data-zh="登记 v3.20+ 发行与团队意向" data-en="Record Release / Team Intent">登记 v3.20+ 发行与团队意向</button>
+          </div>
+        </article>
+      </div>
+
+      <div class="panel" id="agCliQuickCmds" style="margin-top:14px;">
+        <div class="panel-header">
+          <div class="panel-title" data-zh="日常高频 ag CLI 实战命令速查" data-en="Daily High-Frequency ag CLI Cheat Sheet">日常高频 ag CLI 实战命令速查</div>
+          <button type="button" class="icon-btn" data-copy-target="#agDailyCmdsBlock" data-copy-slot="guardian_daily_cmds" data-zh="复制常用命令" data-en="Copy CLI Commands">复制常用命令</button>
+        </div>
+        <pre class="cfg-code-block" id="agDailyCmdsBlock">ag status                                                   # Real daemon liveness &amp; 4-State check
+ag claude --smart --worktree feat-auth                      # Offline 5h load failover + isolated Git worktree
+ag workspace audit --fix-unmanaged --preset balanced_dev    # Zero-trust audit &amp; batch guardrail binding
+ag mcp vault-secrets codex-plus                             # Move plaintext MCP keys into 0600 XNU vault
+ag doctor --probe-ai                                        # Zero-key probe across 4 AI endpoints &amp; DNS leaks
+ag workspace usage --export /tmp/ag-finops.csv              # Offline 5h/7d FinOps export (formula-safe CSV)</pre>
+        <div class="guardian-companion-strip">
+          <span data-zh="想先盘点过去 30 天本地 Claude / Codex / Antigravity / OpenCode 的真实 Token 花费并对比省钱模型？" data-en="Want to audit your last 30 days of local Claude / Codex / Antigravity / OpenCode spend and find cheaper API routes?">想先盘点过去 30 天本地 Claude / Codex / Antigravity / OpenCode 的真实 Token 花费并对比省钱模型？</span>
+          <span>
+            <a href="{auditor_href}" data-zh="打开海外账单体检台 (USD) →" data-en="Open Global Spend Auditor (USD) →">打开海外账单体检台 (USD) →</a>
+            &nbsp;·&nbsp;
+            <a href="{calc_home}" data-zh="国内模型 &amp; Coding Plan 比价 →" data-en="CN Models &amp; Coding Plan Calculator →">国内模型 &amp; Coding Plan 比价 →</a>
+          </span>
+        </div>
+      </div>
+    </section>"""
+
+
 def build_status_badge_svg(quote_verified_date: str, total_models: int) -> str:
     left_text = "AI Cost Radar"
     right_text = f"报价核验 {quote_verified_date} · {total_models} models"
@@ -1296,31 +1636,62 @@ def build_json_ld(
     total_models: int,
     page_title: str,
     page_description: str,
+    *,
+    page_kind: str = "calculator",
+    faq_entries: list[dict[str, str]] | None = None,
 ) -> tuple[str, str]:
-    webapp_ld = {
-        "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": page_title,
-        "url": site_url,
-        "dateModified": updated_date,
-        "schemaVersion": f"quote-verified-{quote_verified_date}",
-        "applicationCategory": "DeveloperApplication",
-        "operatingSystem": "All",
-        "inLanguage": ["zh-CN", "en"],
-        "description": page_description,
-        "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "CNY",
-        },
-        "featureList": [
-            f"Verified {total_models} Global & Domestic CN LLM API Pricing Table (No-JS SSR HTML)",
-            "2026 Domestic Coding Plan Official Call Quota (90,000/mo Pro, 18,000/mo Lite) & First-Month vs Renewal Calculator",
-            "Protocol-Specific Claude Code (Anthropic sk-sp-) vs OpenAI-Compatible Pay-As-You-Go Endpoint Generator",
-            "Split Prompt Cache Hit-Rate Simulator & Adjustable Reasoning Multiplier",
-            "Shareable Reproducible URLSearchParams Calculation Links",
-        ],
-    }
+    entries = faq_entries if faq_entries is not None else FAQ_ENTRIES
+    if page_kind == "product_landing":
+        webapp_ld = {
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": page_title,
+            "url": site_url,
+            "dateModified": updated_date,
+            "softwareVersion": "3.20.0",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "macOS 12+ (Apple Silicon arm64)",
+            "license": "https://opensource.org/licenses/MIT",
+            "inLanguage": ["zh-CN", "en"],
+            "description": page_description,
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD",
+            },
+            "featureList": [
+                "Concurrent Zero-Pollution Multi-Account Isolation for Claude Code, Codex CLI, Gemini CLI & OpenCode",
+                "Dual-Mode Sandboxing: XNU Seatbelt (Mode A) & Apple VZ + HostNetworkBroker (Mode B)",
+                "Fail-Closed 502 Zero Direct Broadband Fallback & 403 Zero-Payload Outbound Domain Firewall",
+                "4-CLI Zero-Key MCP Secrets Vault (AES-256-GCM) & Quarantine",
+                "100% Offline Cache-Aware 5h Rolling Quota Radar & Parallel Git Worktree Guardrails",
+            ],
+        }
+    else:
+        webapp_ld = {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": page_title,
+            "url": site_url,
+            "dateModified": updated_date,
+            "schemaVersion": f"quote-verified-{quote_verified_date}",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "All",
+            "inLanguage": ["zh-CN", "en"],
+            "description": page_description,
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "CNY",
+            },
+            "featureList": [
+                f"Verified {total_models} Global & Domestic CN LLM API Pricing Table (No-JS SSR HTML)",
+                "2026 Domestic Coding Plan Official Call Quota (90,000/mo Pro, 18,000/mo Lite) & First-Month vs Renewal Calculator",
+                "Protocol-Specific Claude Code (Anthropic sk-sp-) vs OpenAI-Compatible Pay-As-You-Go Endpoint Generator",
+                "Split Prompt Cache Hit-Rate Simulator & Adjustable Reasoning Multiplier",
+                "Shareable Reproducible URLSearchParams Calculation Links",
+            ],
+        }
 
     faq_ld = {
         "@context": "https://schema.org",
@@ -1334,16 +1705,17 @@ def build_json_ld(
                     "text": item["a"],
                 },
             }
-            for item in FAQ_ENTRIES
+            for item in entries
         ],
     }
 
     return safe_json_for_html_script(webapp_ld), safe_json_for_html_script(faq_ld)
 
 
-def build_faq_html() -> str:
+def build_faq_html(faq_entries: list[dict[str, str]] | None = None) -> str:
+    entries = faq_entries if faq_entries is not None else FAQ_ENTRIES
     blocks: list[str] = []
-    for idx, item in enumerate(FAQ_ENTRIES):
+    for idx, item in enumerate(entries):
         open_attr = " open" if idx == 0 else ""
         q_esc = html.escape(item["q"])
         a_esc = html.escape(item["a"])
@@ -1412,6 +1784,7 @@ def build_seo_nav_html(base_prefix: str, active_slug: str) -> str:
         "claude-code-domestic/": "navTopicClaudeCode",
         "dify-openclaw-cloud-server/": "navTopicDifyHost",
         "ai-coding-spend-auditor/": "navTopicGlobalSpend",
+        "agent-guardian/": "navTopicAgentGuardian",
     }
     links: list[str] = []
     for r in SEO_ROUTES:
@@ -1469,6 +1842,8 @@ def build_site(
         base_prefix = "" if is_root else "../"
         route_canonical = resolved_site_url + slug
         route_key = "/" + slug
+        page_kind = str(route.get("page_kind") or "calculator")
+        is_product = page_kind == "product_landing"
 
         app_payload = {
             "build_date": build_date,
@@ -1478,12 +1853,15 @@ def build_site(
             "source": source_label,
             "fx_rate_usd_to_rmb": fx_rate,
             "route_path": route_key,
+            "page_kind": page_kind,
             "affiliates": affiliates,
-            "coding_plans": coding_plans,
+            "coding_plans": coding_plans if not is_product else [],
             "page_preset": route["preset"],
-            "models": models,
+            "models": models if not is_product else [],
         }
         embedded_json = safe_json_for_html_script(app_payload)
+        route_faq_entries = AGENT_GUARDIAN_FAQ_ENTRIES if is_product else FAQ_ENTRIES
+        route_faq_html = build_faq_html(route_faq_entries) if is_product else faq_html
         json_ld_webapp, json_ld_faq = build_json_ld(
             route_canonical,
             build_date,
@@ -1491,12 +1869,21 @@ def build_site(
             len(models),
             route["title"],
             route["description"],
+            page_kind=page_kind,
+            faq_entries=route_faq_entries,
         )
         seo_nav_html = build_seo_nav_html(base_prefix, slug)
-        ssr_models_table_html = build_ssr_models_table_html(
-            models=models,
-            quote_verified_date=quote_verified_date,
-            open_by_default=(slug == "deepseek-vs-qwen/"),
+        ssr_models_table_html = (
+            ""
+            if is_product
+            else build_ssr_models_table_html(
+                models=models,
+                quote_verified_date=quote_verified_date,
+                open_by_default=(slug == "deepseek-vs-qwen/"),
+            )
+        )
+        custom_main_html = (
+            build_agent_guardian_main_html(base_prefix, quote_verified_date) if is_product else ""
         )
 
         html_output = render_html_template(
@@ -1511,8 +1898,8 @@ def build_site(
             total_models=len(models),
             cn_models_count=cn_count,
             global_models_count=global_count,
-            faq_html_items=faq_html,
-            ssr_coding_plan_tables_html=ssr_coding_plan_tables_html,
+            faq_html_items=route_faq_html,
+            ssr_coding_plan_tables_html="" if is_product else ssr_coding_plan_tables_html,
             ssr_models_table_html=ssr_models_table_html,
             hero_title_main=html.escape(route["hero_main"]),
             hero_title_accent=html.escape(route["hero_accent"]),
@@ -1523,6 +1910,29 @@ def build_site(
             api_json_href=f"{base_prefix}api/models_live.json",
             badge_svg_href=f"{base_prefix}badges/coding-plan-status.svg",
             html_lang=route.get("html_lang", "zh-CN"),
+            page_kind=page_kind,
+            custom_main_html=custom_main_html,
+            base_prefix=base_prefix,
+            faq_title_zh=(
+                "Agent Guardian 多账号隔离、双模沙箱与离线雷达常见问题 (FAQ)"
+                if is_product
+                else "大模型 API 计费核对、专属端点与自建边界常见问题 (FAQ)"
+            ),
+            faq_title_en=(
+                "Agent Guardian Multi-Account Isolation, Sandbox & Offline Radar FAQ"
+                if is_product
+                else "LLM Billing Verification, Dedicated Endpoints & Self-Host Break-Even FAQ"
+            ),
+            faq_desc_zh=(
+                "围绕 Fail-Closed 502、XNU Seatbelt / Apple VZ、四大 CLI 隔离与 MCP 密钥保险箱的常见疑问解答。"
+                if is_product
+                else ""
+            ),
+            faq_desc_en=(
+                "Answers covering Fail-Closed 502, XNU Seatbelt / Apple VZ, 4-CLI isolation, and MCP secrets vault."
+                if is_product
+                else ""
+            ),
         )
 
         out_file = target_dist / "index.html" if is_root else (target_dist / slug.strip("/") / "index.html")

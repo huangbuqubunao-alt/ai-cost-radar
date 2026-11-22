@@ -36,6 +36,7 @@ ALLOWED_ROUTES: frozenset[str] = frozenset(
         "/claude-code-domestic/",
         "/dify-openclaw-cloud-server/",
         "/ai-coding-spend-auditor/",
+        "/agent-guardian/",
     }
 )
 

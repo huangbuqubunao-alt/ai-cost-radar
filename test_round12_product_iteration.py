@@ -631,7 +631,7 @@ console.log(JSON.stringify(outputs));
                 dist_dir=dist_default,
                 site_url="https://ai-cost-radar-nlu.pages.dev/",
             )
-            self.assertEqual(summary["seo_pages_count"], 6)
+            self.assertGreaterEqual(summary["seo_pages_count"], 7)
 
             # 1. Dual hosted CLI scripts (byte-identical)
             cli_legacy = dist_default / "audit_local_claude.py"
@@ -774,6 +774,173 @@ console.log(JSON.stringify(outputs));
             self.assertIn("syncConfigModalPartnerCta", en_html)
             self.assertIn("primary_result_novita", en_html)
             self.assertIn("config_modal_novita", en_html)
+
+    def test_07_agent_guardian_bilingual_landing_page_and_telemetry(self) -> None:
+        """Verify Task D-01: /agent-guardian/ bilingual SSR page (>=4 tables), verified facts, cross-links & D1 telemetry route."""
+        from html.parser import HTMLParser
+        import build_site
+        import events_reconcile
+
+        class GuardianParser(HTMLParser):
+            def __init__(self) -> None:
+                super().__init__()
+                self.tables: list[str] = []
+                self.canonical: str | None = None
+                self.json_ld_types: list[str] = []
+                self._in_json_ld = False
+                self._buf: list[str] = []
+
+            def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+                attr_map = dict(attrs)
+                if tag == "table":
+                    self.tables.append(attr_map.get("id") or "")
+                elif tag == "link" and attr_map.get("rel") == "canonical":
+                    self.canonical = attr_map.get("href")
+                elif tag == "script" and attr_map.get("type") == "application/ld+json":
+                    self._in_json_ld = True
+                    self._buf = []
+
+            def handle_endtag(self, tag: str) -> None:
+                if tag == "script" and self._in_json_ld:
+                    self._in_json_ld = False
+                    payload = json.loads("".join(self._buf))
+                    if isinstance(payload, dict) and "@type" in payload:
+                        self.json_ld_types.append(str(payload["@type"]))
+
+            def handle_data(self, data: str) -> None:
+                if self._in_json_ld:
+                    self._buf.append(data)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dist_tmp = Path(tmpdir) / "dist"
+            summary = build_site.build_site(
+                dist_dir=dist_tmp,
+                site_url="https://ai-cost-radar-nlu.pages.dev/",
+            )
+            self.assertGreaterEqual(summary["seo_pages_count"], 7)
+
+            ag_page = dist_tmp / "agent-guardian" / "index.html"
+            self.assertTrue(ag_page.is_file(), "Missing dist/agent-guardian/index.html")
+            ag_html = ag_page.read_text(encoding="utf-8")
+
+            parser = GuardianParser()
+            parser.feed(ag_html)
+            self.assertEqual(
+                parser.canonical,
+                "https://ai-cost-radar-nlu.pages.dev/agent-guardian/",
+            )
+            self.assertGreaterEqual(len(parser.tables), 4, f"Expected >= 4 tables, got {parser.tables}")
+            self.assertEqual(
+                set(parser.tables),
+                {
+                    "agBareVsGuardianTable",
+                    "agModeCompareTable",
+                    "agCliMatrixTable",
+                    "agReleaseMatrixTable",
+                },
+            )
+            self.assertIn("SoftwareApplication", parser.json_ld_types)
+            self.assertIn("FAQPage", parser.json_ld_types)
+
+            # Strictly verified v3.20.0 facts from Agent Guardian README.md
+            for expected_fact in (
+                "v3.20.0",
+                "XNU Seatbelt",
+                "HostNetworkBroker",
+                "502",
+                "403",
+                "Claude Code",
+                "Codex CLI",
+                "Gemini CLI",
+                "OpenCode",
+                "ag mcp vault-secrets",
+                "--worktree",
+                "Dist/Agent-Guardian-3.20.0-arm64.dmg".lower(),
+                "cargo test --locked --offline",
+                'data-offer-id="agent-guardian-mac-dmg"',
+                'data-offer-id="agent-guardian-waitlist"',
+                "data-zh=",
+                "data-en=",
+            ):
+                self.assertIn(expected_fact.lower(), ag_html.lower())
+
+            # Inline JS syntax check via node --check
+            import re
+
+            scripts = re.findall(r"<script>([\s\S]*?)</script>", ag_html)
+            self.assertGreaterEqual(len(scripts), 1)
+            for script in scripts:
+                subprocess.run(["node", "--check"], input=script, text=True, check=True)
+
+            # Sitemap & cross-links from index.html and /ai-coding-spend-auditor/
+            sitemap_xml = (dist_tmp / "sitemap.xml").read_text(encoding="utf-8")
+            self.assertIn("https://ai-cost-radar-nlu.pages.dev/agent-guardian/", sitemap_xml)
+            root_html = (dist_tmp / "index.html").read_text(encoding="utf-8")
+            auditor_html = (dist_tmp / "ai-coding-spend-auditor" / "index.html").read_text(encoding="utf-8")
+            self.assertIn("agent-guardian/", root_html)
+            self.assertIn("../agent-guardian/", auditor_html)
+
+        # D1 route allowlists in both events_reconcile.py and functions/events.js
+        self.assertIn("/agent-guardian/", events_reconcile.ALLOWED_ROUTES)
+        ok, _, clean = events_reconcile.validate_event_payload(
+            {
+                "event_name": "affiliate_click",
+                "day_bucket": "2026-11-22",
+                "browser_day_id": "ag_test_user_01",
+                "route": "/agent-guardian/",
+                "offer_id": "agent-guardian-mac-dmg",
+                "slot_id": "guardian_hero_dmg",
+            }
+        )
+        self.assertTrue(ok)
+        self.assertEqual(clean["route"], "/agent-guardian/")
+        self.assertEqual(clean["offer_id"], "agent-guardian-mac-dmg")
+
+        events_js = (ROOT / "functions" / "events.js").read_text(encoding="utf-8")
+        self.assertIn('"/agent-guardian/"', events_js)
+
+        node_events_runner = """
+import fs from "node:fs";
+const source = fs.readFileSync("functions/events.js", "utf8");
+const { onRequestPost } = await import("data:text/javascript;base64," + Buffer.from(source).toString("base64"));
+let capturedBinds = null;
+const mockDb = {
+  prepare() {
+    return {
+      bind(...args) {
+        capturedBinds = args;
+        return { run: async () => ({ success: true }) };
+      }
+    };
+  }
+};
+const req = new Request("https://example.test/events", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    event_name: "affiliate_click",
+    day_bucket: "2026-11-22",
+    browser_day_id: "ag_user_1234",
+    route: "/agent-guardian/",
+    source_channel: "direct_or_unknown",
+    offer_id: "agent-guardian-waitlist",
+    slot_id: "guardian_hero_waitlist"
+  })
+});
+const res = await onRequestPost({ request: req, env: { DB: mockDb } });
+console.log(JSON.stringify({ status: res.status, capturedBinds }));
+"""
+        proc_ev = subprocess.run(
+            ["node", "--input-type=module", "-e", node_events_runner],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        ev_out = json.loads(proc_ev.stdout.strip())
+        self.assertEqual(ev_out["status"], 202)
+        self.assertEqual(ev_out["capturedBinds"][2], "/agent-guardian/")
+        self.assertEqual(ev_out["capturedBinds"][5], "agent-guardian-waitlist")
 
 
 if __name__ == "__main__":

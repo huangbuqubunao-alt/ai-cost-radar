@@ -32,7 +32,7 @@ class Round1Batch1PipelineTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as tmp:
                 tmp_dist = Path(tmp) / "isolated_dist"
                 summary = build_site.build_site(dist_dir=tmp_dist)
-                self.assertEqual(summary["seo_pages_count"], 6)
+                self.assertGreaterEqual(summary["seo_pages_count"], 7)
                 cp_html = (tmp_dist / "coding-plan-2026" / "index.html").read_text(encoding="utf-8")
                 self.assertIn(
                     '<link rel="canonical" href="https://ai-cost-radar-nlu.pages.dev/coding-plan-2026/" />',

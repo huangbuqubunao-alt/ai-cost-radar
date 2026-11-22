@@ -20,6 +20,7 @@ const ALLOWED_ROUTES = new Set([
   "/claude-code-domestic/",
   "/dify-openclaw-cloud-server/",
   "/ai-coding-spend-auditor/",
+  "/agent-guardian/",
 ]);
 
 const SAFE_TOKEN_RE = /^[A-Za-z0-9_./:\-]{1,96}$/;

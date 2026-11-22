@@ -32,9 +32,381 @@ def render_html_template(
     api_json_href: str = "api/models_live.json",
     badge_svg_href: str = "badges/coding-plan-status.svg",
     html_lang: str = "zh-CN",
+    page_kind: str = "calculator",
+    custom_main_html: str = "",
+    base_prefix: str = "",
+    faq_title_zh: str = "大模型 API 计费核对、专属端点与自建边界常见问题 (FAQ)",
+    faq_title_en: str = "LLM Billing Verification, Dedicated Endpoints & Self-Host Break-Even FAQ",
+    faq_desc_zh: str = "",
+    faq_desc_en: str = "",
 ) -> str:
     og_locale = "en_US" if html_lang == "en" else "zh_CN"
     og_alt = "zh_CN" if html_lang == "en" else "en_US"
+    is_product_landing = page_kind == "product_landing"
+    resolved_faq_desc_zh = faq_desc_zh or f"覆盖国内 {cn_models_count} 款直连模型与全球 {global_models_count} 款主流模型的常见计费误区说明。"
+    resolved_faq_desc_en = faq_desc_en or "Covers common quota, prompt-cache, and endpoint pitfalls across domestic CN and global LLM APIs."
+    calc_home_href = base_prefix or "./"
+    nav_actions_html = (
+        f'<a class="icon-btn" href="{calc_home_href}" data-zh="← 成本计算器" data-en="← Cost Calculator">← 成本计算器</a>'
+        if is_product_landing
+        else """<div class="region-switcher" role="tablist" aria-label="Region and Currency Switcher">
+          <button type="button" class="region-btn active" data-region="all" id="regionBtnAll">全部对比 (All)</button>
+          <button type="button" class="region-btn" data-region="cn" id="regionBtnCn">国内直连 · 人民币 (¥)</button>
+          <button type="button" class="region-btn" data-region="global" id="regionBtnGlobal">Global · USD ($)</button>
+        </div>
+
+        <button type="button" class="icon-btn" id="shareCalcBtn" title="复制带当前输入参数的可复算链接">复制可复算链接</button>"""
+    )
+    live_pill_html = (
+        "v3.20.0 · macOS arm64 原生"
+        if is_product_landing
+        else f"报价核验 {quote_verified_date} · {total_models} 款模型"
+    )
+    audit_meta_inner_html = (
+        f"""<strong>组件版本</strong>：v3.20.0 (MIT) &nbsp;|&nbsp;
+        <strong>事实基线</strong>：macOS Apple Silicon (arm64) 实测能力核验 ({updated_date}) &nbsp;|&nbsp;
+        <strong>统计口径</strong>：仅用短期按日轮换标识记录<strong>估算日 UV</strong>与按钮点击转化，零第三方追踪 SDK"""
+        if is_product_landing
+        else f"""<strong>页面构建日</strong>：{updated_date} &nbsp;|&nbsp;
+        <strong>报价核验日</strong>：{quote_verified_date} &nbsp;|&nbsp;
+        <strong>统计口径</strong>：仅用短期按日轮换标识记录<strong>估算日 UV</strong>与卡片视口曝光，零第三方统计 SDK"""
+    )
+    if is_product_landing:
+        main_sections_html = custom_main_html
+    else:
+        main_sections_html = f"""<section class="hero">
+      <div class="hero-top">
+        <div>
+          <h1>
+            <span data-i18n="heroTitleMain">{hero_title_main}</span><span class="hero-accent" data-i18n="heroTitleAccent">{hero_title_accent}</span>
+          </h1>
+          <p data-i18n="heroSubtitle">{hero_subtitle}</p>
+        </div>
+        <nav class="quick-jumps" aria-label="Quick section links">
+          <a href="#codingPlanSection" class="jump-chip" data-i18n="jumpCodingPlan">Coding Plan 核验表</a>
+          <a href="#modelsSection" class="jump-chip" data-i18n="jumpModels">模型比价目录 ({total_models})</a>
+          <a href="#selfHostBanner" class="jump-chip" data-i18n="jumpSelfHost">缓存网关与自建总账</a>
+          <a href="#faqSection" class="jump-chip" data-i18n="jumpFaq">计费规则问答</a>
+        </nav>
+      </div>
+
+      <div class="simulator-grid" id="simulatorSection">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title" data-i18n="simTitle">月度模型调用量与计费条件输入</div>
+            <div class="baseline-select-wrap">
+              <label for="usageModeSelect" data-i18n="usageModeLabel">调用场景:</label>
+              <select id="usageModeSelect" class="select-sm" aria-label="Workload Usage Mode">
+                <option value="interactive_ide" data-i18n="optModeIde">交互式编程工具 (Claude Code / Cursor / Cline)</option>
+                <option value="automated_backend" data-i18n="optModeBackend">非交互式后端 / 批处理 API（排除个人套餐）</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="preset-row" id="presetBar">
+            <button type="button" class="preset-btn" data-calls="800" data-in="4000" data-out="1000" data-mode="interactive_ide" data-i18n="presetIndie">独立开发 (800次/天 · 2.4万/月)</button>
+            <button type="button" class="preset-btn active" data-calls="2500" data-in="2000" data-out="800" data-mode="interactive_ide" data-i18n="presetPro">编程主力 (2,500次/天 · 7.5万/月)</button>
+            <button type="button" class="preset-btn" data-calls="5000" data-in="4000" data-out="1000" data-mode="interactive_ide" data-i18n="presetOver">超额反例 (5,000次/天 · 15万/月)</button>
+            <button type="button" class="preset-btn" data-calls="15000" data-in="2500" data-out="800" data-mode="automated_backend" data-i18n="presetBackend">自动化后端 (15,000次/天 · 排除个人套餐)</button>
+          </div>
+
+          <details class="usage-import-drawer" id="usageImportDrawer">
+            <summary data-i18n="usageImportSummary">从真实日志或多客户端账单导入（支持 Claude Code / Codex CLI .jsonl、Cline ui_messages.json 与云账单 CSV）</summary>
+            <div class="usage-import-body">
+              <div class="usage-import-fields">
+                <div class="usage-drop-zone" id="usageDropZone">
+                  <label class="usage-import-subhead" for="usageLogTextarea" data-i18n="usageLogLabel">方式一：上传或拖拽多份本地 CSV/TSV/JSON/JSONL 账单，或粘贴 Claude Code / Codex / Cline 日志</label>
+                  <div class="usage-drop-hint" data-i18n="usageDropHint">支持拖拽或一次多选最多 30 份 Claude Code (~/.claude)、Codex CLI (~/.codex)、Cline 会话与云账单 .csv 自动合并去重，并可按会话剔除单次峰值</div>
+                  <textarea id="usageLogTextarea" class="usage-import-textarea" rows="3" placeholder="示例：Input: 1.6M tokens / Cache read: 2.4M tokens / Output: 600k tokens / Requests: 1,200"></textarea>
+                  <div class="usage-import-actions">
+                    <label for="usageDaysSelect" style="font-size:0.76rem;color:var(--text-secondary);font-weight:600;" data-i18n="usageDaysLabel">日志统计周期:</label>
+                    <select id="usageDaysSelect" class="select-sm" aria-label="Usage Observation Window">
+                      <option value="1">近 1 天 (24h)</option>
+                      <option value="7">近 7 天</option>
+                      <option value="14">近 14 天</option>
+                      <option value="30" selected>近 30 天 (整月)</option>
+                    </select>
+                    <button type="button" class="usage-import-btn primary" id="applyUsageLogBtn" data-i18n="applyUsageLogBtn">解析并填入测算器</button>
+                    <label for="usageFileInput" class="usage-import-btn" tabindex="0" role="button" data-i18n="usageFileBtn">选择本地账单 (.csv/.tsv/.json/.jsonl · 支持多选)</label>
+                    <input type="file" id="usageFileInput" accept=".csv,.tsv,.json,.jsonl,.txt,.log" multiple hidden />
+                    <button type="button" class="usage-import-btn" id="fillSampleCsvBtn" data-i18n="fillSampleCsvBtn">填入多模型 CSV 账单示例</button>
+                    <button type="button" class="usage-import-btn" id="fillSampleJsonlBtn" data-i18n="fillSampleJsonlBtn">填入 Claude Code JSONL 示例</button>
+                    <button type="button" class="usage-import-btn" id="fillSampleLogBtn" data-i18n="fillSampleLogBtn">填入 Claude Code 示例</button>
+                  </div>
+                  <div class="unit-hint" style="margin-top:6px;" data-i18n="usagePrivacyNote">隐私承诺：账单与日志文件 100% 在本地浏览器内存解析，绝不上传至任何服务器。</div>
+                  <div class="usage-cli-bar" id="localCliAuditBar">
+                    <div class="usage-cli-copy">
+                      <span class="usage-cli-hint" data-i18n="localCliHint">不想手动翻找隐藏目录？终端一行只读扫描 ~/.claude、~/.codex 与 Cline 本地会话（零上传）：</span>
+                      <code class="usage-cli-code" id="localCliCmdCode">curl -fsSL https://ai-cost-radar-nlu.pages.dev/audit_local_claude.py | python3 - --days 30</code>
+                    </div>
+                    <button type="button" class="usage-import-btn" id="copyLocalCliCmdBtn" data-i18n="copyLocalCliCmdBtn">复制本地扫描命令</button>
+                  </div>
+                </div>
+                <hr class="usage-import-divider" />
+                <div>
+                  <div class="usage-import-subhead" data-i18n="usageMonthlyQuickLabel">方式二：按月度总账单逆向折算（自动换算日均调用、单次均值与缓存命中率）</div>
+                  <div class="usage-quick-grid">
+                    <div class="usage-quick-field">
+                      <label for="monthlyCallsQuick" data-i18n="labelMonthlyCallsQuick">月总请求数 (次/30天)</label>
+                      <input type="number" class="num-input" id="monthlyCallsQuick" min="1" max="60000000" step="100" placeholder="90000" />
+                    </div>
+                    <div class="usage-quick-field">
+                      <label for="monthlyInputMQuick" data-i18n="labelMonthlyInputMQuick">月总输入 (百万 M Tokens)</label>
+                      <input type="number" class="num-input" id="monthlyInputMQuick" min="0" max="1000000" step="0.1" placeholder="360" />
+                    </div>
+                    <div class="usage-quick-field">
+                      <label for="monthlyOutputMQuick" data-i18n="labelMonthlyOutputMQuick">月总输出 (百万 M Tokens)</label>
+                      <input type="number" class="num-input" id="monthlyOutputMQuick" min="0" max="1000000" step="0.1" placeholder="90" />
+                    </div>
+                    <div class="usage-quick-field">
+                      <label for="monthlyCachedMQuick" data-i18n="labelMonthlyCachedMQuick">其中缓存命中输入 (M, 可选)</label>
+                      <input type="number" class="num-input" id="monthlyCachedMQuick" min="0" max="1000000" step="0.1" placeholder="180" />
+                    </div>
+                  </div>
+                  <div class="usage-import-actions">
+                    <button type="button" class="usage-import-btn" id="applyMonthlyTotalsBtn" data-i18n="applyMonthlyTotalsBtn">按月度总额折算填入</button>
+                  </div>
+                </div>
+                <div class="usage-import-status" id="usageImportStatus" role="status" hidden></div>
+              </div>
+              <div class="usage-bill-breakdown" id="usageBillBreakdown" hidden></div>
+            </div>
+          </details>
+
+          <div class="control-group">
+            <div class="control-label-row">
+              <label class="control-label" for="dailyCallsNum" data-i18n="labelDailyCalls">每日模型 API 调用次数 (Daily Model Calls)</label>
+              <span class="control-meta" id="monthlyCallsMeta">30天预计: 75,000 次模型调用</span>
+            </div>
+            <div class="slider-input-wrap">
+              <input type="range" id="dailyCallsRange" min="0" max="1000" value="460" aria-label="Daily Model Calls Slider" />
+              <input type="number" class="num-input" id="dailyCallsNum" min="1" max="2000000" step="50" value="2500" />
+            </div>
+            <div class="unit-hint" data-i18n="unitHintCalls">
+              注意单位是模型 API 调用次数而非用户提问次数：在 Claude Code / Cline / Cursor 中提问 1 次通常连续触发 5～30 次模型调用。
+            </div>
+            <div class="preset-row" id="promptToCallsBar" style="margin-top:8px;margin-bottom:0;align-items:center;">
+              <span style="font-size:0.78rem;color:var(--text-secondary);font-weight:600;" data-i18n="promptCalcLabel">按每日提问数折算：</span>
+              <button type="button" class="preset-btn" data-prompt-calls="480" data-i18n="promptChipLight">轻度 40问×12次 = 480/天</button>
+              <button type="button" class="preset-btn" data-prompt-calls="2000" data-i18n="promptChipMid">主力 100问×20次 = 2,000/天</button>
+              <button type="button" class="preset-btn" data-prompt-calls="5000" data-i18n="promptChipHeavy">重度 200问×25次 = 5,000/天 [超Pro上限]</button>
+            </div>
+            <div class="prompt-custom-row" id="promptCustomRow">
+              <label for="promptCountInput" data-i18n="promptCustomPrefix">自定义提问折算：</label>
+              <input type="number" class="prompt-mini-input" id="promptCountInput" min="1" max="50000" step="5" value="100" aria-label="Daily User Prompts" />
+              <span data-i18n="promptCustomMid">问/天 × 单次触发</span>
+              <input type="number" class="prompt-mini-input" id="turnsPerPromptInput" min="1" max="200" step="1" value="25" aria-label="API Calls per Prompt" />
+              <span data-i18n="promptCustomSuffix">次调用</span>
+            </div>
+          </div>
+
+          <div class="control-two-col">
+            <div class="control-group">
+              <div class="control-label-row">
+                <label class="control-label" for="teamSizeInput" data-i18n="labelTeamSize">编程团队 IDE 席位数（1～50 人）</label>
+              </div>
+              <input type="number" class="num-input" id="teamSizeInput" min="1" max="50" step="1" value="1" />
+            </div>
+            <div class="control-group">
+              <div class="control-label-row">
+                <label class="control-label" for="peak5h" data-i18n="labelPeak5h">最忙的连续 5 小时调用次数（可选）</label>
+              </div>
+              <input type="number" class="num-input" id="peak5h" min="0" step="1" placeholder="未知" />
+            </div>
+          </div>
+          <div class="control-group">
+            <div class="control-label-row">
+              <label class="control-label" for="inputTokensNum" data-i18n="labelInputTokens">单次输入 Token (Avg Input Tokens)</label>
+              <span class="control-meta" id="monthlyInputMeta">月输入: 150.0M Tokens</span>
+            </div>
+            <div class="slider-input-wrap">
+              <input type="range" id="inputTokensRange" min="100" max="32000" step="100" value="2000" aria-label="Average Input Tokens Slider" />
+              <input type="number" class="num-input" id="inputTokensNum" min="1" max="500000" step="100" value="2000" />
+            </div>
+          </div>
+
+          <div class="control-group">
+            <div class="control-label-row">
+              <label class="control-label" for="outputTokensNum" data-i18n="labelOutputTokens">单次输出 Token (Avg Output Tokens)</label>
+              <span class="control-meta" id="monthlyOutputMeta">月输出: 60.0M Tokens</span>
+            </div>
+            <div class="slider-input-wrap">
+              <input type="range" id="outputTokensRange" min="50" max="8000" step="50" value="800" aria-label="Average Output Tokens Slider" />
+              <input type="number" class="num-input" id="outputTokensNum" min="1" max="128000" step="50" value="800" />
+            </div>
+          </div>
+
+          <div class="sim-options-grid">
+            <div class="opt-inline-row">
+              <label class="cache-toggle">
+                <input type="checkbox" id="cacheToggle" />
+                <span data-i18n="cacheLabel">启用 Prompt 缓存命中拆分（未命中按原价 + 命中按折扣价）</span>
+              </label>
+              <select id="cacheHitRateSelect" class="select-sm" aria-label="Prompt Cache Hit Rate">
+                <option value="0.3">命中率 30%</option>
+                <option value="0.5" selected>命中率 50% (推荐基准)</option>
+                <option value="0.7">命中率 70%</option>
+                <option value="0.85">命中率 85%</option>
+              </select>
+            </div>
+
+            <div class="opt-inline-row">
+              <label class="cache-toggle">
+                <input type="checkbox" id="reasoningToggle" />
+                <span data-i18n="reasoningLabel">附加隐式思考 Token 倍率假设</span>
+              </label>
+              <select id="reasoningMultSelect" class="select-sm" aria-label="Reasoning Token Multiplier">
+                <option value="1.5">思考倍率 1.5x</option>
+                <option value="2.5" selected>思考倍率 2.5x (默认假设)</option>
+                <option value="3.5">思考倍率 3.5x</option>
+              </select>
+            </div>
+
+            <div class="opt-inline-row">
+              <label class="cache-toggle">
+                <input type="checkbox" id="outputIncludesReasoningToggle" />
+                <span data-i18n="outputIncReasonLabel">上方填写的输出 Token 已包含思考部分（勾选后不再重复乘倍率）</span>
+              </label>
+              <label class="cache-toggle">
+                <input type="checkbox" id="batchToggle" />
+                <span data-i18n="batchLabel">显示 Batch 异步半价模型</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title" data-i18n="routingTitle">同模型按量基准对账与推荐方案</div>
+            <div class="baseline-select-wrap">
+              <label for="baselineSelect" data-i18n="baselineLabel">当前使用/对比基准模型:</label>
+              <select id="baselineSelect" class="select-sm" aria-label="Current Baseline Model"></select>
+            </div>
+          </div>
+
+          <div class="kpi-row">
+            <div class="kpi-box">
+              <div class="kpi-label" data-i18n="kpiFlagship">所选基准按量月账单</div>
+              <div class="kpi-val" id="kpiFlagshipVal">¥--</div>
+              <div class="kpi-sub" id="kpiFlagshipSub">--</div>
+            </div>
+            <div class="kpi-box">
+              <div class="kpi-label" data-i18n="kpiBestRoute">同筛选池最低按量月费</div>
+              <div class="kpi-val" id="kpiBestVal">¥--</div>
+              <div class="kpi-sub" id="kpiBestSub">--</div>
+            </div>
+            <div class="kpi-box highlight">
+              <div class="kpi-label" data-i18n="kpiSavings">同负载切换差额</div>
+              <div class="kpi-val" id="kpiSavePct">省 --%</div>
+              <div class="kpi-sub" id="kpiSaveAnnual">年差额 ¥--</div>
+            </div>
+          </div>
+
+          <div class="hybrid-card" id="hybridAdviceBox">
+            <div class="hybrid-title">
+              <span id="hybridTitleText">80/20 混合模型分层路由测算</span>
+              <span class="badge badge-save" id="hybridSaveBadge">省 --%</span>
+            </div>
+            <div class="hybrid-controls-row">
+              <select id="hybridRatioSelect" class="select-sm hybrid-select" aria-label="Routine traffic share">
+                <option value="0.7">70% 常规 / 30% 复杂</option>
+                <option value="0.8" selected>80% 常规 / 20% 复杂 (推荐)</option>
+                <option value="0.9">90% 常规 / 10% 复杂</option>
+              </select>
+              <select id="hybridRoutineSelect" class="select-sm hybrid-select" aria-label="Routine workhorse model">
+                <option value="auto">自动优选低价编码模型</option>
+              </select>
+              <button type="button" class="cta-copy-cfg" id="openHybridConfigBtn" style="width:auto;padding:4px 10px;font-size:0.75rem;" data-i18n="openHybridConfigBtn">生成 LiteLLM 路由配置</button>
+            </div>
+            <div class="hybrid-desc" id="hybridDescText">正在根据所选基准模型计算...</div>
+          </div>
+
+          <div class="primary-rec-box" id="primaryWorkloadRec"></div>
+          <div class="verdict-share-row">
+            <span class="verdict-share-hint" data-i18n="verdictShareHint">可将当前输入参数、同模型按量与套餐核验结论发给团队复算：</span>
+            <div class="verdict-share-btns">
+              <button type="button" class="icon-btn" id="copySummaryBtn" data-i18n="copySummaryBtn">复制对账结论单</button>
+              <button type="button" class="icon-btn" id="copyMarkdownBtn" data-i18n="copyMarkdownBtn">复制 Markdown 选型表</button>
+              <button type="button" class="icon-btn" id="printAuditBtn" data-i18n="printAuditBtn">打印 / 导出 PDF 立项单</button>
+              <button type="button" class="icon-btn" id="saveBillSnapshotBtn" data-i18n="saveBillSnapshotBtn">存为月度基线快照</button>
+              <button type="button" class="icon-btn" id="clearBillSnapshotBtn" data-i18n="clearBillSnapshotBtn" hidden>清除基线快照</button>
+            </div>
+          </div>
+          <div id="billSnapshotDiffBanner" class="bill-snapshot-banner" style="margin-top:10px;margin-bottom:0;" role="status" hidden></div>
+          <div class="guardian-companion-strip" id="guardianCompanionStrip">
+            <span data-zh="多账号防串号与本地 5h 额度护栏？" data-en="Need multi-account isolation &amp; 5h quota guardrails?">多账号防串号与本地 5h 额度护栏？</span>
+            <a href="{calc_home_href}agent-guardian/" data-zh="查看 Agent Guardian macOS 原生沙箱工作台 →" data-en="Explore Agent Guardian (macOS XNU + VZ Sandbox) →">查看 Agent Guardian macOS 原生沙箱工作台 →</a>
+          </div>
+        </div>
+      </div>
+
+      <div id="selfHostBanner" class="selfhost-banner"></div>
+    </section>
+
+    <section class="section-block" id="codingPlanSection">
+      <div class="section-head">
+        <h2 data-i18n="codingPlanTitle">2026 国内 Coding Plan 包月套餐 vs 同模型按量对账（区分首月与续费）</h2>
+        <p id="codingPlanSubtitle" data-i18n="codingPlanDesc">阿里云百炼 Pro 与腾讯云 Pro 额度均为 6,000次/5h、45,000次/周、90,000次/月；腾讯云 Lite 为 1,200 / 9,000 / 18,000 次，百炼 Lite 已停止新购。</p>
+      </div>
+
+      <div class="verdict-banner" id="codingPlanLiveVerdict"></div>
+      <div class="coding-plan-grid" id="codingPlanGrid"></div>
+
+      {ssr_coding_plan_tables_html}
+    </section>
+
+    <section class="section-block" id="modelsSection">
+      <div class="section-head">
+        <h2 data-i18n="modelsSectionTitle">全量海内外模型按量实时比价（基于上方同一组输入条件）</h2>
+        <p data-i18n="modelsSectionDesc">点击任一模型的「设为对账基准」可切换比对基线，点击「配置专属端点」可生成 Claude Code 或 OpenAI 兼容环境变量。</p>
+      </div>
+
+      <div class="toolbar">
+        <div class="pill-bar" id="filterPills" role="tablist" aria-label="Model Category Filters">
+          <button type="button" class="filter-pill active" data-filter="all">
+            <span data-i18n="pillAll">全部</span> <span class="pill-count" id="count-all">0</span>
+          </button>
+          <button type="button" class="filter-pill" data-filter="coding">
+            <span data-i18n="pillCoding">编程/Agent</span> <span class="pill-count" id="count-coding">0</span>
+          </button>
+          <button type="button" class="filter-pill" data-filter="reasoning">
+            <span data-i18n="pillReasoning">深度推理</span> <span class="pill-count" id="count-reasoning">0</span>
+          </button>
+          <button type="button" class="filter-pill" data-filter="cn_direct">
+            <span data-i18n="pillCnDirect">国内合规直连</span> <span class="pill-count" id="count-cn_direct">0</span>
+          </button>
+          <button type="button" class="filter-pill" data-filter="free">
+            <span data-i18n="pillFree">免费额度</span> <span class="pill-count" id="count-free">0</span>
+          </button>
+        </div>
+
+        <div class="search-sort-group">
+          <input type="search" id="searchInput" class="search-input" placeholder="搜索 DeepSeek / Qwen / Hunyuan / Claude..." aria-label="Search models" />
+          <select id="sortSelect" class="select-sm" style="max-width:210px;padding:7px 10px;border-radius:999px;" aria-label="Sort models">
+            <option value="cost_asc" id="optSortCostAsc">月成本：从低到高</option>
+            <option value="value_desc" id="optSortValue">综合性价比评分优先</option>
+            <option value="cost_desc" id="optSortCostDesc">单价：从高到低</option>
+            <option value="ctx_desc" id="optSortCtx">上下文窗口：从大到小</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="compare-tray" id="compareTray" hidden></div>
+      <div class="models-grid" id="modelsGrid"></div>
+      <div class="show-more-wrap" id="showMoreWrap" style="display:none;">
+        <button type="button" class="show-more-btn" id="showMoreBtn"></button>
+      </div>
+
+      {ssr_models_table_html}
+    </section>
+
+    <section class="section-block" id="subsidyMatrix">
+      <div class="section-head">
+        <h2 data-i18n="matrixTitle">官方控制台与云主机入口目录（含推广关系透明说明）</h2>
+        <p data-i18n="matrixDesc">标注各渠道真实计费类型（包月订阅 / 按量池 / 云主机）与合作伙伴链接属性，点击直达对应平台官方页面。</p>
+      </div>
+      <div class="partner-grid" id="partnerMatrixGrid"></div>
+    </section>"""
     return f"""<!DOCTYPE html>
 <html lang="{html_lang}" data-theme="dark">
 <head>
@@ -2166,6 +2538,148 @@ def render_html_template(
       color: var(--text-secondary);
     }}
 
+    .guardian-companion-strip {{
+      margin-top: 10px;
+      padding: 8px 11px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(16, 185, 129, 0.28);
+      background: var(--emerald-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 0.77rem;
+      color: var(--text-secondary);
+    }}
+
+    .guardian-companion-strip a {{
+      color: var(--emerald-text);
+      font-weight: 700;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }}
+
+    .guardian-cta-row {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 14px 0 8px;
+      align-items: center;
+    }}
+
+    .guardian-cta-btn {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 750;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: var(--transition);
+      text-decoration: none;
+    }}
+
+    .guardian-cta-btn.primary {{
+      background: var(--emerald);
+      color: #ffffff;
+    }}
+
+    .guardian-cta-btn.primary:hover {{
+      background: #059669;
+    }}
+
+    .guardian-cta-btn.secondary {{
+      background: var(--bg-card);
+      border-color: var(--border-strong);
+      color: var(--text-primary);
+    }}
+
+    .guardian-cta-btn.secondary:hover {{
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }}
+
+    .guardian-pillar-grid {{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }}
+
+    @media (max-width: 960px) {{
+      .guardian-pillar-grid {{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }}
+    }}
+
+    @media (max-width: 620px) {{
+      .guardian-pillar-grid {{
+        grid-template-columns: 1fr;
+      }}
+    }}
+
+    .guardian-pillar-card {{
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }}
+
+    .guardian-pillar-card h3 {{
+      font-size: 0.94rem;
+      font-weight: 760;
+      color: var(--text-primary);
+      line-height: 1.35;
+    }}
+
+    .guardian-pillar-card p {{
+      font-size: 0.81rem;
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }}
+
+    .guardian-action-grid {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }}
+
+    @media (max-width: 780px) {{
+      .guardian-action-grid {{
+        grid-template-columns: 1fr;
+      }}
+    }}
+
+    .guardian-action-card {{
+      background: var(--bg-card);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: var(--shadow-card);
+    }}
+
+    .guardian-status-toast {{
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      background: var(--emerald-soft);
+      color: var(--emerald-text);
+      font-size: 0.8rem;
+      font-weight: 650;
+    }}
+
     .print-audit-stamp {{
       display: none;
     }}
@@ -2285,20 +2799,14 @@ def render_html_template(
         <div>
           <div class="brand-text-title">
             <span data-i18n="brandTitle">智算省钱路由台 · AI Cost Radar</span>
-            <span class="live-pill" id="liveStatusPill">报价核验 {quote_verified_date} · {total_models} 款模型</span>
+            <span class="live-pill" id="liveStatusPill">{live_pill_html}</span>
           </div>
           <div class="brand-sub" data-i18n="brandSub">大模型 API 与 Coding Plan 额度验算台 · 同模型按量对账与专属端点核对</div>
         </div>
       </div>
 
       <div class="nav-actions">
-        <div class="region-switcher" role="tablist" aria-label="Region and Currency Switcher">
-          <button type="button" class="region-btn active" data-region="all" id="regionBtnAll">全部对比 (All)</button>
-          <button type="button" class="region-btn" data-region="cn" id="regionBtnCn">国内直连 · 人民币 (¥)</button>
-          <button type="button" class="region-btn" data-region="global" id="regionBtnGlobal">Global · USD ($)</button>
-        </div>
-
-        <button type="button" class="icon-btn" id="shareCalcBtn" title="复制带当前输入参数的可复算链接">复制可复算链接</button>
+        {nav_actions_html}
         <button type="button" class="icon-btn" id="langToggleBtn" title="Switch Language 中/EN"><span id="langLabel">EN</span></button>
         <button type="button" class="icon-btn" id="themeToggleBtn" title="Toggle Dark/Light Theme"><span id="themeLabel">浅色</span></button>
       </div>
@@ -2310,9 +2818,7 @@ def render_html_template(
 
     <div class="audit-meta-bar" id="auditMetaBar">
       <div id="auditMetaText">
-        <strong>页面构建日</strong>：{updated_date} &nbsp;|&nbsp;
-        <strong>报价核验日</strong>：{quote_verified_date} &nbsp;|&nbsp;
-        <strong>统计口径</strong>：仅用短期按日轮换标识记录<strong>估算日 UV</strong>与卡片视口曝光，零第三方统计 SDK
+        {audit_meta_inner_html}
       </div>
       <div class="audit-meta-links">
         <a href="https://help.aliyun.com/zh/model-studio/coding-plan" target="_blank" rel="noopener" data-i18n="metaLinkAliyun">百炼官方规则</a>
@@ -2325,340 +2831,12 @@ def render_html_template(
     <div class="stale-quote-banner" id="staleQuoteBanner" role="status"></div>
     <div class="print-audit-stamp" id="printAuditStamp"></div>
 
-    <section class="hero">
-      <div class="hero-top">
-        <div>
-          <h1>
-            <span data-i18n="heroTitleMain">{hero_title_main}</span><span class="hero-accent" data-i18n="heroTitleAccent">{hero_title_accent}</span>
-          </h1>
-          <p data-i18n="heroSubtitle">{hero_subtitle}</p>
-        </div>
-        <nav class="quick-jumps" aria-label="Quick section links">
-          <a href="#codingPlanSection" class="jump-chip" data-i18n="jumpCodingPlan">Coding Plan 核验表</a>
-          <a href="#modelsSection" class="jump-chip" data-i18n="jumpModels">模型比价目录 ({total_models})</a>
-          <a href="#selfHostBanner" class="jump-chip" data-i18n="jumpSelfHost">缓存网关与自建总账</a>
-          <a href="#faqSection" class="jump-chip" data-i18n="jumpFaq">计费规则问答</a>
-        </nav>
-      </div>
-
-      <div class="simulator-grid" id="simulatorSection">
-        <div class="panel">
-          <div class="panel-header">
-            <div class="panel-title" data-i18n="simTitle">月度模型调用量与计费条件输入</div>
-            <div class="baseline-select-wrap">
-              <label for="usageModeSelect" data-i18n="usageModeLabel">调用场景:</label>
-              <select id="usageModeSelect" class="select-sm" aria-label="Workload Usage Mode">
-                <option value="interactive_ide" data-i18n="optModeIde">交互式编程工具 (Claude Code / Cursor / Cline)</option>
-                <option value="automated_backend" data-i18n="optModeBackend">非交互式后端 / 批处理 API（排除个人套餐）</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="preset-row" id="presetBar">
-            <button type="button" class="preset-btn" data-calls="800" data-in="4000" data-out="1000" data-mode="interactive_ide" data-i18n="presetIndie">独立开发 (800次/天 · 2.4万/月)</button>
-            <button type="button" class="preset-btn active" data-calls="2500" data-in="2000" data-out="800" data-mode="interactive_ide" data-i18n="presetPro">编程主力 (2,500次/天 · 7.5万/月)</button>
-            <button type="button" class="preset-btn" data-calls="5000" data-in="4000" data-out="1000" data-mode="interactive_ide" data-i18n="presetOver">超额反例 (5,000次/天 · 15万/月)</button>
-            <button type="button" class="preset-btn" data-calls="15000" data-in="2500" data-out="800" data-mode="automated_backend" data-i18n="presetBackend">自动化后端 (15,000次/天 · 排除个人套餐)</button>
-          </div>
-
-          <details class="usage-import-drawer" id="usageImportDrawer">
-            <summary data-i18n="usageImportSummary">从真实日志或多客户端账单导入（支持 Claude Code / Codex CLI .jsonl、Cline ui_messages.json 与云账单 CSV）</summary>
-            <div class="usage-import-body">
-              <div class="usage-import-fields">
-                <div class="usage-drop-zone" id="usageDropZone">
-                  <label class="usage-import-subhead" for="usageLogTextarea" data-i18n="usageLogLabel">方式一：上传或拖拽多份本地 CSV/TSV/JSON/JSONL 账单，或粘贴 Claude Code / Codex / Cline 日志</label>
-                  <div class="usage-drop-hint" data-i18n="usageDropHint">支持拖拽或一次多选最多 30 份 Claude Code (~/.claude)、Codex CLI (~/.codex)、Cline 会话与云账单 .csv 自动合并去重，并可按会话剔除单次峰值</div>
-                  <textarea id="usageLogTextarea" class="usage-import-textarea" rows="3" placeholder="示例：Input: 1.6M tokens / Cache read: 2.4M tokens / Output: 600k tokens / Requests: 1,200"></textarea>
-                  <div class="usage-import-actions">
-                    <label for="usageDaysSelect" style="font-size:0.76rem;color:var(--text-secondary);font-weight:600;" data-i18n="usageDaysLabel">日志统计周期:</label>
-                    <select id="usageDaysSelect" class="select-sm" aria-label="Usage Observation Window">
-                      <option value="1">近 1 天 (24h)</option>
-                      <option value="7">近 7 天</option>
-                      <option value="14">近 14 天</option>
-                      <option value="30" selected>近 30 天 (整月)</option>
-                    </select>
-                    <button type="button" class="usage-import-btn primary" id="applyUsageLogBtn" data-i18n="applyUsageLogBtn">解析并填入测算器</button>
-                    <label for="usageFileInput" class="usage-import-btn" tabindex="0" role="button" data-i18n="usageFileBtn">选择本地账单 (.csv/.tsv/.json/.jsonl · 支持多选)</label>
-                    <input type="file" id="usageFileInput" accept=".csv,.tsv,.json,.jsonl,.txt,.log" multiple hidden />
-                    <button type="button" class="usage-import-btn" id="fillSampleCsvBtn" data-i18n="fillSampleCsvBtn">填入多模型 CSV 账单示例</button>
-                    <button type="button" class="usage-import-btn" id="fillSampleJsonlBtn" data-i18n="fillSampleJsonlBtn">填入 Claude Code JSONL 示例</button>
-                    <button type="button" class="usage-import-btn" id="fillSampleLogBtn" data-i18n="fillSampleLogBtn">填入 Claude Code 示例</button>
-                  </div>
-                  <div class="unit-hint" style="margin-top:6px;" data-i18n="usagePrivacyNote">隐私承诺：账单与日志文件 100% 在本地浏览器内存解析，绝不上传至任何服务器。</div>
-                  <div class="usage-cli-bar" id="localCliAuditBar">
-                    <div class="usage-cli-copy">
-                      <span class="usage-cli-hint" data-i18n="localCliHint">不想手动翻找隐藏目录？终端一行只读扫描 ~/.claude、~/.codex 与 Cline 本地会话（零上传）：</span>
-                      <code class="usage-cli-code" id="localCliCmdCode">curl -fsSL https://ai-cost-radar-nlu.pages.dev/audit_local_claude.py | python3 - --days 30</code>
-                    </div>
-                    <button type="button" class="usage-import-btn" id="copyLocalCliCmdBtn" data-i18n="copyLocalCliCmdBtn">复制本地扫描命令</button>
-                  </div>
-                </div>
-                <hr class="usage-import-divider" />
-                <div>
-                  <div class="usage-import-subhead" data-i18n="usageMonthlyQuickLabel">方式二：按月度总账单逆向折算（自动换算日均调用、单次均值与缓存命中率）</div>
-                  <div class="usage-quick-grid">
-                    <div class="usage-quick-field">
-                      <label for="monthlyCallsQuick" data-i18n="labelMonthlyCallsQuick">月总请求数 (次/30天)</label>
-                      <input type="number" class="num-input" id="monthlyCallsQuick" min="1" max="60000000" step="100" placeholder="90000" />
-                    </div>
-                    <div class="usage-quick-field">
-                      <label for="monthlyInputMQuick" data-i18n="labelMonthlyInputMQuick">月总输入 (百万 M Tokens)</label>
-                      <input type="number" class="num-input" id="monthlyInputMQuick" min="0" max="1000000" step="0.1" placeholder="360" />
-                    </div>
-                    <div class="usage-quick-field">
-                      <label for="monthlyOutputMQuick" data-i18n="labelMonthlyOutputMQuick">月总输出 (百万 M Tokens)</label>
-                      <input type="number" class="num-input" id="monthlyOutputMQuick" min="0" max="1000000" step="0.1" placeholder="90" />
-                    </div>
-                    <div class="usage-quick-field">
-                      <label for="monthlyCachedMQuick" data-i18n="labelMonthlyCachedMQuick">其中缓存命中输入 (M, 可选)</label>
-                      <input type="number" class="num-input" id="monthlyCachedMQuick" min="0" max="1000000" step="0.1" placeholder="180" />
-                    </div>
-                  </div>
-                  <div class="usage-import-actions">
-                    <button type="button" class="usage-import-btn" id="applyMonthlyTotalsBtn" data-i18n="applyMonthlyTotalsBtn">按月度总额折算填入</button>
-                  </div>
-                </div>
-                <div class="usage-import-status" id="usageImportStatus" role="status" hidden></div>
-              </div>
-              <div class="usage-bill-breakdown" id="usageBillBreakdown" hidden></div>
-            </div>
-          </details>
-
-          <div class="control-group">
-            <div class="control-label-row">
-              <label class="control-label" for="dailyCallsNum" data-i18n="labelDailyCalls">每日模型 API 调用次数 (Daily Model Calls)</label>
-              <span class="control-meta" id="monthlyCallsMeta">30天预计: 75,000 次模型调用</span>
-            </div>
-            <div class="slider-input-wrap">
-              <input type="range" id="dailyCallsRange" min="0" max="1000" value="460" aria-label="Daily Model Calls Slider" />
-              <input type="number" class="num-input" id="dailyCallsNum" min="1" max="2000000" step="50" value="2500" />
-            </div>
-            <div class="unit-hint" data-i18n="unitHintCalls">
-              注意单位是模型 API 调用次数而非用户提问次数：在 Claude Code / Cline / Cursor 中提问 1 次通常连续触发 5～30 次模型调用。
-            </div>
-            <div class="preset-row" id="promptToCallsBar" style="margin-top:8px;margin-bottom:0;align-items:center;">
-              <span style="font-size:0.78rem;color:var(--text-secondary);font-weight:600;" data-i18n="promptCalcLabel">按每日提问数折算：</span>
-              <button type="button" class="preset-btn" data-prompt-calls="480" data-i18n="promptChipLight">轻度 40问×12次 = 480/天</button>
-              <button type="button" class="preset-btn" data-prompt-calls="2000" data-i18n="promptChipMid">主力 100问×20次 = 2,000/天</button>
-              <button type="button" class="preset-btn" data-prompt-calls="5000" data-i18n="promptChipHeavy">重度 200问×25次 = 5,000/天 [超Pro上限]</button>
-            </div>
-            <div class="prompt-custom-row" id="promptCustomRow">
-              <label for="promptCountInput" data-i18n="promptCustomPrefix">自定义提问折算：</label>
-              <input type="number" class="prompt-mini-input" id="promptCountInput" min="1" max="50000" step="5" value="100" aria-label="Daily User Prompts" />
-              <span data-i18n="promptCustomMid">问/天 × 单次触发</span>
-              <input type="number" class="prompt-mini-input" id="turnsPerPromptInput" min="1" max="200" step="1" value="25" aria-label="API Calls per Prompt" />
-              <span data-i18n="promptCustomSuffix">次调用</span>
-            </div>
-          </div>
-
-          <div class="control-two-col">
-            <div class="control-group">
-              <div class="control-label-row">
-                <label class="control-label" for="teamSizeInput" data-i18n="labelTeamSize">编程团队 IDE 席位数（1～50 人）</label>
-              </div>
-              <input type="number" class="num-input" id="teamSizeInput" min="1" max="50" step="1" value="1" />
-            </div>
-            <div class="control-group">
-              <div class="control-label-row">
-                <label class="control-label" for="peak5h" data-i18n="labelPeak5h">最忙的连续 5 小时调用次数（可选）</label>
-              </div>
-              <input type="number" class="num-input" id="peak5h" min="0" step="1" placeholder="未知" />
-            </div>
-          </div>
-          <div class="control-group">
-            <div class="control-label-row">
-              <label class="control-label" for="inputTokensNum" data-i18n="labelInputTokens">单次输入 Token (Avg Input Tokens)</label>
-              <span class="control-meta" id="monthlyInputMeta">月输入: 150.0M Tokens</span>
-            </div>
-            <div class="slider-input-wrap">
-              <input type="range" id="inputTokensRange" min="100" max="32000" step="100" value="2000" aria-label="Average Input Tokens Slider" />
-              <input type="number" class="num-input" id="inputTokensNum" min="1" max="500000" step="100" value="2000" />
-            </div>
-          </div>
-
-          <div class="control-group">
-            <div class="control-label-row">
-              <label class="control-label" for="outputTokensNum" data-i18n="labelOutputTokens">单次输出 Token (Avg Output Tokens)</label>
-              <span class="control-meta" id="monthlyOutputMeta">月输出: 60.0M Tokens</span>
-            </div>
-            <div class="slider-input-wrap">
-              <input type="range" id="outputTokensRange" min="50" max="8000" step="50" value="800" aria-label="Average Output Tokens Slider" />
-              <input type="number" class="num-input" id="outputTokensNum" min="1" max="128000" step="50" value="800" />
-            </div>
-          </div>
-
-          <div class="sim-options-grid">
-            <div class="opt-inline-row">
-              <label class="cache-toggle">
-                <input type="checkbox" id="cacheToggle" />
-                <span data-i18n="cacheLabel">启用 Prompt 缓存命中拆分（未命中按原价 + 命中按折扣价）</span>
-              </label>
-              <select id="cacheHitRateSelect" class="select-sm" aria-label="Prompt Cache Hit Rate">
-                <option value="0.3">命中率 30%</option>
-                <option value="0.5" selected>命中率 50% (推荐基准)</option>
-                <option value="0.7">命中率 70%</option>
-                <option value="0.85">命中率 85%</option>
-              </select>
-            </div>
-
-            <div class="opt-inline-row">
-              <label class="cache-toggle">
-                <input type="checkbox" id="reasoningToggle" />
-                <span data-i18n="reasoningLabel">附加隐式思考 Token 倍率假设</span>
-              </label>
-              <select id="reasoningMultSelect" class="select-sm" aria-label="Reasoning Token Multiplier">
-                <option value="1.5">思考倍率 1.5x</option>
-                <option value="2.5" selected>思考倍率 2.5x (默认假设)</option>
-                <option value="3.5">思考倍率 3.5x</option>
-              </select>
-            </div>
-
-            <div class="opt-inline-row">
-              <label class="cache-toggle">
-                <input type="checkbox" id="outputIncludesReasoningToggle" />
-                <span data-i18n="outputIncReasonLabel">上方填写的输出 Token 已包含思考部分（勾选后不再重复乘倍率）</span>
-              </label>
-              <label class="cache-toggle">
-                <input type="checkbox" id="batchToggle" />
-                <span data-i18n="batchLabel">显示 Batch 异步半价模型</span>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-header">
-            <div class="panel-title" data-i18n="routingTitle">同模型按量基准对账与推荐方案</div>
-            <div class="baseline-select-wrap">
-              <label for="baselineSelect" data-i18n="baselineLabel">当前使用/对比基准模型:</label>
-              <select id="baselineSelect" class="select-sm" aria-label="Current Baseline Model"></select>
-            </div>
-          </div>
-
-          <div class="kpi-row">
-            <div class="kpi-box">
-              <div class="kpi-label" data-i18n="kpiFlagship">所选基准按量月账单</div>
-              <div class="kpi-val" id="kpiFlagshipVal">¥--</div>
-              <div class="kpi-sub" id="kpiFlagshipSub">--</div>
-            </div>
-            <div class="kpi-box">
-              <div class="kpi-label" data-i18n="kpiBestRoute">同筛选池最低按量月费</div>
-              <div class="kpi-val" id="kpiBestVal">¥--</div>
-              <div class="kpi-sub" id="kpiBestSub">--</div>
-            </div>
-            <div class="kpi-box highlight">
-              <div class="kpi-label" data-i18n="kpiSavings">同负载切换差额</div>
-              <div class="kpi-val" id="kpiSavePct">省 --%</div>
-              <div class="kpi-sub" id="kpiSaveAnnual">年差额 ¥--</div>
-            </div>
-          </div>
-
-          <div class="hybrid-card" id="hybridAdviceBox">
-            <div class="hybrid-title">
-              <span id="hybridTitleText">80/20 混合模型分层路由测算</span>
-              <span class="badge badge-save" id="hybridSaveBadge">省 --%</span>
-            </div>
-            <div class="hybrid-controls-row">
-              <select id="hybridRatioSelect" class="select-sm hybrid-select" aria-label="Routine traffic share">
-                <option value="0.7">70% 常规 / 30% 复杂</option>
-                <option value="0.8" selected>80% 常规 / 20% 复杂 (推荐)</option>
-                <option value="0.9">90% 常规 / 10% 复杂</option>
-              </select>
-              <select id="hybridRoutineSelect" class="select-sm hybrid-select" aria-label="Routine workhorse model">
-                <option value="auto">自动优选低价编码模型</option>
-              </select>
-              <button type="button" class="cta-copy-cfg" id="openHybridConfigBtn" style="width:auto;padding:4px 10px;font-size:0.75rem;" data-i18n="openHybridConfigBtn">生成 LiteLLM 路由配置</button>
-            </div>
-            <div class="hybrid-desc" id="hybridDescText">正在根据所选基准模型计算...</div>
-          </div>
-
-          <div class="primary-rec-box" id="primaryWorkloadRec"></div>
-          <div class="verdict-share-row">
-            <span class="verdict-share-hint" data-i18n="verdictShareHint">可将当前输入参数、同模型按量与套餐核验结论发给团队复算：</span>
-            <div class="verdict-share-btns">
-              <button type="button" class="icon-btn" id="copySummaryBtn" data-i18n="copySummaryBtn">复制对账结论单</button>
-              <button type="button" class="icon-btn" id="copyMarkdownBtn" data-i18n="copyMarkdownBtn">复制 Markdown 选型表</button>
-              <button type="button" class="icon-btn" id="printAuditBtn" data-i18n="printAuditBtn">打印 / 导出 PDF 立项单</button>
-              <button type="button" class="icon-btn" id="saveBillSnapshotBtn" data-i18n="saveBillSnapshotBtn">存为月度基线快照</button>
-              <button type="button" class="icon-btn" id="clearBillSnapshotBtn" data-i18n="clearBillSnapshotBtn" hidden>清除基线快照</button>
-            </div>
-          </div>
-          <div id="billSnapshotDiffBanner" class="bill-snapshot-banner" style="margin-top:10px;margin-bottom:0;" role="status" hidden></div>
-        </div>
-      </div>
-
-      <div id="selfHostBanner" class="selfhost-banner"></div>
-    </section>
-
-    <section class="section-block" id="codingPlanSection">
-      <div class="section-head">
-        <h2 data-i18n="codingPlanTitle">2026 国内 Coding Plan 包月套餐 vs 同模型按量对账（区分首月与续费）</h2>
-        <p id="codingPlanSubtitle" data-i18n="codingPlanDesc">阿里云百炼 Pro 与腾讯云 Pro 额度均为 6,000次/5h、45,000次/周、90,000次/月；腾讯云 Lite 为 1,200 / 9,000 / 18,000 次，百炼 Lite 已停止新购。</p>
-      </div>
-
-      <div class="verdict-banner" id="codingPlanLiveVerdict"></div>
-      <div class="coding-plan-grid" id="codingPlanGrid"></div>
-
-      {ssr_coding_plan_tables_html}
-    </section>
-
-    <section class="section-block" id="modelsSection">
-      <div class="section-head">
-        <h2 data-i18n="modelsSectionTitle">全量海内外模型按量实时比价（基于上方同一组输入条件）</h2>
-        <p data-i18n="modelsSectionDesc">点击任一模型的「设为对账基准」可切换比对基线，点击「配置专属端点」可生成 Claude Code 或 OpenAI 兼容环境变量。</p>
-      </div>
-
-      <div class="toolbar">
-        <div class="pill-bar" id="filterPills" role="tablist" aria-label="Model Category Filters">
-          <button type="button" class="filter-pill active" data-filter="all">
-            <span data-i18n="pillAll">全部</span> <span class="pill-count" id="count-all">0</span>
-          </button>
-          <button type="button" class="filter-pill" data-filter="coding">
-            <span data-i18n="pillCoding">编程/Agent</span> <span class="pill-count" id="count-coding">0</span>
-          </button>
-          <button type="button" class="filter-pill" data-filter="reasoning">
-            <span data-i18n="pillReasoning">深度推理</span> <span class="pill-count" id="count-reasoning">0</span>
-          </button>
-          <button type="button" class="filter-pill" data-filter="cn_direct">
-            <span data-i18n="pillCnDirect">国内合规直连</span> <span class="pill-count" id="count-cn_direct">0</span>
-          </button>
-          <button type="button" class="filter-pill" data-filter="free">
-            <span data-i18n="pillFree">免费额度</span> <span class="pill-count" id="count-free">0</span>
-          </button>
-        </div>
-
-        <div class="search-sort-group">
-          <input type="search" id="searchInput" class="search-input" placeholder="搜索 DeepSeek / Qwen / Hunyuan / Claude..." aria-label="Search models" />
-          <select id="sortSelect" class="select-sm" style="max-width:210px;padding:7px 10px;border-radius:999px;" aria-label="Sort models">
-            <option value="cost_asc" id="optSortCostAsc">月成本：从低到高</option>
-            <option value="value_desc" id="optSortValue">综合性价比评分优先</option>
-            <option value="cost_desc" id="optSortCostDesc">单价：从高到低</option>
-            <option value="ctx_desc" id="optSortCtx">上下文窗口：从大到小</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="compare-tray" id="compareTray" hidden></div>
-      <div class="models-grid" id="modelsGrid"></div>
-      <div class="show-more-wrap" id="showMoreWrap" style="display:none;">
-        <button type="button" class="show-more-btn" id="showMoreBtn"></button>
-      </div>
-
-      {ssr_models_table_html}
-    </section>
-
-    <section class="section-block" id="subsidyMatrix">
-      <div class="section-head">
-        <h2 data-i18n="matrixTitle">官方控制台与云主机入口目录（含推广关系透明说明）</h2>
-        <p data-i18n="matrixDesc">标注各渠道真实计费类型（包月订阅 / 按量池 / 云主机）与合作伙伴链接属性，点击直达对应平台官方页面。</p>
-      </div>
-      <div class="partner-grid" id="partnerMatrixGrid"></div>
-    </section>
+    {main_sections_html}
 
     <section class="section-block" id="faqSection">
       <div class="section-head">
-        <h2 data-i18n="faqTitle">大模型 API 计费核对、专属端点与自建边界常见问题 (FAQ)</h2>
-        <p data-i18n="faqDesc">覆盖国内 {cn_models_count} 款直连模型与全球 {global_models_count} 款主流模型的常见计费误区说明。</p>
+        <h2 data-zh="{faq_title_zh}" data-en="{faq_title_en}">{faq_title_zh}</h2>
+        <p data-zh="{resolved_faq_desc_zh}" data-en="{resolved_faq_desc_en}">{resolved_faq_desc_zh}</p>
       </div>
       <div class="faq-list">
         {faq_html_items}
@@ -2751,6 +2929,8 @@ def render_html_template(
     const FX = Number(APP_DATA.fx_rate_usd_to_rmb) || 7.25;
     const QUOTE_VERIFIED_DATE = String(APP_DATA.quote_verified_date || "2026-11-13");
     const ROUTE_PATH = String(APP_DATA.route_path || window.location.pathname || "/");
+    const PAGE_KIND = String(APP_DATA.page_kind || "calculator");
+    const IS_PRODUCT_LANDING = PAGE_KIND === "product_landing";
 
     const PRO_MONTHLY_CAP = 90000;
     const PRO_5H_CAP = 6000;
@@ -5283,6 +5463,7 @@ def render_html_template(
     }}
 
     function initBaselines() {{
+      if (IS_PRODUCT_LANDING) return;
       const select = document.getElementById("baselineSelect");
       const baselines = MODELS;
       const cnPaid = baselines.filter(m => m.region === "cn_direct").sort((a, b) => a.blended_rmb_per_1m - b.blended_rmb_per_1m);
@@ -6988,6 +7169,16 @@ def render_html_template(
     }}
 
     function restoreFromPresetAndQuery() {{
+      if (IS_PRODUCT_LANDING) {{
+        const p = new URLSearchParams(window.location.search);
+        const ql = p.get("lang");
+        if (ql === "en" || ql === "zh") {{
+          state.lang = ql;
+        }} else if (PAGE_PRESET && (PAGE_PRESET.lang === "en" || PAGE_PRESET.lang === "zh")) {{
+          state.lang = safeGetStorage("ai_cost_lang", PAGE_PRESET.lang) === "en" ? "en" : "zh";
+        }}
+        return;
+      }}
       if (PAGE_PRESET) {{
         if (PAGE_PRESET.lang === "en" || PAGE_PRESET.lang === "zh") {{
           state.lang = PAGE_PRESET.lang;
@@ -7620,6 +7811,7 @@ def render_html_template(
       navTopicClaudeCode: "Claude Code Endpoints",
       navTopicDifyHost: "Backend Cache & GPU",
       navTopicGlobalSpend: "Global Spend Auditor",
+      navTopicAgentGuardian: "Agent Guardian Sandbox",
       metaLinkAliyun: "Aliyun Rules",
       metaLinkTencent: "Tencent Rules",
       metaLinkAtom: "Atom Price Feed",
@@ -7745,9 +7937,15 @@ def render_html_template(
 
       const livePill = document.getElementById("liveStatusPill");
       if (livePill) {{
-        livePill.textContent = isEn
-          ? `Quotes Verified ${{QUOTE_VERIFIED_DATE}} · ${{MODELS.length}} Models`
-          : `报价核验 ${{QUOTE_VERIFIED_DATE}} · ${{MODELS.length}} 款模型`;
+        if (IS_PRODUCT_LANDING) {{
+          livePill.textContent = isEn
+            ? "v3.20.0 · macOS Apple Silicon (arm64)"
+            : "v3.20.0 · macOS arm64 原生";
+        }} else {{
+          livePill.textContent = isEn
+            ? `Quotes Verified ${{QUOTE_VERIFIED_DATE}} · ${{MODELS.length}} Models`
+            : `报价核验 ${{QUOTE_VERIFIED_DATE}} · ${{MODELS.length}} 款模型`;
+        }}
       }}
       const cliCodeEl = document.getElementById("localCliCmdCode");
       if (cliCodeEl) {{
@@ -7757,9 +7955,15 @@ def render_html_template(
           : `curl -fsSL https://ai-cost-radar-nlu.pages.dev/audit_local_claude.py | python3 - --days ${{dVal}}`;
       }}
       if (auditMetaEl) {{
-        auditMetaEl.innerHTML = isEn
-          ? `<strong>Built</strong>: ${{esc(APP_DATA.build_date || APP_DATA.updated_at || QUOTE_VERIFIED_DATE)}} &nbsp;|&nbsp; <strong>Quotes Verified</strong>: ${{esc(QUOTE_VERIFIED_DATE)}} &nbsp;|&nbsp; <strong>Telemetry</strong>: First-party daily rotating token for <strong>Estimated Daily UV</strong> &amp; viewport CTR (zero 3rd-party SDKs)`
-          : ORIG_AUDIT_META_HTML;
+        if (IS_PRODUCT_LANDING) {{
+          auditMetaEl.innerHTML = isEn
+            ? `<strong>Release</strong>: v3.20.0 (MIT) &nbsp;|&nbsp; <strong>Fact Baseline</strong>: macOS Apple Silicon (arm64) verified capabilities (${{esc(APP_DATA.build_date || QUOTE_VERIFIED_DATE)}}) &nbsp;|&nbsp; <strong>Telemetry</strong>: First-party daily rotating token for <strong>Estimated Daily UV</strong> &amp; CTA clicks (zero 3rd-party SDKs)`
+            : ORIG_AUDIT_META_HTML;
+        }} else {{
+          auditMetaEl.innerHTML = isEn
+            ? `<strong>Built</strong>: ${{esc(APP_DATA.build_date || APP_DATA.updated_at || QUOTE_VERIFIED_DATE)}} &nbsp;|&nbsp; <strong>Quotes Verified</strong>: ${{esc(QUOTE_VERIFIED_DATE)}} &nbsp;|&nbsp; <strong>Telemetry</strong>: First-party daily rotating token for <strong>Estimated Daily UV</strong> &amp; viewport CTR (zero 3rd-party SDKs)`
+            : ORIG_AUDIT_META_HTML;
+        }}
       }}
       const clickBadge = document.getElementById("clickTelemetryBadge");
       if (clickBadge) {{
@@ -7843,19 +8047,30 @@ def render_html_template(
       const optCfgPayg = document.getElementById("optCfgPayg");
       if (optCfgPayg) optCfgPayg.textContent = isEn ? "Pay-As-You-Go API (Standard sk- Endpoint)" : "按量付费 API（通用端点 sk-）";
 
-      document.getElementById("regionBtnAll").textContent = isEn ? "All Regions" : "全部对比 (All)";
-      document.getElementById("regionBtnCn").textContent = isEn ? "CN Direct · RMB (¥)" : "国内直连 · 人民币 (¥)";
-      document.getElementById("regionBtnGlobal").textContent = isEn ? "Global · USD ($)" : "Global · USD ($)";
-      document.getElementById("shareCalcBtn").textContent = isEn ? "Copy Shareable Link" : "复制可复算链接";
-      document.getElementById("peak5h").placeholder = isEn ? "Unknown" : "未知";
-      document.getElementById("searchInput").placeholder = isEn
+      const rAll = document.getElementById("regionBtnAll");
+      if (rAll) rAll.textContent = isEn ? "All Regions" : "全部对比 (All)";
+      const rCn = document.getElementById("regionBtnCn");
+      if (rCn) rCn.textContent = isEn ? "CN Direct · RMB (¥)" : "国内直连 · 人民币 (¥)";
+      const rGl = document.getElementById("regionBtnGlobal");
+      if (rGl) rGl.textContent = isEn ? "Global · USD ($)" : "Global · USD ($)";
+      const shBtn = document.getElementById("shareCalcBtn");
+      if (shBtn) shBtn.textContent = isEn ? "Copy Shareable Link" : "复制可复算链接";
+      const pk5h = document.getElementById("peak5h");
+      if (pk5h) pk5h.placeholder = isEn ? "Unknown" : "未知";
+      const srchIn = document.getElementById("searchInput");
+      if (srchIn) srchIn.placeholder = isEn
         ? "Search DeepSeek / Qwen / Hunyuan / Claude..."
         : "搜索 DeepSeek / Qwen / Hunyuan / Claude...";
-      document.getElementById("optSortCostAsc").textContent = isEn ? "Monthly Cost: Low to High" : "月成本：从低到高";
-      document.getElementById("optSortValue").textContent = isEn ? "Best Value Score First" : "综合性价比评分优先";
-      document.getElementById("optSortCostDesc").textContent = isEn ? "Unit Price: High to Low" : "单价：从高到低";
-      document.getElementById("optSortCtx").textContent = isEn ? "Context Window: Largest" : "上下文窗口：从大到小";
-      document.getElementById("cfgModalTitle").textContent = isEn
+      const sAsc = document.getElementById("optSortCostAsc");
+      if (sAsc) sAsc.textContent = isEn ? "Monthly Cost: Low to High" : "月成本：从低到高";
+      const sVal = document.getElementById("optSortValue");
+      if (sVal) sVal.textContent = isEn ? "Best Value Score First" : "综合性价比评分优先";
+      const sDesc = document.getElementById("optSortCostDesc");
+      if (sDesc) sDesc.textContent = isEn ? "Unit Price: High to Low" : "单价：从高到低";
+      const sCtx = document.getElementById("optSortCtx");
+      if (sCtx) sCtx.textContent = isEn ? "Context Window: Largest" : "上下文窗口：从大到小";
+      const cfgTitle = document.getElementById("cfgModalTitle");
+      if (cfgTitle) cfgTitle.textContent = isEn
         ? "Dedicated Endpoint Generator (Client × Billing Mode)"
         : "按客户端与计费模式生成专属接入配置";
 
@@ -7874,14 +8089,18 @@ def render_html_template(
           if (map[opt.value]) opt.textContent = map[opt.value];
         }});
       }}
-      renderUsageImportStatus();
-      renderUsageBillBreakdown();
-
-      renderPartnerMatrix();
+      if (!IS_PRODUCT_LANDING) {{
+        renderUsageImportStatus();
+        renderUsageBillBreakdown();
+        renderPartnerMatrix();
+      }}
       applyTheme(state.theme);
-      updateAll(false);
-      if (document.getElementById("configModal").classList.contains("open")) {{
-        refreshConfigModalSnippets();
+      if (!IS_PRODUCT_LANDING) {{
+        updateAll(false);
+        const cfgModalEl = document.getElementById("configModal");
+        if (cfgModalEl && cfgModalEl.classList.contains("open")) {{
+          refreshConfigModalSnippets();
+        }}
       }}
     }}
 
@@ -7922,6 +8141,10 @@ def render_html_template(
     }}
 
     function bindEvents() {{
+      if (IS_PRODUCT_LANDING) {{
+        initProductLandingPage();
+        return;
+      }}
       document.querySelectorAll(".region-btn").forEach(btn => {{
         btn.addEventListener("click", () => {{
           document.querySelectorAll(".region-btn").forEach(b => b.classList.remove("active"));
@@ -8591,7 +8814,7 @@ def render_html_template(
           openConfigModalForPlan(copyPlanBtn.getAttribute("data-copy-plan"), copyPlanBtn);
           return;
         }}
-        const offerLink = e.target.closest("a[data-offer-id], a[rel~='sponsored']");
+        const offerLink = e.target.closest("a[data-offer-id], button[data-offer-id], a[rel~='sponsored']");
         if (offerLink) {{
           const offerId = offerLink.getAttribute("data-offer-id") || "";
           const card = offerLink.parentElement.closest("[data-offer-id]") || offerLink;
@@ -8656,6 +8879,54 @@ def render_html_template(
           copyTextWithFeedback(document.getElementById("cfgVerifySnippet").textContent, e.currentTarget);
         }});
       }}
+    }}
+
+    function initProductLandingPage() {{
+      const themeBtn = document.getElementById("themeToggleBtn");
+      if (themeBtn) {{
+        themeBtn.addEventListener("click", () => {{
+          applyTheme(state.theme === "dark" ? "light" : "dark");
+        }});
+      }}
+      const langBtn = document.getElementById("langToggleBtn");
+      if (langBtn) {{
+        langBtn.addEventListener("click", () => {{
+          applyLang(state.lang === "zh" ? "en" : "zh");
+        }});
+      }}
+      document.addEventListener("click", e => {{
+        const copyBtn = e.target.closest("[data-copy-target]");
+        if (copyBtn) {{
+          const targetSel = copyBtn.getAttribute("data-copy-target");
+          const codeEl = targetSel ? document.querySelector(targetSel) : null;
+          if (codeEl) {{
+            copyTextWithFeedback(codeEl.textContent, copyBtn);
+            trackEvent("share_copy", {{ slot_id: copyBtn.getAttribute("data-copy-slot") || "guardian_cli" }});
+          }}
+          return;
+        }}
+        const offerLink = e.target.closest("a[data-offer-id], button[data-offer-id]");
+        if (offerLink) {{
+          const offerId = offerLink.getAttribute("data-offer-id") || "";
+          const card = offerLink.parentElement ? offerLink.parentElement.closest("[data-offer-id]") : null;
+          const slotId = (card || offerLink).getAttribute("data-card-slot") || "guardian_cta";
+          if (offerId) {{
+            trackEvent("affiliate_click", {{ offer_id: offerId, slot_id: slotId }});
+          }}
+          const intentNote = document.getElementById("guardianIntentStatus");
+          if (intentNote) {{
+            const isEn = state.lang === "en";
+            intentNote.hidden = false;
+            intentNote.textContent = offerId === "agent-guardian-waitlist"
+              ? (isEn
+                  ? "Release/Team intent recorded (first-party anonymous event). Follow the MIT source build or DMG steps below."
+                  : "已记录您的版本/团队内测关注（同源匿名计数），可直接参考下方 DMG 安装与 MIT 源码构建指引。")
+              : (isEn
+                  ? "macOS Apple Silicon v3.20.0 install guide opened below — copy the PATH & zsh shell-hook snippet to enable `ag` CLI."
+                  : "已定位到 macOS Apple Silicon v3.20.0 安装与 `ag shell-hook zsh` 配置指引，可直接复制运行。");
+          }}
+        }}
+      }});
     }}
 
     initBaselines();
