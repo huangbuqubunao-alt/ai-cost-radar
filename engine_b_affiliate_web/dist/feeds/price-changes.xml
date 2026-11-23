@@ -4,7 +4,7 @@
   <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml</id>
   <link href="https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml" rel="self" type="application/atom+xml"/>
   <link href="https://ai-cost-radar-nlu.pages.dev/" rel="alternate" type="text/html"/>
-  <updated>2026-11-23T06:29:03Z</updated>
+  <updated>2026-11-23T07:59:57Z</updated>
   <author>
     <name>AI Cost Radar</name>
   </author>
@@ -12,21 +12,21 @@
     <title>[规则巡检预警 2026-11-23] 火山方舟 Coding Plan 编程套餐 (volcengine-coding-plan)</title>
     <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-0-volcengine-coding-plan-2026-11-23</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/coding-plan-2026/"/>
-    <updated>2026-11-23T06:29:03Z</updated>
+    <updated>2026-11-23T07:59:57Z</updated>
     <summary>官方规则页指纹异动（未命中指标：dedicated_coding_endpoint），请核对最新月上限、首购特惠与续费原价：https://www.volcengine.com/docs/82379/1925114</summary>
   </entry>
   <entry>
     <title>[价格异动 2026-11-23] DeepSeek: DeepSeek V4 Flash 0731 (deepseek/deepseek-v4-flash-0731)</title>
     <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-1-deepseek-deepseek-v4-flash-0731-2026-11-23</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/#model-deepseek-deepseek-v4-flash-0731"/>
-    <updated>2026-11-23T06:29:03Z</updated>
+    <updated>2026-11-23T07:59:57Z</updated>
     <summary>输入单价 $0.0443 -&gt; $0.0434 / 1M，输出单价 $0.3 -&gt; $0.3 / 1M</summary>
   </entry>
   <entry>
     <title>[价格异动 2026-11-23] Google: Gemma 4 26B A4B (google/gemma-4-26b-a4b-it)</title>
     <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-2-google-gemma-4-26b-a4b-it-2026-11-23</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/#model-google-gemma-4-26b-a4b-it"/>
-    <updated>2026-11-23T06:29:03Z</updated>
+    <updated>2026-11-23T07:59:57Z</updated>
     <summary>输入单价 $0.0675 -&gt; $0.09 / 1M，输出单价 $0.225 -&gt; $0.3 / 1M</summary>
   </entry>
   <entry>

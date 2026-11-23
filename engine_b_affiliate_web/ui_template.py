@@ -8934,9 +8934,13 @@ def render_html_template(
               ? (isEn
                   ? "Release/Team intent recorded (first-party anonymous event). Follow the MIT source build or DMG steps below."
                   : "已记录您的版本/团队内测关注（同源匿名计数），可直接参考下方 DMG 安装与 MIT 源码构建指引。")
-              : (isEn
-                  ? "macOS Apple Silicon v3.20.0 install guide opened below — copy the PATH & zsh shell-hook snippet to enable `ag` CLI."
-                  : "已定位到 macOS Apple Silicon v3.20.0 安装与 `ag shell-hook zsh` 配置指引，可直接复制运行。");
+              : (offerId === "agent-guardian-github-repo"
+                  ? (isEn
+                      ? "Opening Agent Guardian Workbench GitHub repo (MIT single-machine core)."
+                      : "正在打开 Agent Guardian Workbench 开源仓库（单机核心永久 MIT）。")
+                  : (isEn
+                      ? "v3.20.0 DMG download triggered (ADHOC_LOCAL_SIGNED): if Gatekeeper prompts, use --no-quarantine or run xattr -cr."
+                      : "已触发 v3.20.0 DMG 下载（本地自签名）：若首次打开遇 Gatekeeper 拦截，可运行 xattr -cr '/Applications/Agent Guardian.app' 放行。"));
           }}
         }}
       }});

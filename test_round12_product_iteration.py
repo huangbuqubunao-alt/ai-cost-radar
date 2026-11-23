@@ -844,7 +844,13 @@ console.log(JSON.stringify(outputs));
 
             # Strictly verified v3.20.0 facts from Agent Guardian README.md
             for expected_fact in (
+                "Agent Guardian Workbench",
                 "v3.20.0",
+                "https://github.com/huangbuqubunao-alt/agent-guardian-workbench/releases/download/v3.20.0/Agent-Guardian-3.20.0-arm64.dmg",
+                "agent-guardian-workbench-demo.gif",
+                "xattr -cr",
+                "--no-quarantine",
+                "6be40f689e84d9dfd90d39ac9188dae91c0962780737cc6eb577149c30673e53",
                 "XNU Seatbelt",
                 "HostNetworkBroker",
                 "502",

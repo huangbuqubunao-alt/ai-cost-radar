@@ -565,19 +565,19 @@ SEO_ROUTES: list[dict[str, Any]] = [
         "nav_label": "Agent Guardian 隔离台",
         "page_kind": "product_landing",
         "priority": "0.95",
-        "title": "Agent Guardian (v3.20.0) — macOS 原生 AI Agent 多账号零污染隔离与安全工作台",
-        "description": "面向 Claude Code、OpenAI Codex CLI、Google Gemini CLI 与 OpenCode 的 macOS Apple Silicon 原生多账号零污染隔离、XNU Seatbelt (Mode A) + Apple VZ HostNetworkBroker (Mode B) 双模沙箱、Fail-Closed 502 零直连回退、403 零载荷出站域名防火墙、离线 5h 额度雷达与并行 Git Worktree 工作台。",
-        "hero_main": "Agent Guardian (v3.20.0)：",
+        "title": "Agent Guardian Workbench (v3.20.0) — macOS 原生 AI Agent 多账号零污染隔离与安全工作台",
+        "description": "面向 Claude Code、OpenAI Codex CLI、Google Gemini CLI 与 OpenCode 的 macOS Apple Silicon 原生多账号零污染隔离、XNU Seatbelt (Mode A) + Apple VZ HostNetworkBroker (Mode B) 双模沙箱、Fail-Closed 502 零直连回退、403 零载荷出站域名防火墙、离线 5h 额度雷达与并行 Git Worktree 工作台（单机核心 MIT 开源）。",
+        "hero_main": "Agent Guardian Workbench (v3.20.0)：",
         "hero_accent": "AI Agent 多账号零污染隔离与安全工作台",
-        "hero_sub": "macOS Apple Silicon 原生（Rust 2021 + Swift Cocoa，MIT 开源）：并发隔离 Claude Code / Codex CLI / Gemini CLI / OpenCode 多账号，提供 XNU Seatbelt 与 Apple VZ 双模沙箱、Fail-Closed 502 零直连回退、403 出站域名防火墙与离线 5h 滚动额度雷达。",
+        "hero_sub": "macOS Apple Silicon 原生（Rust 2021 + Swift Cocoa，单机核心 MIT 开源）：并发隔离 Claude Code / Codex CLI / Gemini CLI / OpenCode 多账号，提供 XNU Seatbelt 与 Apple VZ 双模沙箱、Fail-Closed 502 零直连回退、403 出站域名防火墙与离线 5h 滚动额度雷达。",
         "preset": {
             "lang": "zh",
-            "heroEnMain": "Agent Guardian (v3.20.0): ",
+            "heroEnMain": "Agent Guardian Workbench (v3.20.0): ",
             "heroEnAccent": "Zero-Pollution Multi-Account Isolation & Sandbox Workbench",
-            "heroEnSub": "Native macOS Apple Silicon (Rust 2021 + Swift Cocoa, MIT): Concurrent isolation for Claude Code, Codex CLI, Gemini CLI & OpenCode with XNU Seatbelt (Mode A) & Apple VZ HostNetworkBroker (Mode B), Fail-Closed 502, 403 zero-payload domain firewall, offline 5h quota radar & Git Worktree guardrails.",
-            "heroZhMain": "Agent Guardian (v3.20.0)：",
+            "heroEnSub": "Native macOS Apple Silicon (Rust 2021 + Swift Cocoa, MIT Core): Concurrent isolation for Claude Code, Codex CLI, Gemini CLI & OpenCode with XNU Seatbelt (Mode A) & Apple VZ HostNetworkBroker (Mode B), Fail-Closed 502, 403 zero-payload domain firewall, offline 5h quota radar & Git Worktree guardrails.",
+            "heroZhMain": "Agent Guardian Workbench (v3.20.0)：",
             "heroZhAccent": "AI Agent 多账号零污染隔离与安全工作台",
-            "heroZhSub": "macOS Apple Silicon 原生（Rust 2021 + Swift Cocoa，MIT 开源）：并发隔离 Claude Code / Codex CLI / Gemini CLI / OpenCode 多账号，提供 XNU Seatbelt 与 Apple VZ 双模沙箱、Fail-Closed 502 零直连回退、403 出站域名防火墙与离线 5h 滚动额度雷达。",
+            "heroZhSub": "macOS Apple Silicon 原生（Rust 2021 + Swift Cocoa，单机核心 MIT 开源）：并发隔离 Claude Code / Codex CLI / Gemini CLI / OpenCode 多账号，提供 XNU Seatbelt 与 Apple VZ 双模沙箱、Fail-Closed 502 零直连回退、403 出站域名防火墙与离线 5h 滚动额度雷达。",
         },
     },
 ]
@@ -1344,14 +1344,19 @@ def build_agent_guardian_main_html(base_prefix: str, quote_verified_date: str) -
       <div class="hero-top">
         <div>
           <h1>
-            <span data-i18n="heroTitleMain">Agent Guardian (v3.20.0)：</span><span class="hero-accent" data-i18n="heroTitleAccent">AI Agent 多账号零污染隔离与安全工作台</span>
+            <span data-i18n="heroTitleMain">Agent Guardian Workbench (v3.20.0)：</span><span class="hero-accent" data-i18n="heroTitleAccent">AI Agent 多账号零污染隔离与安全工作台</span>
           </h1>
-          <p data-i18n="heroSubtitle">macOS Apple Silicon 原生（Rust 2021 + Swift Cocoa，MIT 开源）：并发隔离 Claude Code / Codex CLI / Gemini CLI / OpenCode 多账号，提供 XNU Seatbelt 与 Apple VZ 双模沙箱、Fail-Closed 502 零直连回退、403 出站域名防火墙与离线 5h 滚动额度雷达。</p>
+          <p data-i18n="heroSubtitle">macOS Apple Silicon 原生（Rust 2021 + Swift Cocoa，单机核心 MIT 开源）：并发隔离 Claude Code / Codex CLI / Gemini CLI / OpenCode 多账号，提供 XNU Seatbelt 与 Apple VZ 双模沙箱、Fail-Closed 502 零直连回退、403 出站域名防火墙与离线 5h 滚动额度雷达。</p>
           <div class="guardian-cta-row">
-            <a href="#guardian-dmg-panel" class="guardian-cta-btn primary" data-offer-id="agent-guardian-mac-dmg" data-card-slot="guardian_hero_dmg" data-zh="获取 macOS Apple Silicon (v3.20.0) 安装指引" data-en="Get macOS Apple Silicon (v3.20.0) DMG Guide">获取 macOS Apple Silicon (v3.20.0) 安装指引</a>
+            <a href="https://github.com/huangbuqubunao-alt/agent-guardian-workbench/releases/download/v3.20.0/Agent-Guardian-3.20.0-arm64.dmg" class="guardian-cta-btn primary" data-offer-id="agent-guardian-mac-dmg" data-card-slot="guardian_hero_dmg" data-zh="下载 macOS Apple Silicon DMG (v3.20.0)" data-en="Download macOS Apple Silicon DMG (v3.20.0)">下载 macOS Apple Silicon DMG (v3.20.0)</a>
+            <a href="https://github.com/huangbuqubunao-alt/agent-guardian-workbench" target="_blank" rel="noopener noreferrer" class="guardian-cta-btn secondary" data-offer-id="agent-guardian-github-repo" data-card-slot="guardian_hero_github" data-zh="GitHub 开源仓库 (MIT 核心)" data-en="GitHub Repo (MIT Core)">GitHub 开源仓库 (MIT 核心)</a>
             <a href="#guardian-waitlist-panel" class="guardian-cta-btn secondary" data-offer-id="agent-guardian-waitlist" data-card-slot="guardian_hero_waitlist" data-zh="源码构建 / 团队发行版意向登记" data-en="Source Build &amp; Team Release Intent">源码构建 / 团队发行版意向登记</a>
           </div>
           <div id="guardianIntentStatus" class="guardian-status-toast" role="status" hidden></div>
+          <figure class="ag-demo-showcase" style="margin:14px 0 4px;">
+            <img src="https://raw.githubusercontent.com/huangbuqubunao-alt/agent-guardian-workbench/main/docs/demo/agent-guardian-workbench-demo.gif" alt="Agent Guardian Workbench v3.20.0 Live Walkthrough" loading="lazy" style="width:100%;max-width:960px;height:auto;border-radius:10px;border:1px solid var(--border-strong);display:block;" />
+            <figcaption style="margin-top:6px;font-size:0.78rem;color:var(--text-secondary);" data-zh="20 秒实机全链路演示（隔离环境录制）：多账号 5h 用量雷达 → 不停机 MCP 密钥加密保险箱 → 代理断流 Fail-Closed 502 熔断与恢复 → XNU Seatbelt 实测拦截读取 ~/.ssh 与篡改 .git/hooks" data-en="20s live walkthrough (isolated sandbox): multi-account 5h quota radar -> non-disruptive MCP AES-256-GCM vaulting -> Fail-Closed 502 circuit breaker &amp; recovery -> XNU Seatbelt blocking ~/.ssh &amp; .git/hooks">20 秒实机全链路演示（隔离环境录制）：多账号 5h 用量雷达 → 不停机 MCP 密钥加密保险箱 → 代理断流 Fail-Closed 502 熔断与恢复 → XNU Seatbelt 实测拦截读取 ~/.ssh 与篡改 .git/hooks</figcaption>
+          </figure>
         </div>
         <nav class="quick-jumps" aria-label="Agent Guardian sections">
           <a href="#agBareCompareSection" class="jump-chip" data-zh="裸奔多号 vs 隔离台" data-en="Bare vs Isolated">裸奔多号 vs 隔离台</a>
@@ -1566,16 +1571,21 @@ def build_agent_guardian_main_html(base_prefix: str, quote_verified_date: str) -
       <div class="guardian-action-grid">
         <article class="guardian-action-card" id="guardian-dmg-panel" data-offer-id="agent-guardian-mac-dmg" data-card-slot="guardian_dmg_card">
           <div class="partner-title">
-            <span data-zh="macOS Apple Silicon (v3.20.0) 快速启用" data-en="macOS Apple Silicon (v3.20.0) Quick Setup">macOS Apple Silicon (v3.20.0) 快速启用</span>
-            <span class="badge badge-save">macOS arm64 · MIT</span>
+            <span data-zh="Agent Guardian Workbench (v3.20.0 · macOS arm64)" data-en="Agent Guardian Workbench (v3.20.0 · macOS arm64)">Agent Guardian Workbench (v3.20.0 · macOS arm64)</span>
+            <span class="badge badge-save">MIT Core · ADHOC_LOCAL_SIGNED</span>
           </div>
-          <p class="partner-desc" data-zh="拖入 /Applications 后，将以下两行写入 ~/.zshrc 即可启用零污染 ag 终端命令，并在守护未运行时自动按需唤醒：" data-en="After dragging Agent Guardian.app into /Applications, add these two lines to ~/.zshrc to enable zero-pollution ag commands with on-demand daemon auto-bootstrap:">拖入 /Applications 后，将以下两行写入 ~/.zshrc 即可启用零污染 ag 终端命令，并在守护未运行时自动按需唤醒：</p>
+          <p class="partner-desc" data-zh="v3.20.0 采用本地自签名（尚未接入 Apple Developer ID 公证）：推荐通过 Homebrew Cask 免隔离安装，或拖入 /Applications 后运行一次 xattr -cr 放行，再配置 ~/.zshrc 零污染 ag 命令。DMG SHA-256: 6be40f689e84d9dfd90d39ac9188dae91c0962780737cc6eb577149c30673e53" data-en="v3.20.0 is locally ad-hoc signed (not yet Apple notarized): install via Homebrew Cask with --no-quarantine, or run xattr -cr once after dragging Agent Guardian.app to /Applications, then enable ~/.zshrc ag hooks. DMG SHA-256: 6be40f689e84d9dfd90d39ac9188dae91c0962780737cc6eb577149c30673e53">v3.20.0 采用本地自签名（尚未接入 Apple Developer ID 公证）：推荐通过 Homebrew Cask 免隔离安装，或拖入 /Applications 后运行一次 xattr -cr 放行，再配置 ~/.zshrc 零污染 ag 命令。DMG SHA-256: <code>6be40f689e84d9dfd90d39ac9188dae91c0962780737cc6eb577149c30673e53</code></p>
+          <pre class="cfg-code-block" id="agGatekeeperBrewCode">brew install --cask --no-quarantine ./packaging/homebrew/Cask/agent-guardian.rb
+# If installed manually from DMG / 若手动从 DMG 拖入安装遇到 Gatekeeper 拦截：
+xattr -cr "/Applications/Agent Guardian.app"</pre>
           <pre class="cfg-code-block" id="agZshHookCode">export PATH="$HOME/.local/bin:/Applications/Agent Guardian.app/Contents/MacOS:$PATH"
 eval "$(ag shell-hook zsh)"</pre>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <a href="https://github.com/huangbuqubunao-alt/agent-guardian-workbench/releases/download/v3.20.0/Agent-Guardian-3.20.0-arm64.dmg" class="guardian-cta-btn primary" style="flex:1 1 180px;" data-offer-id="agent-guardian-mac-dmg" data-card-slot="guardian_dmg_card" data-zh="下载 Release v3.20.0 DMG" data-en="Download Release v3.20.0 DMG">下载 Release v3.20.0 DMG</a>
+            <button type="button" class="cta-copy-cfg" style="flex:1 1 180px;" data-copy-target="#agGatekeeperBrewCode" data-copy-slot="guardian_gatekeeper_cmd" data-zh="复制 Brew / xattr 放行命令" data-en="Copy Brew / xattr Commands">复制 Brew / xattr 放行命令</button>
             <button type="button" class="cta-copy-cfg" style="flex:1 1 180px;" data-copy-target="#agZshHookCode" data-copy-slot="guardian_zsh_hook" data-zh="复制 ~/.zshrc 配置片段" data-en="Copy ~/.zshrc Hook Snippet">复制 ~/.zshrc 配置片段</button>
-            <a href="#agCliQuickCmds" class="guardian-cta-btn primary" style="flex:1 1 180px;" data-offer-id="agent-guardian-mac-dmg" data-card-slot="guardian_dmg_card" data-zh="确认 DMG 接入步骤" data-en="Use DMG Setup Guide">确认 DMG 接入步骤</a>
           </div>
+          <p class="partner-desc" style="margin-top:8px;margin-bottom:0;"><span data-zh="安装遇阻或遇到 Gatekeeper 拦截？" data-en="Hit Gatekeeper or setup friction? ">安装遇阻或遇到 Gatekeeper 拦截？</span><a href="https://github.com/huangbuqubunao-alt/agent-guardian-workbench/issues/new?template=first-run-friction.yml" target="_blank" rel="noopener noreferrer" data-zh="30 秒提交首启体验反馈 →" data-en="Report in 30s on GitHub Issues →">30 秒提交首启体验反馈 →</a></p>
         </article>
 
         <article class="guardian-action-card" id="guardian-waitlist-panel" data-offer-id="agent-guardian-waitlist" data-card-slot="guardian_waitlist_card">
