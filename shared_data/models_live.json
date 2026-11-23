@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-23T07:59:57Z",
-  "last_live_verified_at": "2026-11-23T07:59:57Z",
+  "updated_at": "2026-11-23T08:02:17Z",
+  "last_live_verified_at": "2026-11-23T08:02:17Z",
   "quote_verified_date": "2026-11-13",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
@@ -10,7 +10,7 @@
     "global": 69
   },
   "official_rule_audit": {
-    "checked_at": "2026-11-23T07:59:57Z",
+    "checked_at": "2026-11-23T08:02:17Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -22,7 +22,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-23T07:59:57Z",
+        "last_verified_at": "2026-11-23T08:02:17Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -32,13 +32,8 @@
       {
         "plan_id": "tencent-coding-plan",
         "url": "https://cloud.tencent.com/document/product/1823/130092",
-        "status": "verified_markers",
-        "matched_groups": [
-          "lite_monthly_cap_18k",
-          "lite_renewal_40",
-          "pro_monthly_cap_90k",
-          "pro_renewal_200"
-        ],
+        "status": "csr_shell_manual_check",
+        "matched_groups": [],
         "missing_groups": [],
         "last_verified_at": "2026-11-23T07:59:57Z",
         "last_verified_groups": [
@@ -65,7 +60,7 @@
   },
   "price_changes": [
     {
-      "detected_at": "2026-11-23T07:59:57Z",
+      "detected_at": "2026-11-23T08:02:17Z",
       "entity_type": "coding_plan",
       "id": "volcengine-coding-plan",
       "name": "火山方舟 Coding Plan 编程套餐",
