@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-23T03:58:11Z",
-  "last_live_verified_at": "2026-11-23T03:58:11Z",
+  "updated_at": "2026-11-23T06:29:03Z",
+  "last_live_verified_at": "2026-11-23T06:29:03Z",
   "quote_verified_date": "2026-11-13",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
@@ -10,7 +10,7 @@
     "global": 69
   },
   "official_rule_audit": {
-    "checked_at": "2026-11-23T03:58:11Z",
+    "checked_at": "2026-11-23T06:29:03Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -22,7 +22,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-23T03:58:11Z",
+        "last_verified_at": "2026-11-23T06:29:03Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -40,7 +40,7 @@
           "pro_renewal_200"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-23T03:58:11Z",
+        "last_verified_at": "2026-11-23T06:29:03Z",
         "last_verified_groups": [
           "lite_monthly_cap_18k",
           "lite_renewal_40",
@@ -65,12 +65,28 @@
   },
   "price_changes": [
     {
-      "detected_at": "2026-11-23T03:58:11Z",
+      "detected_at": "2026-11-23T06:29:03Z",
       "entity_type": "coding_plan",
       "id": "volcengine-coding-plan",
       "name": "火山方舟 Coding Plan 编程套餐",
       "change_type": "plan_rule_drift_warning",
       "summary_zh": "官方规则页指纹异动（未命中指标：dedicated_coding_endpoint），请核对最新月上限、首购特惠与续费原价：https://www.volcengine.com/docs/82379/1925114"
+    },
+    {
+      "detected_at": "2026-11-23T06:29:03Z",
+      "entity_type": "model",
+      "id": "deepseek/deepseek-v4-flash-0731",
+      "name": "DeepSeek: DeepSeek V4 Flash 0731",
+      "change_type": "price_update",
+      "summary_zh": "输入单价 $0.0443 -> $0.0434 / 1M，输出单价 $0.3 -> $0.3 / 1M"
+    },
+    {
+      "detected_at": "2026-11-23T06:29:03Z",
+      "entity_type": "model",
+      "id": "google/gemma-4-26b-a4b-it",
+      "name": "Google: Gemma 4 26B A4B",
+      "change_type": "price_update",
+      "summary_zh": "输入单价 $0.0675 -> $0.09 / 1M，输出单价 $0.225 -> $0.3 / 1M"
     },
     {
       "detected_at": "2026-11-23T02:00:49Z",
@@ -175,22 +191,6 @@
       "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
       "change_type": "price_update",
       "summary_zh": "输入单价 $0.036 -> $0.3 / 1M，输出单价 $0.5 -> $1.2 / 1M"
-    },
-    {
-      "detected_at": "2026-11-19T02:00:54Z",
-      "entity_type": "model",
-      "id": "deepseek/deepseek-v4.1-flash",
-      "name": "DeepSeek: DeepSeek V4.1 Flash",
-      "change_type": "price_update",
-      "summary_zh": "输入单价 $0.051 -> $0.3 / 1M，输出单价 $0.567 -> $1.2 / 1M"
-    },
-    {
-      "detected_at": "2026-11-18T02:00:55Z",
-      "entity_type": "model",
-      "id": "deepseek/deepseek-v4.1-flash-1017",
-      "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
-      "change_type": "price_update",
-      "summary_zh": "输入单价 $0.15 -> $0.036 / 1M，输出单价 $0.6 -> $0.5 / 1M"
     }
   ],
   "coding_plans": [
@@ -849,12 +849,12 @@
       "affiliate_url": "https://openrouter.ai",
       "model_page_url": "https://openrouter.ai/deepseek/deepseek-v4-flash-0731",
       "region": "global",
-      "input_usd_per_1m": 0.0443,
+      "input_usd_per_1m": 0.0434,
       "output_usd_per_1m": 0.3,
-      "input_rmb_per_1m": 0.319,
+      "input_rmb_per_1m": 0.3125,
       "output_rmb_per_1m": 2.16,
-      "blended_usd_per_1m": 0.1082,
-      "blended_rmb_per_1m": 0.779,
+      "blended_usd_per_1m": 0.1076,
+      "blended_rmb_per_1m": 0.7747,
       "context_length": 1048576,
       "supports_tools": true,
       "modality": "text->text",
@@ -1545,36 +1545,6 @@
       ]
     },
     {
-      "id": "google/gemma-4-26b-a4b-it",
-      "name": "Google: Gemma 4 26B A4B",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "google/gemma-4-26b-a4b-it",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "signup_url": "https://openrouter.ai",
-      "affiliate_url": "https://openrouter.ai",
-      "model_page_url": "https://openrouter.ai/google/gemma-4-26b-a4b-it",
-      "region": "global",
-      "input_usd_per_1m": 0.0675,
-      "output_usd_per_1m": 0.225,
-      "input_rmb_per_1m": 0.486,
-      "output_rmb_per_1m": 1.62,
-      "blended_usd_per_1m": 0.1069,
-      "blended_rmb_per_1m": 0.7697,
-      "context_length": 262144,
-      "supports_tools": true,
-      "modality": "text+image+video->text",
-      "is_free": false,
-      "value_score": 83.6,
-      "tags": [
-        "reasoning",
-        "cheap",
-        "global"
-      ]
-    },
-    {
       "id": "x-ai/grok-code-fast-1",
       "name": "xAI: Grok Code Fast 1",
       "provider": "OpenRouter (Global)",
@@ -1662,6 +1632,36 @@
       "tags": [
         "coding",
         "reasoning",
+        "global"
+      ]
+    },
+    {
+      "id": "google/gemma-4-26b-a4b-it",
+      "name": "Google: Gemma 4 26B A4B",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "google/gemma-4-26b-a4b-it",
+      "cache_hit_factor": 0.5,
+      "perf_note": "",
+      "signup_url": "https://openrouter.ai",
+      "affiliate_url": "https://openrouter.ai",
+      "model_page_url": "https://openrouter.ai/google/gemma-4-26b-a4b-it",
+      "region": "global",
+      "input_usd_per_1m": 0.09,
+      "output_usd_per_1m": 0.3,
+      "input_rmb_per_1m": 0.648,
+      "output_rmb_per_1m": 2.16,
+      "blended_usd_per_1m": 0.1425,
+      "blended_rmb_per_1m": 1.026,
+      "context_length": 262144,
+      "supports_tools": true,
+      "modality": "text+image+video->text",
+      "is_free": false,
+      "value_score": 82.9,
+      "tags": [
+        "reasoning",
+        "cheap",
         "global"
       ]
     },
