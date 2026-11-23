@@ -17,6 +17,7 @@ const ALLOWED_ROUTES = new Set([
   "/",
   "/coding-plan-2026/",
   "/deepseek-vs-qwen/",
+  "/deepseek-v4-vs-claude-code/",
   "/claude-code-domestic/",
   "/dify-openclaw-cloud-server/",
   "/ai-coding-spend-auditor/",

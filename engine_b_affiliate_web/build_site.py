@@ -191,6 +191,21 @@ FALLBACK_MODELS: list[dict[str, Any]] = [
         "tags": ["coding", "reasoning", "free", "global"],
     },
     {
+        "id": "deepseek/deepseek-v4.1-flash",
+        "name": "DeepSeek: DeepSeek V4.1 Flash",
+        "provider": "OpenRouter (Global)",
+        "provider_config_key": "openrouter_url",
+        "region": "global",
+        "input_usd_per_1m": 0.0498,
+        "output_usd_per_1m": 0.1992,
+        "cache_hit_factor": 0.5,
+        "context_length": 1048576,
+        "supports_tools": True,
+        "is_free": False,
+        "value_score": 95.1,
+        "tags": ["coding", "cheap", "global"],
+    },
+    {
         "id": "aliyun-bailian/qwen3.5-plus",
         "name": "阿里云百炼: Qwen3.5-Plus (1M上下文推理主力)",
         "provider": "阿里云百炼 (Aliyun Bailian)",
@@ -420,6 +435,40 @@ SEO_ROUTES: list[dict[str, Any]] = [
         },
     },
     {
+        "slug": "deepseek-v4-vs-claude-code/",
+        "nav_label": "DeepSeek V4 vs Claude",
+        "priority": "0.95",
+        "title": "DeepSeek V4.1 Flash vs Claude Code (Sonnet) vs Qwen3-Coder-Next 50% 缓存实测账单对比 (2026)",
+        "description": "基于 models_live.json 实时价格动态渲染：在 50% Prompt 缓存命中下逐档对比 DeepSeek V4.1 Flash、Claude Sonnet 与 Qwen3-Coder-Next 日/月账单，明确按量路由 vs Coding Plan 选型边界，并附本地只读审计脚本与 Agent Guardian 双账号隔离指南。",
+        "hero_main": "DeepSeek V4.1 Flash vs Claude Code 成本对账，",
+        "hero_accent": "50% 缓存命中实算与按量/包月边界",
+        "hero_sub": "动态读取最新在线模型报价，同负载横评 DeepSeek V4.1 Flash、Claude Sonnet 与 Qwen3-Coder-Next 日/月账单；明确何时选按量路由 vs Coding Plan，并附本地审计与 Agent Guardian 多账号隔离闭环。",
+        "preset": {
+            "region": "all",
+            "filter": "coding",
+            "dailyCalls": 2500,
+            "inputTokens": 4000,
+            "outputTokens": 1000,
+            "cacheEnabled": True,
+            "cacheHitRate": 0.5,
+            "reasoningEnabled": False,
+            "reasoningMultiplier": 2.5,
+            "usageMode": "interactive_ide",
+            "baselineId": "anthropic/claude-sonnet-5.5",
+            "compareIds": [
+                "deepseek/deepseek-v4.1-flash",
+                "anthropic/claude-sonnet-5.5",
+                "aliyun-bailian/qwen3-coder-next",
+            ],
+            "heroEnMain": "DeepSeek V4.1 Flash vs Claude Code Cost Benchmark, ",
+            "heroEnAccent": "50% Cache Hit Math & PayG vs Coding Plan",
+            "heroEnSub": "Live models_live.json pricing comparison across DeepSeek V4.1 Flash, Claude Sonnet, and Qwen3-Coder-Next at 50% prompt-cache hit rate — plus when to choose PayG routing vs Coding Plan, local spend auditing, and Agent Guardian dual-account isolation.",
+            "heroZhMain": "DeepSeek V4.1 Flash vs Claude Code 成本对账，",
+            "heroZhAccent": "50% 缓存命中实算与按量/包月边界",
+            "heroZhSub": "动态读取最新在线模型报价，同负载横评 DeepSeek V4.1 Flash、Claude Sonnet 与 Qwen3-Coder-Next 日/月账单；明确何时选按量路由 vs Coding Plan，并附本地审计与 Agent Guardian 多账号隔离闭环。",
+        },
+    },
+    {
         "slug": "claude-code-domestic/",
         "nav_label": "Claude Code 专属端点",
         "priority": "0.85",
@@ -564,6 +613,27 @@ AGENT_GUARDIAN_FAQ_ENTRIES: list[dict[str, str]] = [
         "a": "运行 ag mcp vault-secrets <account> 会把 MCP 配置中内嵌的明文 API Key 迁入 XNU 内核沙箱不可读的 mcp_vault/<account>.enc（0600 AES-256-GCM），并将配置文件自动改写为四大 CLI 原生动态环境变量占位符（Codex env_vars、Claude/Gemini ${VAR}、OpenCode {env:VAR}），在受管会话启动前安全注入；对于无需保留的高危服务，也可使用 ag mcp quarantine 一键无损停用。",
         "q_en": "How does ag mcp vault-secrets remove plaintext MCP keys without disabling active MCP servers?",
         "a_en": "ag mcp vault-secrets <account> migrates embedded plaintext API keys into mcp_vault/<account>.enc (0600 AES-256-GCM, unreadable inside XNU Seatbelt), rewrites configs to native dynamic env syntax (Codex env_vars, Claude/Gemini ${VAR}, OpenCode {env:VAR}), and injects them only when launching a managed session. High-risk servers can also be non-destructively disabled via ag mcp quarantine.",
+    },
+]
+
+DEEPSEEK_V4_CLAUDE_FAQ_ENTRIES: list[dict[str, str]] = [
+    {
+        "q": "在 50% Prompt 缓存命中下，DeepSeek V4.1 Flash 比 Claude Code 主力 Sonnet 省多少？",
+        "a": "本页直接读取 shared_data/models_live.json 中的实时单价：DeepSeek V4.1 Flash 与 Claude Sonnet 在 50% 缓存命中、每次 4K 输入 + 1K 输出的相同负载下，月账单差距通常在数十倍量级（详见上方表 1 与表 2 的动态实算结果）。工程上常用 80/20 混合路由：日常代码检索、单测补全与文档生成走 DeepSeek V4.1 Flash 或 Qwen3-Coder-Next，复杂跨文件架构重构再切回 Claude Sonnet。",
+        "q_en": "At a 50% prompt-cache hit rate, how much cheaper is DeepSeek V4.1 Flash than Claude Sonnet?",
+        "a_en": "This page dynamically reads live rates from shared_data/models_live.json: under identical 4K input + 1K output workloads at 50% cache hit rate, DeepSeek V4.1 Flash cuts monthly API spend by more than an order of magnitude compared to Claude Sonnet (exact live figures appear in Tables 1 & 2 above). Many teams adopt 80/20 routing—handling routine edits and tests on DeepSeek V4.1 Flash or Qwen3-Coder-Next while reserving Claude Sonnet for complex refactors.",
+    },
+    {
+        "q": "什么时候应该选按量路由（DeepSeek V4.1 Flash / Qwen3-Coder-Next），什么时候买国内 Coding Plan？",
+        "a": "当您使用 DeepSeek V4.1 Flash 按量直连/OpenRouter 时，即使每天 2,500 次甚至 5,000 次调用，按量月费仍可能远低于 ¥200/月包月续费价；而如果您高频使用 Qwen3-Coder-Next 或多模型交互式 IDE 开发且日均 1,500～3,000 次（月 4.5 万～9 万次），阿里云百炼 Pro 首月 ¥39.90 性价比突出。但只要超出 90,000 次/月或用于自动化脚本/后端 API（官方明确禁止），就必须切回按量路由或按「Pro 打底 + 按量溢出」拆分。",
+        "q_en": "When should I use PayG routing (DeepSeek V4.1 Flash / Qwen3-Coder-Next) vs a domestic Coding Plan?",
+        "a_en": "If your workload routes mainly to DeepSeek V4.1 Flash PayG, even 2,500–5,000 daily calls can cost well below a ¥200/mo Pro renewal. Conversely, heavy interactive IDE developers running Qwen3-Coder-Next within the 90,000 calls/month cap benefit from Aliyun Bailian Pro's ¥39.90 first-month promo—while >90,000 calls/month or non-interactive backend/cron scripts (strictly prohibited by personal Coding Plan terms) must stay on PayG or hybrid overflow routing.",
+    },
+    {
+        "q": "双账号切换（Claude 官方号 + DeepSeek/百炼按量号）为什么容易串号或误扣余额？如何用 Agent Guardian 隔离？",
+        "a": "裸奔切换环境变量时，宿主机残留的 ANTHROPIC_API_KEY 或共享 ~/.claude 目录极易导致误走按量余额、串号或 VPN 断线直连泄漏。在 macOS Apple Silicon 上，可先用零上传脚本 audit_ai_spend.py 摸清本地过去 30 天真实消耗，再使用 Agent Guardian (v3.20.0) 为每个账号分配独立 0700 目录（Claude Code 使用 CLAUDE_CONFIG_DIR）与 0600 凭据仓，启动前自动清洗宿主残留 Key，配合 XNU Seatbelt (Mode A) / Apple VZ (Mode B)、Fail-Closed 502 零直连回退与 403 出站域名防火墙安全隔离运行。",
+        "q_en": "Why does switching between a Claude account and a DeepSeek/PayG profile risk cross-billing, and how does Agent Guardian isolate them?",
+        "a_en": "Bare env switching often leaves residual ANTHROPIC_API_KEY variables or shared ~/.claude state, causing accidental PayG billing or direct broadband leaks on VPN drops. After auditing 30-day local usage with audit_ai_spend.py (zero upload), Agent Guardian (v3.20.0) on macOS Apple Silicon isolates each Claude Code / Codex / Gemini / OpenCode profile in its own 0700 directory (CLAUDE_CONFIG_DIR) and 0600 vault, scrubs residual host keys before spawn, enforces XNU Seatbelt (Mode A) or Apple VZ (Mode B), Fail-Closed 502 zero-direct-fallback, and a 403 domain firewall.",
     },
 ]
 
@@ -1546,6 +1616,323 @@ ag workspace usage --export /tmp/ag-finops.csv              # Offline 5h/7d FinO
     </section>"""
 
 
+def _resolve_model_for_comparison(models: list[dict[str, Any]], candidates: list[str]) -> dict[str, Any]:
+    """Resolve the best matching live or fallback model from the catalog for SSR comparison tables."""
+    for cand in candidates:
+        cand_low = cand.lower()
+        exact = next((m for m in models if str(m.get("id") or "").lower() == cand_low), None)
+        if exact is not None:
+            return exact
+    for cand in candidates:
+        resolved, _ = pricing_core.resolve_model_query(models, cand)
+        if resolved is not None:
+            return resolved
+    return models[0]
+
+
+def build_deepseek_v4_vs_claude_sections(
+    *,
+    models: list[dict[str, Any]],
+    fx_rate: float,
+    quote_verified_date: str,
+    last_live_verified_at: str,
+    base_prefix: str,
+) -> tuple[str, str]:
+    """
+    Build live-priced SSR HTML sections for /deepseek-v4-vs-claude-code/ using shared_data/models_live.json:
+      - Upper section (3 <table>s): live unit pricing, 50% cache hit daily/monthly bills across 3 tiers,
+        and PayG Routing vs Coding Plan decision matrix.
+      - Bottom section (1 <table> + 2 action cards): local zero-upload audit CLI + Agent Guardian v3.20.0
+        dual-account isolation guide (strictly grounded in verified Agent Guardian README facts).
+    """
+    ds_v4 = _resolve_model_for_comparison(
+        models,
+        ["deepseek/deepseek-v4.1-flash", "deepseek/deepseek-v4-flash", "tencent-cloud/deepseek-v3"],
+    )
+    claude_sonnet = _resolve_model_for_comparison(
+        models,
+        ["anthropic/claude-sonnet-5.5", "anthropic/claude-sonnet-4", "anthropic/claude-sonnet-5"],
+    )
+    qwen_coder = _resolve_model_for_comparison(
+        models,
+        ["aliyun-bailian/qwen3-coder-next", "novita/qwen/qwen3-coder-next"],
+    )
+    ds_v3_cn = _resolve_model_for_comparison(
+        models,
+        ["tencent-cloud/deepseek-v3", "siliconflow/deepseek-ai/DeepSeek-V3"],
+    )
+
+    compared = [
+        ("DeepSeek V4.1 Flash (OpenRouter / API)", "DeepSeek V4.1 Flash (Global API)", ds_v4),
+        ("Claude Sonnet (Claude Code 主力基准)", "Claude Sonnet (Claude Code Baseline)", claude_sonnet),
+        ("Qwen3-Coder-Next (阿里云百炼直连)", "Qwen3-Coder-Next (Aliyun Direct)", qwen_coder),
+        ("DeepSeek-V3.2 (腾讯云直连参考)", "DeepSeek-V3.2 (Tencent Direct Ref)", ds_v3_cn),
+    ]
+
+    # Pre-compute 50% cache hit unit & 3-tier daily/monthly bills via pricing_core
+    claude_ref_bill = pricing_core.calculate_token_bill(
+        monthly_input_m=(2500 * 30 * 4000) / 1_000_000,
+        monthly_output_m=(2500 * 30 * 1000) / 1_000_000,
+        input_price_per_1m=float(claude_sonnet["input_rmb_per_1m"]),
+        output_price_per_1m=float(claude_sonnet["output_rmb_per_1m"]),
+        cache_hit_rate=0.5,
+        cache_hit_factor=float(claude_sonnet.get("cache_hit_factor") if claude_sonnet.get("cache_hit_factor") is not None else 0.5),
+    )
+
+    unit_rows_html: list[str] = []
+    for role_zh, role_en, m in compared:
+        in_rmb = float(m["input_rmb_per_1m"])
+        out_rmb = float(m["output_rmb_per_1m"])
+        in_usd = float(m["input_usd_per_1m"])
+        out_usd = float(m["output_usd_per_1m"])
+        hit_factor = float(m.get("cache_hit_factor") if m.get("cache_hit_factor") is not None else 0.5)
+        ctx_len = int(m.get("context_length") or 128000)
+        ctx_label = f"{ctx_len / 1_000_000:.2f}M" if ctx_len >= 1_000_000 else f"{ctx_len // 1000}K"
+
+        # 1 call = 4,000 input + 1,000 output @ 50% cache hit
+        per_1k_calls_rmb = pricing_core.calculate_token_bill(
+            monthly_input_m=(1000 * 4000) / 1_000_000,
+            monthly_output_m=(1000 * 1000) / 1_000_000,
+            input_price_per_1m=in_rmb,
+            output_price_per_1m=out_rmb,
+            cache_hit_rate=0.5,
+            cache_hit_factor=hit_factor,
+        )["total_cost"]
+        per_1k_calls_usd = per_1k_calls_rmb / fx_rate if fx_rate > 0 else 0.0
+
+        main_mo_rmb = per_1k_calls_rmb * 75.0  # 2,500 calls/day * 30 = 75,000 calls/mo
+        if m["id"] == claude_sonnet["id"]:
+            ratio_zh = "基准 1.0x"
+            ratio_en = "1.0x Baseline"
+        elif main_mo_rmb > 0 and claude_ref_bill["total_cost"] > 0:
+            mult = claude_ref_bill["total_cost"] / main_mo_rmb
+            ratio_zh = f"便宜 {mult:.1f}x"
+            ratio_en = f"{mult:.1f}x cheaper"
+        else:
+            ratio_zh = "--"
+            ratio_en = "--"
+
+        raw_aff = str(m.get("affiliate_url") or "")
+        aff_rel = "noopener sponsored" if is_sponsored_link(raw_aff, str(m.get("provider_config_key") or "")) else "noopener"
+        unit_rows_html.append(
+            f"<tr>"
+            f"<td><strong data-zh=\"{html.escape(role_zh)}\" data-en=\"{html.escape(role_en)}\">{html.escape(role_zh)}</strong>"
+            f"<br><code class=\"table-code\">{html.escape(m['id'])}</code>"
+            f"<br><span class=\"table-sub\">{html.escape(m['name'])}</span></td>"
+            f"<td class=\"num-cell\">¥{in_rmb:.4f} / ¥{out_rmb:.4f}<br><span class=\"table-sub\">${in_usd:.4f} / ${out_usd:.4f}</span></td>"
+            f"<td class=\"num-cell\">{int(round(hit_factor * 100))}%<br><span class=\"table-sub\">{ctx_label} ctx</span></td>"
+            f"<td class=\"num-cell\">¥{per_1k_calls_rmb:.3f}<br><span class=\"table-sub\">${per_1k_calls_usd:.4f}</span></td>"
+            f"<td class=\"num-cell\"><strong data-zh=\"{html.escape(ratio_zh)}\" data-en=\"{html.escape(ratio_en)}\">{html.escape(ratio_zh)}</strong></td>"
+            f"<td><a href=\"{html.escape(raw_aff)}\" target=\"_blank\" rel=\"{aff_rel}\" data-zh=\"查看通道\" data-en=\"Open Channel\">查看通道</a></td>"
+            f"</tr>"
+        )
+
+    workloads = [
+        ("轻度独立开发 (800 次/天 · 2.4万次/月)", "Indie Dev (800/day · 24k/mo)", 800, 4000, 1000, "腾讯 Lite ¥40/月 (限1.8万超额) / 按量更灵活", "Exceeds Lite 18k cap; PayG stays flexible"),
+        ("编程主力负载 (2,500 次/天 · 7.5万次/月)", "Core Coding IDE (2,500/day · 75k/mo)", 2500, 4000, 1000, "百炼 Pro 首月 ¥39.90 / 续费 ¥200 (限9万次)", "Bailian Pro ¥39.90 1st mo / ¥200 renewal (90k cap)"),
+        ("重度 Agent 超限 (5,000 次/天 · 15万次/月)", "Heavy Agent Over-Cap (5,000/day · 150k/mo)", 5000, 4000, 1000, "超出单个 Pro 9万次上限 6万次（需按量/混合溢出）", "Exceeds Pro 90k cap by 60k (needs PayG / Hybrid)"),
+    ]
+
+    bill_rows_html: list[str] = []
+    for w_zh, w_en, d_calls, in_tok, out_tok, plan_zh, plan_en in workloads:
+        m_calls = d_calls * 30
+        in_m = (m_calls * in_tok) / 1_000_000
+        out_m = (m_calls * out_tok) / 1_000_000
+        cells: list[str] = []
+        for m in (ds_v4, claude_sonnet, qwen_coder):
+            bill_rmb = pricing_core.calculate_token_bill(
+                monthly_input_m=in_m,
+                monthly_output_m=out_m,
+                input_price_per_1m=float(m["input_rmb_per_1m"]),
+                output_price_per_1m=float(m["output_rmb_per_1m"]),
+                cache_hit_rate=0.5,
+                cache_hit_factor=float(m.get("cache_hit_factor") if m.get("cache_hit_factor") is not None else 0.5),
+            )["total_cost"]
+            day_rmb = bill_rmb / 30.0
+            bill_usd = bill_rmb / fx_rate if fx_rate > 0 else 0.0
+            day_usd = day_rmb / fx_rate if fx_rate > 0 else 0.0
+            cells.append(
+                f"<td class=\"num-cell\"><strong>¥{day_rmb:.2f}/天</strong> · <strong>¥{bill_rmb:,.2f}/月</strong>"
+                f"<br><span class=\"table-sub\">${day_usd:.2f}/day · ${bill_usd:,.2f}/mo</span></td>"
+            )
+        bill_rows_html.append(
+            f"<tr>"
+            f"<td><strong data-zh=\"{html.escape(w_zh)}\" data-en=\"{html.escape(w_en)}\">{html.escape(w_zh)}</strong>"
+            f"<br><span class=\"table-sub\" data-zh=\"每次 {in_tok:,} 输入 + {out_tok:,} 输出 · 50% 缓存命中\" data-en=\"{in_tok:,} in + {out_tok:,} out / call · 50% cache hit\">每次 {in_tok:,} 输入 + {out_tok:,} 输出 · 50% 缓存命中</span></td>"
+            f"{''.join(cells)}"
+            f"<td data-zh=\"{html.escape(plan_zh)}\" data-en=\"{html.escape(plan_en)}\">{html.escape(plan_zh)}</td>"
+            f"</tr>"
+        )
+
+    # Calculate 2,500 calls/day exact headline numbers for decision matrix copy
+    ds_main_bill = pricing_core.calculate_token_bill(
+        monthly_input_m=(2500 * 30 * 4000) / 1_000_000,
+        monthly_output_m=(2500 * 30 * 1000) / 1_000_000,
+        input_price_per_1m=float(ds_v4["input_rmb_per_1m"]),
+        output_price_per_1m=float(ds_v4["output_rmb_per_1m"]),
+        cache_hit_rate=0.5,
+        cache_hit_factor=float(ds_v4.get("cache_hit_factor") if ds_v4.get("cache_hit_factor") is not None else 0.5),
+    )["total_cost"]
+    qwen_main_bill = pricing_core.calculate_token_bill(
+        monthly_input_m=(2500 * 30 * 4000) / 1_000_000,
+        monthly_output_m=(2500 * 30 * 1000) / 1_000_000,
+        input_price_per_1m=float(qwen_coder["input_rmb_per_1m"]),
+        output_price_per_1m=float(qwen_coder["output_rmb_per_1m"]),
+        cache_hit_rate=0.5,
+        cache_hit_factor=float(qwen_coder.get("cache_hit_factor") if qwen_coder.get("cache_hit_factor") is not None else 0.2),
+    )["total_cost"]
+
+    live_ts = html.escape((last_live_verified_at or quote_verified_date)[:19].replace("T", " "))
+    qver = html.escape(quote_verified_date)
+    guardian_href = html.escape(f"{base_prefix}agent-guardian/")
+    auditor_href = html.escape(f"{base_prefix}ai-coding-spend-auditor/")
+    coding_plan_href = html.escape(f"{base_prefix}coding-plan-2026/")
+
+    upper_html = f"""
+    <section class="section-block" id="dsV4LiveComparisonSection">
+      <div class="section-head">
+        <h2 data-zh="DeepSeek V4.1 Flash vs Claude Sonnet vs Qwen3-Coder-Next 实时比价与 50% 缓存账单" data-en="Live Pricing &amp; 50% Cache Bill Benchmark: DeepSeek V4.1 Flash vs Claude Sonnet vs Qwen3-Coder-Next">DeepSeek V4.1 Flash vs Claude Sonnet vs Qwen3-Coder-Next 实时比价与 50% 缓存账单</h2>
+        <p data-zh="以下价格直接读取 shared_data/models_live.json（最近在线刷新：{live_ts} UTC；国内规则核验：{qver}），并采用与 /api/budget 完全一致的计费公式测算。" data-en="Rates rendered directly from shared_data/models_live.json (Live feed: {live_ts} UTC; CN rules verified: {qver}) using the exact /api/budget billing formula.">以下价格直接读取 shared_data/models_live.json（最近在线刷新：{live_ts} UTC；国内规则核验：{qver}），并采用与 /api/budget 完全一致的计费公式测算。</p>
+      </div>
+
+      <div class="table-scroll">
+        <table class="ssr-table" id="dsV4LiveUnitPriceTable">
+          <caption data-zh="表 1：实时模型单价、Prompt 缓存命中系数与千次编程调用（4K 输入 + 1K 输出 @ 50% 缓存命中）成本对比" data-en="Table 1: Live unit pricing, prompt-cache hit factor, and per-1,000 coding calls (4K in + 1K out @ 50% cache hit)">表 1：实时模型单价、Prompt 缓存命中系数与千次编程调用（4K 输入 + 1K 输出 @ 50% 缓存命中）成本对比</caption>
+          <thead>
+            <tr>
+              <th scope="col" data-zh="模型定位与标准 ID" data-en="Model Role &amp; Standard ID">模型定位与标准 ID</th>
+              <th scope="col" data-zh="输入 / 输出单价 (每 1M Tokens)" data-en="Input / Output Rate (per 1M)">输入 / 输出单价 (每 1M Tokens)</th>
+              <th scope="col" data-zh="缓存系数与上下文" data-en="Cache Factor &amp; Context">缓存系数与上下文</th>
+              <th scope="col" data-zh="每 1,000 次调用 (50% 缓存)" data-en="Per 1,000 Calls (50% Cache)">每 1,000 次调用 (50% 缓存)</th>
+              <th scope="col" data-zh="相对 Claude Sonnet" data-en="vs Claude Sonnet">相对 Claude Sonnet</th>
+              <th scope="col" data-zh="通道入口" data-en="Channel">通道入口</th>
+            </tr>
+          </thead>
+          <tbody>
+            {''.join(unit_rows_html)}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-scroll" style="margin-top:14px;">
+        <table class="ssr-table" id="dsV4MonthlyBillTable">
+          <caption data-zh="表 2：50% Prompt 缓存命中下三档编程强度的「日账单与 30 天月账单」动态测算（均按每次 4,000 输入 + 1,000 输出）" data-en="Table 2: Daily &amp; 30-day monthly bills at 50% cache hit rate across 3 coding intensities (4K in + 1K out / call)">表 2：50% Prompt 缓存命中下三档编程强度的「日账单与 30 天月账单」动态测算（均按每次 4,000 输入 + 1,000 输出）</caption>
+          <thead>
+            <tr>
+              <th scope="col" data-zh="编程负载档位" data-en="Workload Intensity">编程负载档位</th>
+              <th scope="col" data-zh="DeepSeek V4.1 Flash (50% 缓存)" data-en="DeepSeek V4.1 Flash (50% Cache)">DeepSeek V4.1 Flash (50% 缓存)</th>
+              <th scope="col" data-zh="Claude Sonnet (50% 缓存)" data-en="Claude Sonnet (50% Cache)">Claude Sonnet (50% 缓存)</th>
+              <th scope="col" data-zh="Qwen3-Coder-Next (50% 缓存)" data-en="Qwen3-Coder-Next (50% 缓存)">Qwen3-Coder-Next (50% 缓存)</th>
+              <th scope="col" data-zh="Coding Plan 包月参照" data-en="Coding Plan Benchmark">Coding Plan 包月参照</th>
+            </tr>
+          </thead>
+          <tbody>
+            {''.join(bill_rows_html)}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-scroll" style="margin-top:14px;">
+        <table class="ssr-table" id="dsV4PaygVsPlanTable">
+          <caption data-zh="表 3：何时选「按量路由」vs「国内 Coding Plan 包月」vs「80/20 混合分层」决策矩阵" data-en="Table 3: Decision Matrix — When to choose PayG Routing vs Domestic Coding Plan vs 80/20 Hybrid">表 3：何时选「按量路由」vs「国内 Coding Plan 包月」vs「80/20 混合分层」决策矩阵</caption>
+          <thead>
+            <tr>
+              <th scope="col" data-zh="研发场景与调用特征" data-en="Engineering Scenario">研发场景与调用特征</th>
+              <th scope="col" data-zh="推荐计费路线" data-en="Recommended Route">推荐计费路线</th>
+              <th scope="col" data-zh="量化算账依据（基于上方实时单价）" data-en="Quantitative Rationale (Live Rates)">量化算账依据（基于上方实时单价）</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong data-zh="主力高频编程但追求极致按量性价比（2,500 次/天）" data-en="High-Frequency Coding Optimizing PayG Cost (2,500/day)">主力高频编程但追求极致按量性价比（2,500 次/天）</strong></td>
+              <td data-zh="按量路由（DeepSeek V4.1 Flash 主力 + 复杂任务切 Claude）" data-en="PayG Routing (DeepSeek V4.1 Flash + Claude for hard tasks)">按量路由（DeepSeek V4.1 Flash 主力 + 复杂任务切 Claude）</td>
+              <td data-zh="DeepSeek V4.1 Flash 在 50% 缓存命中下月费仅约 ¥{ds_main_bill:.2f}（对比 Claude Sonnet 约 ¥{claude_ref_bill['total_cost']:,.2f}），无需被 ¥200/月包月续费绑定，且无 5h/周/月调用次数封顶。" data-en="DeepSeek V4.1 Flash costs ~¥{ds_main_bill:.2f}/mo at 50% cache hit (vs ~¥{claude_ref_bill['total_cost']:,.2f}/mo for Claude Sonnet), beating ¥200/mo Coding Plan renewals with zero 5h/monthly call caps.">DeepSeek V4.1 Flash 在 50% 缓存命中下月费仅约 ¥{ds_main_bill:.2f}（对比 Claude Sonnet 约 ¥{claude_ref_bill['total_cost']:,.2f}），无需被 ¥200/月包月续费绑定，且无 5h/周/月调用次数封顶。</td>
+            </tr>
+            <tr>
+              <td><strong data-zh="重度使用 Qwen3-Coder-Next / 国产旗舰模型（月 3万～9万次内）" data-en="Heavy Qwen3-Coder-Next / CN IDE Usage (30k–90k/mo)">重度使用 Qwen3-Coder-Next / 国产旗舰模型（月 3万～9万次内）</strong></td>
+              <td data-zh="交互式 IDE 选 Coding Plan Pro（首月 ¥39.90 / 续费 ¥200）" data-en="Coding Plan Pro for Interactive IDEs (¥39.90 1st mo / ¥200 renew)">交互式 IDE 选 Coding Plan Pro（首月 ¥39.90 / 续费 ¥200）</td>
+              <td data-zh="7.5 万次/月下 Qwen3-Coder-Next 纯按量约 ¥{qwen_main_bill:,.2f}/月，百炼 Coding Plan Pro 首月 ¥39.90（续费 ¥200/月，限 90,000 次）显著省钱；注意在 Claude Code 中必须配置专属端点 sk-sp-，详见 Coding Plan 核验页。" data-en="At 75k calls/mo, Qwen3-Coder-Next PayG runs ~¥{qwen_main_bill:,.2f}/mo; Bailian Pro at ¥39.90 first month (¥200/mo renewal, 90k cap) saves substantially when paired with dedicated sk-sp- endpoints.">7.5 万次/月下 Qwen3-Coder-Next 纯按量约 ¥{qwen_main_bill:,.2f}/月，百炼 Coding Plan Pro 首月 ¥39.90（续费 ¥200/月，限 90,000 次）显著省钱；注意在 Claude Code 中必须配置专属端点 <code>sk-sp-</code>，详见 <a href="{coding_plan_href}" style="text-decoration:underline;">Coding Plan 核验页</a>。</td>
+            </tr>
+            <tr>
+              <td><strong data-zh="自动化脚本 / CI Cron / 后端 API 或月超 90,000 次调用" data-en="Automated Scripts / CI Cron / Backend APIs or &gt;90k/mo">自动化脚本 / CI Cron / 后端 API 或月超 90,000 次调用</strong></td>
+              <td data-zh="严禁买个人 Coding Plan · 仅用按量池或 LiteLLM 混合溢出" data-en="Never Buy Personal Plans · Use PayG Pool or Hybrid Overflow">严禁买个人 Coding Plan · 仅用按量池或 LiteLLM 混合溢出</td>
+              <td data-zh="百炼、腾讯云与火山方舟个人套餐均限定仅用于交互式编程工具，非交互式脚本或代理池混用存在封号/限流风险；超 90,000 次的交互开发也应把超出部分路由至 DeepSeek V4.1 Flash / 按量 API。" data-en="Official Aliyun/Tencent/Volcengine personal plans prohibit non-interactive scripts, backend APIs, or shared keys; interactive workloads above 90,000 calls/mo should route overflow to DeepSeek V4.1 Flash / PayG APIs.">百炼、腾讯云与火山方舟个人套餐均限定仅用于交互式编程工具，非交互式脚本或代理池混用存在封号/限流风险；超 90,000 次的交互开发也应把超出部分路由至 DeepSeek V4.1 Flash / 按量 API。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>"""
+
+    bottom_html = f"""
+    <section class="section-block" id="dsV4AuditGuardianSection">
+      <div class="section-head">
+        <h2 data-zh="下一步实战闭环：先本地只读审计真实账单，再用 Agent Guardian 隔离双账号" data-en="Next Step: Audit Local Spend Read-Only First, Then Isolate Dual Accounts with Agent Guardian">下一步实战闭环：先本地只读审计真实账单，再用 Agent Guardian 隔离双账号</h2>
+        <p data-zh="测算理论账单只是第一步。落地切换「Claude 官方号 + DeepSeek / 百炼按量号」时，先扫描本地真实缓存命中率与 5h 峰值，再在沙箱中隔离运行防串号与误走余额。" data-en="Theoretical math is step one. Before splitting workloads across Claude and DeepSeek/PayG accounts, audit your real local cache hit rate first, then isolate profiles against env leaks and wrong-key billing.">测算理论账单只是第一步。落地切换「Claude 官方号 + DeepSeek / 百炼按量号」时，先扫描本地真实缓存命中率与 5h 峰值，再在沙箱中隔离运行防串号与误走余额。</p>
+      </div>
+
+      <div class="table-scroll">
+        <table class="ssr-table" id="dsV4AuditAndGuardianTable">
+          <caption data-zh="表 4：从「本地账单体检」到「Agent Guardian v3.20.0 双账号零污染隔离」执行清单" data-en="Table 4: Execution Checklist — Local Zero-Upload Spend Audit + Agent Guardian v3.20.0 Dual-Account Isolation">表 4：从「本地账单体检」到「Agent Guardian v3.20.0 双账号零污染隔离」执行清单</caption>
+          <thead>
+            <tr>
+              <th scope="col" data-zh="落地阶段" data-en="Stage">落地阶段</th>
+              <th scope="col" data-zh="推荐工具与核心命令" data-en="Tool &amp; Key Command">推荐工具与核心命令</th>
+              <th scope="col" data-zh="解决的真实工程风险（已核验能力）" data-en="Verified Engineering Guarantees">解决的真实工程风险（已核验能力）</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong data-zh="1. 本地零上传摸底" data-en="1. Zero-Upload Local Audit">1. 本地零上传摸底</strong></td>
+              <td class="mono-cell">curl -fsSL https://ai-cost-radar-nlu.pages.dev/audit_ai_spend.py | python3 - --days 30</td>
+              <td data-zh="100% 本地只读扫描 Claude Code、Codex (.jsonl.zst)、Antigravity、OpenCode (opencode.db)、Grok、WorkBuddy、Qwen 与 Cline，精准统计过去 30 天缓存命中率与稳态 5h 峰值，绝不上传源码或提示词。" data-en="100% read-only local scan across Claude Code, Codex (.jsonl.zst), Antigravity, OpenCode (opencode.db), Grok, WorkBuddy, Qwen &amp; Cline; reports true 30-day cache hits and 5h peaks with zero uploads.">100% 本地只读扫描 Claude Code、Codex (.jsonl.zst)、Antigravity、OpenCode (opencode.db)、Grok、WorkBuddy、Qwen 与 Cline，精准统计过去 30 天缓存命中率与稳态 5h 峰值，绝不上传源码或提示词。</td>
+            </tr>
+            <tr>
+              <td><strong data-zh="2. 双账号零污染隔离" data-en="2. Zero-Pollution Dual Accounts">2. 双账号零污染隔离</strong></td>
+              <td class="mono-cell">ag claude --smart --worktree feat-routing</td>
+              <td data-zh="macOS Apple Silicon 原生 Agent Guardian (v3.20.0)：为每个 Claude Code / Codex / Gemini / OpenCode 账号分配独立 CLAUDE_CONFIG_DIR（0700 目录 + 0600 Keychain/AES-256-GCM 凭据仓），启动前自动清洗宿主残留 ANTHROPIC_API_KEY，彻底避免包月与按量串号误扣。" data-en="Agent Guardian (v3.20.0) on macOS Apple Silicon gives each Claude Code / Codex / Gemini / OpenCode profile an isolated CLAUDE_CONFIG_DIR (0700 dir + 0600 Keychain/AES-256-GCM vault) and scrubs residual host API keys before launch.">macOS Apple Silicon 原生 Agent Guardian (v3.20.0)：为每个 Claude Code / Codex / Gemini / OpenCode 账号分配独立 <code>CLAUDE_CONFIG_DIR</code>（<code>0700</code> 目录 + <code>0600</code> Keychain/AES-256-GCM 凭据仓），启动前自动清洗宿主残留 <code>ANTHROPIC_API_KEY</code>，彻底避免包月与按量串号误扣。</td>
+            </tr>
+            <tr>
+              <td><strong data-zh="3. 断线防泄漏与出站门禁" data-en="3. Fail-Closed &amp; Domain Firewall">3. 断线防泄漏与出站门禁</strong></td>
+              <td class="mono-cell">ag exec --mode vm --domain domain-default</td>
+              <td data-zh="支持 XNU Seatbelt (Mode A，零毫秒启动) 与 Apple VZ + HostNetworkBroker (Mode B 硬件隔离)；代理断线直返 Fail-Closed 502 零直连回退，配合零载荷 403 出站域名防火墙与离线 5h 滚动额度雷达。" data-en="Supports XNU Seatbelt (Mode A, 0ms boot) and Apple VZ + HostNetworkBroker (Mode B); enforces Fail-Closed 502 zero direct broadband fallback, a zero-payload 403 domain firewall, and an offline 5h rolling quota radar.">支持 XNU Seatbelt (Mode A，零毫秒启动) 与 Apple VZ + HostNetworkBroker (Mode B 硬件隔离)；代理断线直返 Fail-Closed <code>502</code> 零直连回退，配合零载荷 <code>403</code> 出站域名防火墙与离线 5h 滚动额度雷达。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="guardian-action-grid">
+        <article class="guardian-action-card">
+          <div class="partner-title">
+            <span data-zh="第一步：一行命令导出本地 30 天真实账单" data-en="Step 1: Audit Local 30-Day Spend in One Command">第一步：一行命令导出本地 30 天真实账单</span>
+            <span class="badge badge-save">Zero Upload · Stdlib</span>
+          </div>
+          <p class="partner-desc" data-zh="自动去重并识别真实 Prompt 缓存命中率，复制下方命令到终端运行后，再把结果粘贴回上方计算器核对最省路由：" data-en="Deduplicates local sessions and calculates your real cache hit rate. Run below, then compare routes in the calculator or Global Spend Auditor:">自动去重并识别真实 Prompt 缓存命中率，复制下方命令到终端运行后，再把结果粘贴回上方计算器核对最省路由：</p>
+          <pre class="cfg-code-block" id="dsV4LocalAuditCmd">curl -fsSL https://ai-cost-radar-nlu.pages.dev/audit_ai_spend.py | python3 - --days 30</pre>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="cta-copy-cfg" style="flex:1 1 180px;" data-copy-target="#dsV4LocalAuditCmd" data-copy-slot="ds_v4_local_audit_cli" data-zh="复制 8 客户端本地审计命令" data-en="Copy 8-Client Local Audit CLI">复制 8 客户端本地审计命令</button>
+            <a href="{auditor_href}" class="guardian-cta-btn secondary" style="flex:1 1 180px;" data-zh="打开海外账单体检页 (USD) →" data-en="Open Global Spend Auditor (USD) →">打开海外账单体检页 (USD) →</a>
+          </div>
+        </article>
+
+        <article class="guardian-action-card" data-offer-id="agent-guardian-mac-dmg" data-card-slot="ds_v4_guardian_card">
+          <div class="partner-title">
+            <span data-zh="第二步：用 Agent Guardian 隔离双账号" data-en="Step 2: Isolate Dual Accounts with Agent Guardian">第二步：用 Agent Guardian 隔离双账号</span>
+            <span class="badge badge-global">v3.20.0 · macOS arm64</span>
+          </div>
+          <p class="partner-desc" data-zh="同时维护「Claude 官方主力号 + DeepSeek/百炼按量号」时，使用 Agent Guardian 的 0700 独立目录、XNU Seatbelt 写锁与 Fail-Closed 502 防代理断线直连：" data-en="When running both an official Claude profile and a DeepSeek/PayG profile, use Agent Guardian's 0700 isolation, XNU Seatbelt control-plane locks, and Fail-Closed 502 proxy protection:">同时维护「Claude 官方主力号 + DeepSeek/百炼按量号」时，使用 Agent Guardian 的 <code>0700</code> 独立目录、XNU Seatbelt 写锁与 Fail-Closed <code>502</code> 防代理断线直连：</p>
+          <pre class="cfg-code-block" id="dsV4GuardianQuickCmd">ag account add -i claude-us2 -p claude -a "Claude US #2" --tier pro --proxy 127.0.0.1:9674 --country US
+ag claude --smart --worktree feat-deepseek-route</pre>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="cta-copy-cfg" style="flex:1 1 180px;" data-copy-target="#dsV4GuardianQuickCmd" data-copy-slot="ds_v4_guardian_cli" data-zh="复制双账号隔离命令" data-en="Copy Dual-Account CLI">复制双账号隔离命令</button>
+            <a href="{guardian_href}" class="guardian-cta-btn primary" style="flex:1 1 180px;" data-offer-id="agent-guardian-mac-dmg" data-card-slot="ds_v4_guardian_cta" data-zh="查看 Agent Guardian 隔离台 →" data-en="Explore Agent Guardian Sandbox →">查看 Agent Guardian 隔离台 →</a>
+          </div>
+        </article>
+      </div>
+    </section>"""
+
+    return upper_html, bottom_html
+
+
 def build_status_badge_svg(quote_verified_date: str, total_models: int) -> str:
     left_text = "AI Cost Radar"
     right_text = f"报价核验 {quote_verified_date} · {total_models} models"
@@ -1781,6 +2168,7 @@ def build_seo_nav_html(base_prefix: str, active_slug: str) -> str:
         "": "navTopicRoot",
         "coding-plan-2026/": "navTopicCodingPlan",
         "deepseek-vs-qwen/": "navTopicDeepseekQwen",
+        "deepseek-v4-vs-claude-code/": "navTopicDeepseekV4Claude",
         "claude-code-domestic/": "navTopicClaudeCode",
         "dify-openclaw-cloud-server/": "navTopicDifyHost",
         "ai-coding-spend-auditor/": "navTopicGlobalSpend",
@@ -1844,6 +2232,30 @@ def build_site(
         route_key = "/" + slug
         page_kind = str(route.get("page_kind") or "calculator")
         is_product = page_kind == "product_landing"
+        is_ds_v4_claude = slug == "deepseek-v4-vs-claude-code/"
+
+        route_preset = dict(route["preset"])
+        extra_ssr_section_html = ""
+        extra_bottom_section_html = ""
+        if is_ds_v4_claude:
+            ds_m = _resolve_model_for_comparison(
+                models, ["deepseek/deepseek-v4.1-flash", "deepseek/deepseek-v4-flash", "tencent-cloud/deepseek-v3"]
+            )
+            cl_m = _resolve_model_for_comparison(
+                models, ["anthropic/claude-sonnet-5.5", "anthropic/claude-sonnet-4", "anthropic/claude-sonnet-5"]
+            )
+            qw_m = _resolve_model_for_comparison(
+                models, ["aliyun-bailian/qwen3-coder-next", "novita/qwen/qwen3-coder-next"]
+            )
+            route_preset["baselineId"] = cl_m["id"]
+            route_preset["compareIds"] = [ds_m["id"], cl_m["id"], qw_m["id"]]
+            extra_ssr_section_html, extra_bottom_section_html = build_deepseek_v4_vs_claude_sections(
+                models=models,
+                fx_rate=fx_rate,
+                quote_verified_date=quote_verified_date,
+                last_live_verified_at=last_live_verified_at,
+                base_prefix=base_prefix,
+            )
 
         app_payload = {
             "build_date": build_date,
@@ -1856,12 +2268,19 @@ def build_site(
             "page_kind": page_kind,
             "affiliates": affiliates,
             "coding_plans": coding_plans if not is_product else [],
-            "page_preset": route["preset"],
+            "page_preset": route_preset,
             "models": models if not is_product else [],
         }
         embedded_json = safe_json_for_html_script(app_payload)
-        route_faq_entries = AGENT_GUARDIAN_FAQ_ENTRIES if is_product else FAQ_ENTRIES
-        route_faq_html = build_faq_html(route_faq_entries) if is_product else faq_html
+        if is_product:
+            route_faq_entries = AGENT_GUARDIAN_FAQ_ENTRIES
+            route_faq_html = build_faq_html(route_faq_entries)
+        elif is_ds_v4_claude:
+            route_faq_entries = DEEPSEEK_V4_CLAUDE_FAQ_ENTRIES
+            route_faq_html = build_faq_html(route_faq_entries)
+        else:
+            route_faq_entries = FAQ_ENTRIES
+            route_faq_html = faq_html
         json_ld_webapp, json_ld_faq = build_json_ld(
             route_canonical,
             build_date,
@@ -1912,6 +2331,8 @@ def build_site(
             html_lang=route.get("html_lang", "zh-CN"),
             page_kind=page_kind,
             custom_main_html=custom_main_html,
+            extra_ssr_section_html=extra_ssr_section_html,
+            extra_bottom_section_html=extra_bottom_section_html,
             base_prefix=base_prefix,
             faq_title_zh=(
                 "Agent Guardian 多账号隔离、双模沙箱与离线雷达常见问题 (FAQ)"

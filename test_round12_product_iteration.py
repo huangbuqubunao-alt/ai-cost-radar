@@ -942,6 +942,199 @@ console.log(JSON.stringify({ status: res.status, capturedBinds }));
         self.assertEqual(ev_out["capturedBinds"][2], "/agent-guardian/")
         self.assertEqual(ev_out["capturedBinds"][5], "agent-guardian-waitlist")
 
+    def test_08_deepseek_v4_vs_claude_code_programmatic_seo_and_telemetry(self) -> None:
+        """Verify Task D-02: /deepseek-v4-vs-claude-code/ live-priced 50% cache SSR tables, Agent Guardian guidance & D1 route."""
+        from html.parser import HTMLParser
+        import re
+        import build_site
+        import events_reconcile
+
+        class DsClaudeParser(HTMLParser):
+            def __init__(self) -> None:
+                super().__init__()
+                self.tables: list[str] = []
+                self.canonical: str | None = None
+                self.json_ld_types: list[str] = []
+                self._in_json_ld = False
+                self._buf: list[str] = []
+
+            def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+                attr_map = dict(attrs)
+                if tag == "table":
+                    self.tables.append(attr_map.get("id") or "")
+                elif tag == "link" and attr_map.get("rel") == "canonical":
+                    self.canonical = attr_map.get("href")
+                elif tag == "script" and attr_map.get("type") == "application/ld+json":
+                    self._in_json_ld = True
+                    self._buf = []
+
+            def handle_endtag(self, tag: str) -> None:
+                if tag == "script" and self._in_json_ld:
+                    self._in_json_ld = False
+                    payload = json.loads("".join(self._buf))
+                    if isinstance(payload, dict) and "@type" in payload:
+                        self.json_ld_types.append(str(payload["@type"]))
+
+            def handle_data(self, data: str) -> None:
+                if self._in_json_ld:
+                    self._buf.append(data)
+
+        live_cat = json.loads((ROOT / "shared_data" / "models_live.json").read_text(encoding="utf-8"))
+        ds_live = next(m for m in live_cat["models"] if m["id"] == "deepseek/deepseek-v4.1-flash")
+        fx_rate = float(live_cat.get("fx_rate_usd_to_rmb") or 7.2)
+        expected_ds_2500_rmb = pricing_core.calculate_token_bill(
+            monthly_input_m=(2500 * 30 * 4000) / 1_000_000,
+            monthly_output_m=(2500 * 30 * 1000) / 1_000_000,
+            input_price_per_1m=float(ds_live["input_rmb_per_1m"]),
+            output_price_per_1m=float(ds_live["output_rmb_per_1m"]),
+            cache_hit_rate=0.5,
+            cache_hit_factor=float(ds_live.get("cache_hit_factor") if ds_live.get("cache_hit_factor") is not None else 0.5),
+        )["total_cost"]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dist_tmp = Path(tmpdir) / "dist"
+            summary = build_site.build_site(
+                dist_dir=dist_tmp,
+                site_url="https://ai-cost-radar-nlu.pages.dev/",
+            )
+            self.assertGreaterEqual(summary["seo_pages_count"], 8)
+
+            page_path = dist_tmp / "deepseek-v4-vs-claude-code" / "index.html"
+            self.assertTrue(page_path.is_file(), "Missing dist/deepseek-v4-vs-claude-code/index.html")
+            page_html = page_path.read_text(encoding="utf-8")
+
+            parser = DsClaudeParser()
+            parser.feed(page_html)
+            self.assertEqual(
+                parser.canonical,
+                "https://ai-cost-radar-nlu.pages.dev/deepseek-v4-vs-claude-code/",
+            )
+            self.assertGreaterEqual(len(parser.tables), 8)
+            for required_table in (
+                "dsV4LiveUnitPriceTable",
+                "dsV4MonthlyBillTable",
+                "dsV4PaygVsPlanTable",
+                "dsV4AuditAndGuardianTable",
+            ):
+                self.assertIn(required_table, parser.tables)
+            self.assertIn("WebApplication", parser.json_ld_types)
+            self.assertIn("FAQPage", parser.json_ld_types)
+
+            # Live pricing parity & verified Agent Guardian / local audit guidance
+            self.assertIn(f"¥{expected_ds_2500_rmb:,.2f}/月", page_html)
+            for expected_str in (
+                "deepseek/deepseek-v4.1-flash",
+                "aliyun-bailian/qwen3-coder-next",
+                "audit_ai_spend.py",
+                "../agent-guardian/",
+                "CLAUDE_CONFIG_DIR",
+                "XNU Seatbelt",
+                "HostNetworkBroker",
+                "Fail-Closed",
+                "502",
+                "403",
+                'data-offer-id="agent-guardian-mac-dmg"',
+            ):
+                self.assertIn(expected_str, page_html)
+
+            # Inline JS syntax check via node --check
+            scripts = re.findall(r"<script>([\s\S]*?)</script>", page_html)
+            self.assertGreaterEqual(len(scripts), 1)
+            for script in scripts:
+                subprocess.run(["node", "--check"], input=script, text=True, check=True)
+
+            # Cross-links & sitemap
+            sitemap_xml = (dist_tmp / "sitemap.xml").read_text(encoding="utf-8")
+            self.assertIn("https://ai-cost-radar-nlu.pages.dev/deepseek-v4-vs-claude-code/", sitemap_xml)
+            root_html = (dist_tmp / "index.html").read_text(encoding="utf-8")
+            self.assertIn("deepseek-v4-vs-claude-code/", root_html)
+
+            # Dynamic models_live.json reactivity check: alter DeepSeek V4.1 Flash rate and verify rendered bill updates
+            mutated_cat = json.loads(json.dumps(live_cat))
+            for m in mutated_cat["models"]:
+                if m["id"] == "deepseek/deepseek-v4.1-flash":
+                    m["input_usd_per_1m"] = 0.25
+                    m["output_usd_per_1m"] = 1.0
+                    m["input_rmb_per_1m"] = round(0.25 * fx_rate, 4)
+                    m["output_rmb_per_1m"] = round(1.0 * fx_rate, 4)
+            mutated_path = Path(tmpdir) / "models_mutated.json"
+            mutated_path.write_text(json.dumps(mutated_cat, ensure_ascii=False), encoding="utf-8")
+            dist_mut = Path(tmpdir) / "dist_mut"
+            build_site.build_site(
+                dist_dir=dist_mut,
+                site_url="https://ai-cost-radar-nlu.pages.dev/",
+                models_path=mutated_path,
+            )
+            mut_html = (dist_mut / "deepseek-v4-vs-claude-code" / "index.html").read_text(encoding="utf-8")
+            expected_mut_rmb = pricing_core.calculate_token_bill(
+                monthly_input_m=(2500 * 30 * 4000) / 1_000_000,
+                monthly_output_m=(2500 * 30 * 1000) / 1_000_000,
+                input_price_per_1m=0.25 * fx_rate,
+                output_price_per_1m=1.0 * fx_rate,
+                cache_hit_rate=0.5,
+                cache_hit_factor=float(ds_live.get("cache_hit_factor") if ds_live.get("cache_hit_factor") is not None else 0.5),
+            )["total_cost"]
+            self.assertIn(f"¥{expected_mut_rmb:,.2f}/月", mut_html)
+
+        # D1 route allowlists in both events_reconcile.py and functions/events.js
+        self.assertIn("/deepseek-v4-vs-claude-code/", events_reconcile.ALLOWED_ROUTES)
+        ok, _, clean = events_reconcile.validate_event_payload(
+            {
+                "event_name": "page_view",
+                "day_bucket": "2026-11-23",
+                "browser_day_id": "ds_v4_test_user_01",
+                "route": "/deepseek-v4-vs-claude-code/",
+            }
+        )
+        self.assertTrue(ok)
+        self.assertEqual(clean["route"], "/deepseek-v4-vs-claude-code/")
+
+        events_js = (ROOT / "functions" / "events.js").read_text(encoding="utf-8")
+        self.assertIn('"/deepseek-v4-vs-claude-code/"', events_js)
+
+        node_events_runner = """
+import fs from "node:fs";
+const source = fs.readFileSync("functions/events.js", "utf8");
+const { onRequestPost } = await import("data:text/javascript;base64," + Buffer.from(source).toString("base64"));
+let capturedBinds = null;
+const mockDb = {
+  prepare() {
+    return {
+      bind(...args) {
+        capturedBinds = args;
+        return { run: async () => ({ success: true }) };
+      }
+    };
+  }
+};
+const req = new Request("https://example.test/events", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    event_name: "affiliate_click",
+    day_bucket: "2026-11-23",
+    browser_day_id: "ds_v4_user_5678",
+    route: "/deepseek-v4-vs-claude-code/",
+    source_channel: "direct_or_unknown",
+    offer_id: "agent-guardian-mac-dmg",
+    slot_id: "ds_v4_guardian_cta"
+  })
+});
+const res = await onRequestPost({ request: req, env: { DB: mockDb } });
+console.log(JSON.stringify({ status: res.status, capturedBinds }));
+"""
+        proc_ev = subprocess.run(
+            ["node", "--input-type=module", "-e", node_events_runner],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        ev_out = json.loads(proc_ev.stdout.strip())
+        self.assertEqual(ev_out["status"], 202)
+        self.assertEqual(ev_out["capturedBinds"][2], "/deepseek-v4-vs-claude-code/")
+        self.assertEqual(ev_out["capturedBinds"][5], "agent-guardian-mac-dmg")
+
 
 if __name__ == "__main__":
     unittest.main()

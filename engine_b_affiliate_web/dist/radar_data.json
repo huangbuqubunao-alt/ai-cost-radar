@@ -4,14 +4,14 @@
     "cn_direct": 20,
     "global": 69
   },
-  "build_date": "2026-11-22",
-  "updated_at": "2026-11-22",
+  "build_date": "2026-11-23",
+  "updated_at": "2026-11-23",
   "quote_verified_date": "2026-11-13",
-  "last_live_verified_at": "2026-11-22 15:44:40",
+  "last_live_verified_at": "2026-11-23 03:55:59",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
   "official_rule_audit": {
-    "checked_at": "2026-11-22T15:44:40Z",
+    "checked_at": "2026-11-23T03:55:59Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -23,7 +23,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-22T15:44:40Z",
+        "last_verified_at": "2026-11-23T03:55:59Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -33,10 +33,15 @@
       {
         "plan_id": "tencent-coding-plan",
         "url": "https://cloud.tencent.com/document/product/1823/130092",
-        "status": "csr_shell_manual_check",
-        "matched_groups": [],
+        "status": "verified_markers",
+        "matched_groups": [
+          "lite_monthly_cap_18k",
+          "lite_renewal_40",
+          "pro_monthly_cap_90k",
+          "pro_renewal_200"
+        ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-22T15:42:27Z",
+        "last_verified_at": "2026-11-23T03:55:59Z",
         "last_verified_groups": [
           "lite_monthly_cap_18k",
           "lite_renewal_40",
@@ -47,26 +52,20 @@
       {
         "plan_id": "volcengine-coding-plan",
         "url": "https://www.volcengine.com/docs/82379/1925114",
-        "status": "marker_drift_detected",
-        "matched_groups": [
-          "tiers_lite_pro",
-          "quota_window_5h",
-          "interactive_ide_only"
-        ],
-        "missing_groups": [
-          "dedicated_coding_endpoint"
-        ]
+        "status": "csr_shell_manual_check",
+        "matched_groups": [],
+        "missing_groups": []
       }
     ]
   },
   "price_changes": [
     {
-      "detected_at": "2026-11-22T15:44:40Z",
-      "entity_type": "coding_plan",
-      "id": "volcengine-coding-plan",
-      "name": "火山方舟 Coding Plan 编程套餐",
-      "change_type": "plan_rule_drift_warning",
-      "summary_zh": "官方规则页指纹异动（未命中指标：dedicated_coding_endpoint），请核对最新月上限、首购特惠与续费原价：https://www.volcengine.com/docs/82379/1925114"
+      "detected_at": "2026-11-23T02:00:49Z",
+      "entity_type": "model",
+      "id": "deepseek/deepseek-v4.1-flash-1017",
+      "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
+      "change_type": "price_update",
+      "summary_zh": "输入单价 $0.15 -> $0.3 / 1M，输出单价 $0.6 -> $1.2 / 1M"
     },
     {
       "detected_at": "2026-11-22T02:00:46Z",
@@ -179,14 +178,6 @@
       "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
       "change_type": "price_update",
       "summary_zh": "输入单价 $0.15 -> $0.036 / 1M，输出单价 $0.6 -> $0.5 / 1M"
-    },
-    {
-      "detected_at": "2026-11-18T02:00:55Z",
-      "entity_type": "model",
-      "id": "deepseek/deepseek-v4.1-flash",
-      "name": "DeepSeek: DeepSeek V4.1 Flash",
-      "change_type": "price_update",
-      "summary_zh": "输入单价 $0.14 -> $0.051 / 1M，输出单价 $0.42 -> $0.567 / 1M"
     }
   ],
   "coding_plans": [
@@ -869,41 +860,6 @@
       "signup_url": "https://openrouter.ai"
     },
     {
-      "id": "deepseek/deepseek-v4.1-flash-1017",
-      "anchor_id": "model-deepseek-deepseek-v4-1-flash-1017",
-      "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "deepseek/deepseek-v4.1-flash-1017",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "affiliate_url": "https://openrouter.ai",
-      "region": "global",
-      "input_usd_per_1m": 0.15,
-      "output_usd_per_1m": 0.6,
-      "input_rmb_per_1m": 1.08,
-      "output_rmb_per_1m": 4.32,
-      "blended_usd_per_1m": 0.2625,
-      "blended_rmb_per_1m": 1.89,
-      "context_length": 1048576,
-      "supports_tools": true,
-      "is_free": false,
-      "has_free_quota": false,
-      "is_batch": false,
-      "open_weights": true,
-      "value_score": 92.1,
-      "tags": [
-        "cheap",
-        "coding",
-        "global",
-        "reasoning"
-      ],
-      "bonus_note": "统一多模型按量网关",
-      "bonus_note_en": "Unified Multi-LLM API",
-      "signup_url": "https://openrouter.ai"
-    },
-    {
       "id": "deepseek/deepseek-v4-flash-0731",
       "anchor_id": "model-deepseek-deepseek-v4-flash-0731",
       "name": "DeepSeek: DeepSeek V4 Flash 0731",
@@ -1103,6 +1059,41 @@
       "is_batch": false,
       "open_weights": false,
       "value_score": 90.0,
+      "tags": [
+        "cheap",
+        "coding",
+        "global",
+        "reasoning"
+      ],
+      "bonus_note": "统一多模型按量网关",
+      "bonus_note_en": "Unified Multi-LLM API",
+      "signup_url": "https://openrouter.ai"
+    },
+    {
+      "id": "deepseek/deepseek-v4.1-flash-1017",
+      "anchor_id": "model-deepseek-deepseek-v4-1-flash-1017",
+      "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "deepseek/deepseek-v4.1-flash-1017",
+      "cache_hit_factor": 0.5,
+      "perf_note": "",
+      "affiliate_url": "https://openrouter.ai",
+      "region": "global",
+      "input_usd_per_1m": 0.3,
+      "output_usd_per_1m": 1.2,
+      "input_rmb_per_1m": 2.16,
+      "output_rmb_per_1m": 8.64,
+      "blended_usd_per_1m": 0.525,
+      "blended_rmb_per_1m": 3.78,
+      "context_length": 1048576,
+      "supports_tools": true,
+      "is_free": false,
+      "has_free_quota": false,
+      "is_batch": false,
+      "open_weights": true,
+      "value_score": 89.3,
       "tags": [
         "cheap",
         "coding",
@@ -1943,40 +1934,6 @@
       "signup_url": "https://openrouter.ai"
     },
     {
-      "id": "qwen/qwen4-max",
-      "anchor_id": "model-qwen-qwen4-max",
-      "name": "Qwen: Qwen4 Max",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "qwen/qwen4-max",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "affiliate_url": "https://openrouter.ai",
-      "region": "global",
-      "input_usd_per_1m": 1.425,
-      "output_usd_per_1m": 4.275,
-      "input_rmb_per_1m": 10.26,
-      "output_rmb_per_1m": 30.78,
-      "blended_usd_per_1m": 2.1375,
-      "blended_rmb_per_1m": 15.39,
-      "context_length": 1000000,
-      "supports_tools": true,
-      "is_free": false,
-      "has_free_quota": false,
-      "is_batch": false,
-      "open_weights": true,
-      "value_score": 81.8,
-      "tags": [
-        "coding",
-        "global",
-        "reasoning"
-      ],
-      "bonus_note": "统一多模型按量网关",
-      "bonus_note_en": "Unified Multi-LLM API",
-      "signup_url": "https://openrouter.ai"
-    },
-    {
       "id": "openai/gpt-5.4-mini",
       "anchor_id": "model-openai-gpt-5-4-mini",
       "name": "OpenAI: GPT-5.4 Mini",
@@ -2659,6 +2616,41 @@
       ],
       "bonus_note": "统一多模型按量网关",
       "bonus_note_en": "Unified Multi-LLM API",
+      "signup_url": "https://openrouter.ai"
+    },
+    {
+      "id": "dots-studio/dots-3-note-preview:free",
+      "anchor_id": "model-dots-studio-dots-3-note-preview-free",
+      "name": "Dots Studio: Dots3-Note Preview (free)",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "dots-studio/dots-3-note-preview:free",
+      "cache_hit_factor": 1.0,
+      "perf_note": "",
+      "affiliate_url": "https://openrouter.ai",
+      "region": "global",
+      "input_usd_per_1m": 0.0,
+      "output_usd_per_1m": 0.0,
+      "input_rmb_per_1m": 0.0,
+      "output_rmb_per_1m": 0.0,
+      "blended_usd_per_1m": 0.0,
+      "blended_rmb_per_1m": 0.0,
+      "context_length": 512000,
+      "supports_tools": true,
+      "is_free": true,
+      "has_free_quota": true,
+      "is_batch": false,
+      "open_weights": false,
+      "value_score": 77.1,
+      "tags": [
+        "cheap",
+        "free",
+        "global",
+        "reasoning"
+      ],
+      "bonus_note": "¥0 免费调用层",
+      "bonus_note_en": "$0 Free API Tier",
       "signup_url": "https://openrouter.ai"
     },
     {

@@ -34,6 +34,8 @@ def render_html_template(
     html_lang: str = "zh-CN",
     page_kind: str = "calculator",
     custom_main_html: str = "",
+    extra_ssr_section_html: str = "",
+    extra_bottom_section_html: str = "",
     base_prefix: str = "",
     faq_title_zh: str = "大模型 API 计费核对、专属端点与自建边界常见问题 (FAQ)",
     faq_title_en: str = "LLM Billing Verification, Dedicated Endpoints & Self-Host Break-Even FAQ",
@@ -342,7 +344,7 @@ def render_html_template(
 
       <div id="selfHostBanner" class="selfhost-banner"></div>
     </section>
-
+{extra_ssr_section_html}
     <section class="section-block" id="codingPlanSection">
       <div class="section-head">
         <h2 data-i18n="codingPlanTitle">2026 国内 Coding Plan 包月套餐 vs 同模型按量对账（区分首月与续费）</h2>
@@ -406,7 +408,7 @@ def render_html_template(
         <p data-i18n="matrixDesc">标注各渠道真实计费类型（包月订阅 / 按量池 / 云主机）与合作伙伴链接属性，点击直达对应平台官方页面。</p>
       </div>
       <div class="partner-grid" id="partnerMatrixGrid"></div>
-    </section>"""
+    </section>{extra_bottom_section_html}"""
     return f"""<!DOCTYPE html>
 <html lang="{html_lang}" data-theme="dark">
 <head>
@@ -7808,6 +7810,7 @@ def render_html_template(
       navTopicRoot: "All-Model Calculator",
       navTopicCodingPlan: "Coding Plan Quota Audit",
       navTopicDeepseekQwen: "DeepSeek vs Qwen",
+      navTopicDeepseekV4Claude: "DeepSeek V4 vs Claude Code",
       navTopicClaudeCode: "Claude Code Endpoints",
       navTopicDifyHost: "Backend Cache & GPU",
       navTopicGlobalSpend: "Global Spend Auditor",
@@ -8812,6 +8815,16 @@ def render_html_template(
         const copyPlanBtn = e.target.closest("[data-copy-plan]");
         if (copyPlanBtn) {{
           openConfigModalForPlan(copyPlanBtn.getAttribute("data-copy-plan"), copyPlanBtn);
+          return;
+        }}
+        const copyTargetBtn = e.target.closest("[data-copy-target]");
+        if (copyTargetBtn) {{
+          const targetSel = copyTargetBtn.getAttribute("data-copy-target");
+          const codeEl = targetSel ? document.querySelector(targetSel) : null;
+          if (codeEl) {{
+            copyTextWithFeedback(codeEl.textContent, copyTargetBtn);
+            trackEvent("share_copy", {{ slot_id: copyTargetBtn.getAttribute("data-copy-slot") || "page_cli" }});
+          }}
           return;
         }}
         const offerLink = e.target.closest("a[data-offer-id], button[data-offer-id], a[rel~='sponsored']");

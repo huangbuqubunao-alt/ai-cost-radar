@@ -48,7 +48,9 @@ def main():
     parser.add_argument("--remote", help="Read-only HTTP verification of deployed assets")
     args = parser.parse_args()
     pages = sorted(DIST.rglob("*.html"))
-    assert len(pages) >= 6, f"Expected >= 6 landing pages, found {len(pages)}"
+    assert len(pages) >= 8, f"Expected >= 8 landing pages, found {len(pages)}"
+    for required_rel in ("agent-guardian/index.html", "deepseek-v4-vs-claude-code/index.html"):
+        assert (DIST / required_rel).is_file(), f"Missing required SEO landing page: {required_rel}"
     page_canonicals: set[str] = set()
     for file in pages:
         page = Page()
