@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-23T03:55:59Z",
-  "last_live_verified_at": "2026-11-23T03:55:59Z",
+  "updated_at": "2026-11-23T03:58:11Z",
+  "last_live_verified_at": "2026-11-23T03:58:11Z",
   "quote_verified_date": "2026-11-13",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
@@ -10,7 +10,7 @@
     "global": 69
   },
   "official_rule_audit": {
-    "checked_at": "2026-11-23T03:55:59Z",
+    "checked_at": "2026-11-23T03:58:11Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -22,7 +22,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-23T03:55:59Z",
+        "last_verified_at": "2026-11-23T03:58:11Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -40,7 +40,7 @@
           "pro_renewal_200"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-23T03:55:59Z",
+        "last_verified_at": "2026-11-23T03:58:11Z",
         "last_verified_groups": [
           "lite_monthly_cap_18k",
           "lite_renewal_40",
@@ -51,13 +51,27 @@
       {
         "plan_id": "volcengine-coding-plan",
         "url": "https://www.volcengine.com/docs/82379/1925114",
-        "status": "csr_shell_manual_check",
-        "matched_groups": [],
-        "missing_groups": []
+        "status": "marker_drift_detected",
+        "matched_groups": [
+          "tiers_lite_pro",
+          "quota_window_5h",
+          "interactive_ide_only"
+        ],
+        "missing_groups": [
+          "dedicated_coding_endpoint"
+        ]
       }
     ]
   },
   "price_changes": [
+    {
+      "detected_at": "2026-11-23T03:58:11Z",
+      "entity_type": "coding_plan",
+      "id": "volcengine-coding-plan",
+      "name": "火山方舟 Coding Plan 编程套餐",
+      "change_type": "plan_rule_drift_warning",
+      "summary_zh": "官方规则页指纹异动（未命中指标：dedicated_coding_endpoint），请核对最新月上限、首购特惠与续费原价：https://www.volcengine.com/docs/82379/1925114"
+    },
     {
       "detected_at": "2026-11-23T02:00:49Z",
       "entity_type": "model",
