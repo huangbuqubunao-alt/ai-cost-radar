@@ -1,8 +1,8 @@
 {
-  "updated_at": "2026-11-24T03:08:52Z",
-  "last_live_verified_at": "2026-11-24T02:00:50Z",
+  "updated_at": "2026-11-24T03:11:16Z",
+  "last_live_verified_at": "2026-11-24T03:11:16Z",
   "quote_verified_date": "2026-11-13",
-  "source": "openrouter_cached+curated_cn_2026",
+  "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
   "total_models": 89,
   "counts_by_region": {
@@ -10,7 +10,7 @@
     "global": 69
   },
   "official_rule_audit": {
-    "checked_at": "2026-11-24T03:08:52Z",
+    "checked_at": "2026-11-24T03:11:16Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -22,7 +22,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-24T03:08:52Z",
+        "last_verified_at": "2026-11-24T03:11:16Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -32,13 +32,8 @@
       {
         "plan_id": "tencent-coding-plan",
         "url": "https://cloud.tencent.com/document/product/1823/130092",
-        "status": "verified_markers",
-        "matched_groups": [
-          "lite_monthly_cap_18k",
-          "lite_renewal_40",
-          "pro_monthly_cap_90k",
-          "pro_renewal_200"
-        ],
+        "status": "csr_shell_manual_check",
+        "matched_groups": [],
         "missing_groups": [],
         "last_verified_at": "2026-11-24T03:08:52Z",
         "last_verified_groups": [
@@ -65,12 +60,20 @@
   },
   "price_changes": [
     {
-      "detected_at": "2026-11-24T03:08:52Z",
+      "detected_at": "2026-11-24T03:11:16Z",
       "entity_type": "coding_plan",
       "id": "volcengine-coding-plan",
       "name": "火山方舟 Coding Plan 编程套餐",
       "change_type": "plan_rule_drift_warning",
       "summary_zh": "官方规则页指纹异动（未命中指标：dedicated_coding_endpoint），请核对最新月上限、首购特惠与续费原价：https://www.volcengine.com/docs/82379/1925114"
+    },
+    {
+      "detected_at": "2026-11-24T03:11:16Z",
+      "entity_type": "model",
+      "id": "deepseek/deepseek-v4-flash-0731",
+      "name": "DeepSeek: DeepSeek V4 Flash 0731",
+      "change_type": "price_update",
+      "summary_zh": "输入单价 $0.047 -> $0.055 / 1M，输出单价 $0.3 -> $0.375 / 1M"
     },
     {
       "detected_at": "2026-11-24T02:00:50Z",
@@ -183,14 +186,6 @@
       "name": "DeepSeek: DeepSeek V4 Flash 0731",
       "change_type": "price_update",
       "summary_zh": "输入单价 $0.047 -> $0.1 / 1M，输出单价 $0.3 -> $0.3 / 1M"
-    },
-    {
-      "detected_at": "2026-11-19T02:00:54Z",
-      "entity_type": "model",
-      "id": "deepseek/deepseek-v4-flash-0731",
-      "name": "DeepSeek: DeepSeek V4 Flash 0731",
-      "change_type": "price_update",
-      "summary_zh": "输入单价 $0.06 -> $0.047 / 1M，输出单价 $0.18 -> $0.3 / 1M"
     }
   ],
   "coding_plans": [
@@ -868,37 +863,6 @@
       ]
     },
     {
-      "id": "deepseek/deepseek-v4-flash-0731",
-      "name": "DeepSeek: DeepSeek V4 Flash 0731",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "deepseek/deepseek-v4-flash-0731",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "signup_url": "https://openrouter.ai",
-      "affiliate_url": "https://openrouter.ai",
-      "model_page_url": "https://openrouter.ai/deepseek/deepseek-v4-flash-0731",
-      "region": "global",
-      "input_usd_per_1m": 0.047,
-      "output_usd_per_1m": 0.3,
-      "input_rmb_per_1m": 0.3384,
-      "output_rmb_per_1m": 2.16,
-      "blended_usd_per_1m": 0.1103,
-      "blended_rmb_per_1m": 0.7942,
-      "context_length": 1048576,
-      "supports_tools": true,
-      "modality": "text->text",
-      "is_free": false,
-      "value_score": 91.6,
-      "tags": [
-        "coding",
-        "reasoning",
-        "cheap",
-        "global"
-      ]
-    },
-    {
       "id": "deepseek/deepseek-v4-flash",
       "name": "DeepSeek: DeepSeek V4 Flash 0423",
       "provider": "OpenRouter (Global)",
@@ -953,6 +917,37 @@
       "modality": "text+image->text",
       "is_free": false,
       "value_score": 91.3,
+      "tags": [
+        "coding",
+        "reasoning",
+        "cheap",
+        "global"
+      ]
+    },
+    {
+      "id": "deepseek/deepseek-v4-flash-0731",
+      "name": "DeepSeek: DeepSeek V4 Flash 0731",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "deepseek/deepseek-v4-flash-0731",
+      "cache_hit_factor": 0.5,
+      "perf_note": "",
+      "signup_url": "https://openrouter.ai",
+      "affiliate_url": "https://openrouter.ai",
+      "model_page_url": "https://openrouter.ai/deepseek/deepseek-v4-flash-0731",
+      "region": "global",
+      "input_usd_per_1m": 0.055,
+      "output_usd_per_1m": 0.375,
+      "input_rmb_per_1m": 0.396,
+      "output_rmb_per_1m": 2.7,
+      "blended_usd_per_1m": 0.135,
+      "blended_rmb_per_1m": 0.972,
+      "context_length": 1048576,
+      "supports_tools": true,
+      "modality": "text->text",
+      "is_free": false,
+      "value_score": 91.2,
       "tags": [
         "coding",
         "reasoning",
