@@ -1141,6 +1141,256 @@ console.log(JSON.stringify({ status: res.status, capturedBinds }));
         self.assertEqual(ev_out["capturedBinds"][2], "/deepseek-v4-vs-claude-code/")
         self.assertEqual(ev_out["capturedBinds"][5], "agent-guardian-mac-dmg")
 
+    def test_09_aliyun_coding_plan_card_refactor_and_tracking(self) -> None:
+        """Verify Task D-03: aliyun-coding-plan card refactor (cap vs script redline + 1st-mo threshold) & preserved offer_id."""
+        import re
+        import build_site
+        import events_reconcile
+
+        # 1. Canonical catalog & apify_store_bundle parity for aliyun-coding-plan
+        src_pc = (ROOT / "engine_a_mcp_actor" / "pricing_core.py").read_text(encoding="utf-8")
+        apify_pc_path = (
+            ROOT / "engine_a_mcp_actor" / "publish_bundles" / "apify_store_bundle" / "pricing_core.py"
+        )
+        if apify_pc_path.is_file():
+            apify_pc = apify_pc_path.read_text(encoding="utf-8")
+            self.assertEqual(src_pc, apify_pc, "apify_store_bundle/pricing_core.py drifted from pricing_core.py")
+
+        live_cat = json.loads((ROOT / "shared_data" / "models_live.json").read_text(encoding="utf-8"))
+        ali_live = next(p for p in live_cat["coding_plans"] if p["id"] == "aliyun-coding-plan")
+        self.assertIn("39.90", ali_live["cta_zh"])
+        self.assertIn("39.90", ali_live["cta_en"])
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dist_tmp = Path(tmpdir) / "dist"
+            build_site.build_site(
+                dist_dir=dist_tmp,
+                site_url="https://ai-cost-radar-nlu.pages.dev/",
+            )
+
+            # 2. Verify built HTML/CSS/JS across root (/), /coding-plan-2026/, and /dify-openclaw-cloud-server/
+            for rel_path in (
+                "index.html",
+                "coding-plan-2026/index.html",
+                "dify-openclaw-cloud-server/index.html",
+            ):
+                html_text = (dist_tmp / rel_path).read_text(encoding="utf-8")
+                self.assertIn(".plan-decision-matrix", html_text)
+                self.assertIn("buildAliyunDecisionMatrixHtml", html_text)
+                self.assertIn("resolveAliyunPlanCtaText", html_text)
+                scripts = re.findall(r"<script>([\s\S]*?)</script>", html_text)
+                self.assertGreaterEqual(len(scripts), 1)
+                for script in scripts:
+                    subprocess.run(["node", "--check"], input=script, text=True, check=True)
+
+            # 3. Execute actual rendered page JS in Node with a lightweight DOM harness (ZH + EN + automated_backend)
+            node_render_runner = r"""
+import fs from "node:fs";
+import vm from "node:vm";
+
+function runPage(htmlPath, overrideLang = null) {
+  const html = fs.readFileSync(htmlPath, "utf8");
+  const appDataMatch = html.match(/<script id="app-data" type="application\/json">([\s\S]*?)<\/script>/);
+  const scriptMatches = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+  const appDataText = appDataMatch[1];
+  const pageScript = scriptMatches[scriptMatches.length - 1][1];
+
+  const elements = new Map();
+  function makeEl(id) {
+    if (elements.has(id)) return elements.get(id);
+    const el = {
+      id,
+      value: "",
+      checked: false,
+      hidden: false,
+      innerHTML: "",
+      textContent: "",
+      className: "",
+      style: {},
+      dataset: {},
+      attributes: {},
+      options: [],
+      classList: {
+        _set: new Set(),
+        add(c) { this._set.add(c); },
+        remove(c) { this._set.delete(c); },
+        toggle(c, f) { if (f === undefined) { this._set.has(c) ? this._set.delete(c) : this._set.add(c); } else if (f) { this._set.add(c); } else { this._set.delete(c); } },
+        contains(c) { return this._set.has(c); }
+      },
+      setAttribute(k, v) { this.attributes[k] = String(v); },
+      getAttribute(k) { return this.attributes[k] ?? null; },
+      removeAttribute(k) { delete this.attributes[k]; },
+      appendChild(c) { this.options.push(c); },
+      add(opt) { this.options.push(opt); },
+      addEventListener() {},
+      querySelector() { return makeEl(id + "::child"); },
+      querySelectorAll() { return []; },
+      closest() { return null; },
+      focus() {},
+      scrollIntoView() {}
+    };
+    elements.set(id, el);
+    return el;
+  }
+
+  const appDataEl = makeEl("app-data");
+  appDataEl.textContent = appDataText;
+
+  const eventsSent = [];
+  const store = new Map();
+  if (overrideLang) store.set("ai_cost_lang", overrideLang);
+
+  const sandbox = {
+    URL,
+    URLSearchParams,
+    Blob,
+    Set,
+    Map,
+    Math,
+    Number,
+    String,
+    Array,
+    Object,
+    JSON,
+    Date,
+    RegExp,
+    Error,
+    Infinity,
+    NaN,
+    console,
+    setTimeout,
+    clearTimeout,
+    encodeURIComponent,
+    decodeURIComponent,
+    Intl,
+    Option: function(text, value) { return { text, value: String(value) }; },
+    localStorage: {
+      getItem(k) { return store.has(k) ? store.get(k) : null; },
+      setItem(k, v) { store.set(k, String(v)); },
+      removeItem(k) { store.delete(k); }
+    },
+    navigator: {
+      sendBeacon(url, blob) { eventsSent.push({ url, size: blob?.size || 0 }); return true; },
+      clipboard: { writeText: async () => {} }
+    },
+    window: {
+      location: { pathname: "/", search: overrideLang ? ("?lang=" + overrideLang) : "", hostname: "ai-cost-radar-nlu.pages.dev", href: "https://ai-cost-radar-nlu.pages.dev/" },
+      history: { replaceState() {} },
+      addEventListener() {},
+      fetch: async () => ({ ok: true })
+    },
+    document: {
+      documentElement: { setAttribute() {}, lang: "zh-CN" },
+      referrer: "",
+      getElementById(id) { return makeEl(id); },
+      querySelector(sel) {
+        const m = sel.match(/^#([A-Za-z0-9_-]+)$/);
+        return m ? makeEl(m[1]) : makeEl(sel);
+      },
+      querySelectorAll() { return []; },
+      addEventListener() {},
+      createElement() { return makeEl("created_" + elements.size); },
+      body: { appendChild() {}, removeChild() {} }
+    }
+  };
+  sandbox.window.document = sandbox.document;
+  vm.runInNewContext(pageScript, sandbox);
+
+  return {
+    primaryHtml: makeEl("primaryWorkloadRec").innerHTML,
+    codingPlanHtml: makeEl("codingPlanGrid").innerHTML,
+    partnerHtml: makeEl("partnerMatrixGrid").innerHTML,
+    eventsSentCount: eventsSent.length
+  };
+}
+
+const rootZh = runPage(process.argv[1], "zh");
+const rootEn = runPage(process.argv[1], "en");
+const backendZh = runPage(process.argv[2], "zh");
+console.log(JSON.stringify({ rootZh, rootEn, backendZh }));
+"""
+            proc_render = subprocess.run(
+                [
+                    "node",
+                    "--input-type=module",
+                    "-e",
+                    node_render_runner,
+                    str(dist_tmp / "index.html"),
+                    str(dist_tmp / "dify-openclaw-cloud-server" / "index.html"),
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            rendered = json.loads(proc_render.stdout.strip())
+
+            # ZH root checks: primaryWorkloadRec, codingPlanGrid, partnerMatrixGrid
+            rz = rendered["rootZh"]
+            self.assertIn('data-offer-id="aliyun-coding-plan"', rz["primaryHtml"])
+            self.assertIn('data-card-slot="primary_result"', rz["primaryHtml"])
+            self.assertIn("交互式封顶", rz["primaryHtml"])
+            self.assertIn("风控红线", rz["primaryHtml"])
+            self.assertIn("首月门槛", rz["primaryHtml"])
+            self.assertIn("锁定百炼 Pro 首月 ¥39.90 封顶", rz["primaryHtml"])
+
+            self.assertIn('data-offer-id="aliyun-coding-plan" data-card-slot="plan_card_1"', rz["codingPlanHtml"])
+            self.assertIn('data-offer-id="aliyun-coding-plan" data-card-slot="plan_cta_1"', rz["codingPlanHtml"])
+            for expected_zh in (
+                "交互式开发封顶预算",
+                "脚本误用风控红线",
+                "首月折扣门槛对比",
+                "90,000",
+                "6,000",
+                "sk-sp-",
+                "¥39.90",
+                "¥200",
+                "Lite ¥40 已停新购",
+                "锁定百炼 Pro 首月 ¥39.90 封顶（限交互式 IDE）→",
+            ):
+                self.assertIn(expected_zh, rz["codingPlanHtml"])
+
+            self.assertIn('data-offer-id="aliyun-coding-plan" data-card-slot="matrix_2"', rz["partnerHtml"])
+            self.assertIn('data-offer-id="aliyun-coding-plan" data-card-slot="matrix_cta_2"', rz["partnerHtml"])
+            self.assertIn("封顶预算", rz["partnerHtml"])
+            self.assertIn("风控红线", rz["partnerHtml"])
+            self.assertIn("折扣门槛", rz["partnerHtml"])
+
+            # EN root checks
+            re_out = rendered["rootEn"]
+            self.assertIn('data-offer-id="aliyun-coding-plan"', re_out["codingPlanHtml"])
+            for expected_en in (
+                "Interactive IDE Cap Budget",
+                "Script Misuse Risk Redline",
+                "1st-Month Discount vs Renewal Threshold",
+                "Lock Aliyun Pro ¥39.90 1st-Mo Cap (IDE Only) →",
+            ):
+                self.assertIn(expected_en, re_out["codingPlanHtml"])
+            self.assertIn("Check ¥39.90 Pro Cap &amp; Script Redline", re_out["partnerHtml"].replace("&", "&amp;") if "&amp;" not in re_out["partnerHtml"] else re_out["partnerHtml"])
+
+            # Automated backend checks (/dify-openclaw-cloud-server/)
+            bz = rendered["backendZh"]
+            self.assertIn('data-offer-id="aliyun-coding-plan" data-card-slot="plan_card_1"', bz["codingPlanHtml"])
+            self.assertIn("当前属自动化后端禁区", bz["codingPlanHtml"])
+            self.assertIn("后端禁用个人套餐 · 去百炼开通按量 API →", bz["codingPlanHtml"])
+
+        # 4. Telemetry preservation for offer_id="aliyun-coding-plan" on / and /coding-plan-2026/
+        for route in ("/", "/coding-plan-2026/"):
+            for evt in ("offer_impression", "affiliate_click"):
+                ok, _, clean = events_reconcile.validate_event_payload(
+                    {
+                        "event_name": evt,
+                        "day_bucket": "2026-11-24",
+                        "browser_day_id": "ali_card_test_01",
+                        "route": route,
+                        "offer_id": "aliyun-coding-plan",
+                        "slot_id": "plan_cta_1",
+                    }
+                )
+                self.assertTrue(ok)
+                self.assertEqual(clean["offer_id"], "aliyun-coding-plan")
+                self.assertEqual(clean["route"], route)
+
 
 if __name__ == "__main__":
     unittest.main()

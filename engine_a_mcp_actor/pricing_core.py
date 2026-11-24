@@ -46,8 +46,8 @@ OFFERS_CATALOG_2026: list[dict[str, Any]] = [
         "speed_highlight": "Pro 月上限 90,000 次调用 · Lite 已停新购",
         "best_for": "仅限 Claude Code / Cursor / Cline / 通义灵码交互式编程；严禁用于自动化后端 API 服务",
         "featured_partner": True,
-        "cta_zh": "查看阿里云百炼 Coding Plan 官方详情",
-        "cta_en": "View Aliyun Bailian Coding Plan",
+        "cta_zh": "锁定百炼 Pro 首月 ¥39.90 封顶（限交互式 IDE）",
+        "cta_en": "Lock Aliyun Pro ¥39.90 1st-Mo Cap (IDE Only)",
         "tiers": [
             {
                 "tier_id": "lite",

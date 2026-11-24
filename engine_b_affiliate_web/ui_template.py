@@ -1772,6 +1772,107 @@ def render_html_template(
       color: var(--emerald-text);
     }}
 
+    .plan-decision-matrix {{
+      display: grid;
+      gap: 7px;
+      margin: 10px 0 8px;
+    }}
+
+    .plan-dm-item {{
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      background: var(--bg-input);
+      font-size: 0.77rem;
+      line-height: 1.45;
+      color: var(--text-secondary);
+      font-variant-numeric: tabular-nums;
+    }}
+
+    .plan-dm-item.is-cap {{
+      border-color: rgba(16, 185, 129, 0.32);
+      background: var(--emerald-soft);
+    }}
+
+    .plan-dm-item.is-redline {{
+      border-color: rgba(244, 63, 94, 0.3);
+      background: var(--rose-soft);
+    }}
+
+    .plan-dm-item.is-threshold {{
+      border-color: rgba(245, 158, 11, 0.32);
+      background: var(--amber-soft);
+    }}
+
+    .plan-dm-label {{
+      display: inline-block;
+      font-size: 0.73rem;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+      margin-bottom: 2px;
+      color: var(--text-primary);
+    }}
+
+    .plan-dm-item.is-cap .plan-dm-label {{
+      color: var(--emerald-text);
+    }}
+
+    .plan-dm-item.is-redline .plan-dm-label {{
+      color: var(--rose-text);
+    }}
+
+    .plan-dm-item.is-threshold .plan-dm-label {{
+      color: var(--amber-text);
+    }}
+
+    .plan-dm-body {{
+      display: block;
+      color: var(--text-primary);
+    }}
+
+    .plan-dm-body code {{
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      padding: 1px 4px;
+      border-radius: 4px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+    }}
+
+    .primary-rec-contrast {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }}
+
+    .primary-rec-chip {{
+      font-size: 0.74rem;
+      font-weight: 650;
+      line-height: 1.35;
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+    }}
+
+    .primary-rec-chip.is-cap {{
+      border-color: rgba(16, 185, 129, 0.32);
+      color: var(--emerald-text);
+    }}
+
+    .primary-rec-chip.is-redline {{
+      border-color: rgba(244, 63, 94, 0.32);
+      color: var(--rose-text);
+    }}
+
+    .primary-rec-chip.is-threshold {{
+      border-color: rgba(245, 158, 11, 0.32);
+      color: var(--amber-text);
+    }}
+
     /* Build-Time SSR Semantic Tables */
     .ssr-ledger-wrap {{
       margin-top: 16px;
@@ -5872,6 +5973,102 @@ def render_html_template(
       }};
     }}
 
+    function buildAliyunPrimaryContrastHtml(isEn) {{
+      return isEn ? `
+        <div class="primary-rec-contrast" data-aliyun-contrast="primary">
+          <span class="primary-rec-chip is-cap">Interactive IDE Cap: 6k/5h · 45k/wk · 90k/mo (sk-sp-)</span>
+          <span class="primary-rec-chip is-redline">Script Redline: No automation/CI/shared proxy</span>
+          <span class="primary-rec-chip is-threshold">1st-Mo Promo: ¥39.90 (Lite closed) → ¥200/mo renew</span>
+        </div>
+      ` : `
+        <div class="primary-rec-contrast" data-aliyun-contrast="primary">
+          <span class="primary-rec-chip is-cap">交互式封顶：6k/5h · 45k/周 · 9万次/月（sk-sp-）</span>
+          <span class="primary-rec-chip is-redline">风控红线：严禁脚本 / 后端 API / 多人共用</span>
+          <span class="primary-rec-chip is-threshold">首月门槛：¥39.90（Lite已停购）→ 次月续费 ¥200</span>
+        </div>
+      `;
+    }}
+
+    function resolveAliyunPlanCtaText(plan, ev, isEn) {{
+      if (state.usageMode === "automated_backend") {{
+        return isEn
+          ? "IDE-Only Plan Excluded · Open Aliyun PayG →"
+          : "后端禁用个人套餐 · 去百炼开通按量 API →";
+      }}
+      const savesMo1 = Boolean(
+        (ev && ev.saveFirst && ev.saveFirst > 0) ||
+        (ev && ev.overflowHybrid && ev.overflowHybrid.savesOnRenewal && ev.coversModel) ||
+        (ev && ev.saveRenew && ev.saveRenew > 0)
+      );
+      if (savesMo1) {{
+        return isEn
+          ? "Lock Aliyun Pro ¥39.90 1st-Mo Cap (IDE Only) →"
+          : "锁定百炼 Pro 首月 ¥39.90 封顶（限交互式 IDE）→";
+      }}
+      return isEn
+        ? "Compare ¥39.90 Pro Cap vs Aliyun PayG →"
+        : "核对百炼 Pro 首月 ¥39.90 门槛与按量计费 →";
+    }}
+
+    function buildAliyunDecisionMatrixHtml(plan, ev, paygRmb, isEn) {{
+      const seats = getSeats();
+      const firstCost = Math.round(39.9 * seats * 100) / 100;
+      const renewCost = 200 * seats;
+      const cap5h = fmtNum(PRO_5H_CAP * seats);
+      const capWk = fmtNum(45000 * seats);
+      const capMo = fmtNum(PRO_MONTHLY_CAP * seats);
+
+      let thresholdBody = "";
+      if (state.usageMode === "automated_backend") {{
+        thresholdBody = isEn
+          ? `Pro 1st mo ¥${{firstCost.toFixed(2)}} / renew ¥${{fmtNum(renewCost)}} (Lite ¥40 closed); <strong>blocked in Automated Backend mode</strong> — switch to PayG or ECS cache.`
+          : `Pro 首月 <strong>¥${{firstCost.toFixed(2)}}</strong> / 续费 ¥${{fmtNum(renewCost)}}（Lite ¥40 已停新购）；<strong>当前属自动化后端禁区</strong>，请改走按量池或 ECS 网关。`;
+      }} else if (ev && ev.overflowHybrid && ev.overflowHybrid.savesOnRenewal && ev.coversModel) {{
+        const oh = ev.overflowHybrid;
+        const firstMixSave = Math.max(0, paygRmb - oh.firstTotalRmb);
+        thresholdBody = isEn
+          ? `Pro 1st mo <strong>¥${{firstCost.toFixed(2)}}</strong> (daily quota; Lite closed) → ¥${{fmtNum(renewCost)}}/mo renewal. Hybrid Pro + PayG saves <strong>¥${{firstMixSave.toFixed(0)}}</strong> in mo 1 &amp; <strong>¥${{oh.renewSaveRmb.toFixed(0)}}</strong>/mo on renewal.`
+          : `Lite ¥40 已停购；Pro 首月 <strong>¥${{firstCost.toFixed(2)}}</strong>（每日限量）→ 续费 ¥${{fmtNum(renewCost)}}/月。按「Pro 垫底+溢出按量」拆单，首月总账省 <strong>¥${{firstMixSave.toFixed(0)}}</strong>、续费月仍省 <strong>¥${{oh.renewSaveRmb.toFixed(0)}}</strong>。`;
+      }} else if (ev && ev.exceedsCap) {{
+        thresholdBody = isEn
+          ? `Pro 1st mo <strong>¥${{firstCost.toFixed(2)}}</strong> (Lite closed) → <strong>¥${{fmtNum(renewCost)}}/mo</strong> renewal. Exceeds ${{capMo}}/mo cap; use ¥${{firstCost.toFixed(2)}} mo-1 base or stay on PayG.`
+          : `Lite ¥40 已停购；Pro 首月 <strong>¥${{firstCost.toFixed(2)}}</strong> → 续费 <strong>¥${{fmtNum(renewCost)}}/月</strong>。当前超出 ${{capMo}} 次封顶，仅建议首月低成本垫底或走低价按量。`;
+      }} else {{
+        const deltaFirst = paygRmb - firstCost;
+        const deltaRenew = paygRmb - renewCost;
+        const firstNote = deltaFirst > 0
+          ? (isEn ? `mo 1 saves ¥${{deltaFirst.toFixed(0)}}` : `当前首月省 ¥${{deltaFirst.toFixed(0)}}`)
+          : (isEn ? `mo 1 costs +¥${{Math.abs(deltaFirst).toFixed(0)}}` : `当前首月反贵 ¥${{Math.abs(deltaFirst).toFixed(0)}}`);
+        const renewNote = deltaRenew > 0
+          ? (isEn ? `renewal saves ¥${{deltaRenew.toFixed(0)}}/mo` : `续费仍省 ¥${{deltaRenew.toFixed(0)}}/月`)
+          : (isEn ? `renewal costs +¥${{Math.abs(deltaRenew).toFixed(0)}}/mo` : `续费反贵 ¥${{Math.abs(deltaRenew).toFixed(0)}}/月`);
+        thresholdBody = isEn
+          ? `Lite (¥40) closed; Pro 1st mo <strong>¥${{firstCost.toFixed(2)}}</strong> (breaks even &gt;¥${{Math.ceil(firstCost)}}) → <strong>¥${{fmtNum(renewCost)}}/mo</strong> renewal (worth renewing only if PayG &gt;¥${{fmtNum(renewCost)}}). Now: ${{firstNote}}, ${{renewNote}}.`
+          : `Lite ¥40 已停新购；Pro 首月 <strong>¥${{firstCost.toFixed(2)}}</strong>（按量 &gt;¥${{Math.ceil(firstCost)}} 即回本）→ 次月 <strong>¥${{fmtNum(renewCost)}}/月</strong>（按量 &gt;¥${{fmtNum(renewCost)}} 再续费）。实算：${{firstNote}}，${{renewNote}}。`;
+      }}
+
+      return `
+        <div class="plan-decision-matrix" data-aliyun-contrast="card">
+          <div class="plan-dm-item is-cap">
+            <span class="plan-dm-label">${{isEn ? "Interactive IDE Cap Budget" : "交互式开发封顶预算"}}</span>
+            <span class="plan-dm-body">${{isEn
+              ? `Claude Code / Cursor / Cline interactive coding only: caps at <strong>${{cap5h}}/5h · ${{capWk}}/wk · ${{capMo}}/mo</strong> with dedicated <code>sk-sp-</code> endpoints to block PayG leaks.`
+              : `仅限 Claude Code / Cursor / Cline / 通义灵码交互式编码：Pro 封顶 <strong>${{cap5h}}/5h · ${{capWk}}/周 · ${{capMo}}/月</strong>，配 <code>sk-sp-</code> 专属端点防误扣按量。`}}</span>
+          </div>
+          <div class="plan-dm-item is-redline">
+            <span class="plan-dm-label">${{isEn ? "Script Misuse Risk Redline" : "脚本误用风控红线"}}</span>
+            <span class="plan-dm-body">${{isEn
+              ? `Strictly bans automation scripts, CI/cron jobs, backend APIs, or pooling one <code>sk-sp-</code> key across devs (triggers rate-limits/bans; use PayG or ECS cache).`
+              : `严禁自动化脚本、CI/Cron 批处理、后端业务 API 或多人代理池共用单 <code>sk-sp-</code> 密钥（触发限流/封号风险；自动化请改走按量池或 ECS 网关）。`}}</span>
+          </div>
+          <div class="plan-dm-item is-threshold">
+            <span class="plan-dm-label">${{isEn ? "1st-Month Discount vs Renewal Threshold" : "首月折扣门槛对比"}}</span>
+            <span class="plan-dm-body">${{thresholdBody}}</span>
+          </div>
+        </div>
+      `;
+    }}
+
     function renderCodingPlans(baseCost, baselineModel) {{
       const verdictEl = document.getElementById("codingPlanLiveVerdict");
       const primaryRecEl = document.getElementById("primaryWorkloadRec");
@@ -6008,8 +6205,9 @@ def render_html_template(
                 ? `Price & Caps: ${{firstStr}} (${{fmtNum(t.quota_5h * seats)}}/5h · ${{fmtNum(t.quota_weekly * seats)}}/wk · ${{fmtNum(t.quota_monthly * seats)}}/mo${{seats > 1 ? ` across ${{seats}} IDE seats` : ""}}; interactive IDE only). <a href="${{esc(p.official_source_url)}}" target="_blank" rel="noopener" style="color:var(--emerald-text);text-decoration:underline;">Official Rules</a>.`
                 : `价格与额度：${{firstStr}}（上限 ${{fmtNum(t.quota_5h * seats)}}/5h · ${{fmtNum(t.quota_weekly * seats)}}/周 · ${{fmtNum(t.quota_monthly * seats)}}/月${{seats > 1 ? `，${{seats}} 席独立 sk-sp- 密钥合计` : ""}}；仅限交互式 IDE）。<br>依据与推广说明：<a href="${{esc(p.official_source_url)}}" target="_blank" rel="noopener" style="color:var(--emerald-text);text-decoration:underline;">官方套餐规则</a> · ${{esc(p.commission_note_zh || "官方直达入口")}}。`}}
             </div>
+            ${{p.id === "aliyun-coding-plan" ? buildAliyunPrimaryContrastHtml(isEn) : ""}}
             <a class="cta-primary ${{p.featured_partner ? "cn-cta" : ""}}" href="${{esc(p.url)}}" target="_blank" rel="${{relAttr(p.url, p.provider_config_key, p)}}" data-offer-id="${{esc(p.id)}}" data-card-slot="primary_result">
-              ${{esc(isEn ? (p.cta_en || "View Official Coding Plan") : (p.cta_zh || "前往官网核对套餐与专属端点"))}}
+              ${{esc(p.id === "aliyun-coding-plan" ? resolveAliyunPlanCtaText(p, bestSub.ev, isEn) : (isEn ? (p.cta_en || "View Official Coding Plan") : (p.cta_zh || "前往官网核对套餐与专属端点")))}}
             </a>
           `;
         }} else if (overflowHybridWins.length > 0) {{
@@ -6029,8 +6227,9 @@ def render_html_template(
                 ? `Hybrid Split Math: First ${{fmtNum(oh.coveredCalls)}} calls on ${{seats > 1 ? seats + "× " : ""}}Pro (¥${{oh.firstPlanRmb.toFixed(2)}} 1st mo / ¥${{fmtNum(oh.renewalPlanRmb)}} renewal) + ${{fmtNum(oh.overflowCalls)}} overflow calls on same-model PayG (¥${{oh.overflowPaygRmb.toFixed(2)}}) = <strong>¥${{oh.firstTotalRmb.toFixed(2)}} 1st mo / ¥${{oh.renewalTotalRmb.toFixed(2)}} renewal total</strong> (vs ¥${{paygRmb.toFixed(2)}}/mo pure PayG). Configure your sk-sp- plan endpoint separately from your standard PayG fallback key.`
                 : `超额拆单精算：前 ${{fmtNum(oh.coveredCalls)}} 次走 ${{seats > 1 ? seats + " 席 " : ""}}Pro 包月（首月 ¥${{oh.firstPlanRmb.toFixed(2)}} / 续费 ¥${{fmtNum(oh.renewalPlanRmb)}}）＋ 超出 ${{fmtNum(oh.overflowCalls)}} 次走同模型按量（¥${{oh.overflowPaygRmb.toFixed(2)}}）＝ <strong>首月总账 ¥${{oh.firstTotalRmb.toFixed(2)}}、续费月总账 ¥${{oh.renewalTotalRmb.toFixed(2)}}</strong>（纯按量需 ¥${{paygRmb.toFixed(2)}}/月）。<br>实操提醒：请将包月 sk-sp- 专属端点与通用按量端点分开保存，月额度耗尽后切回按量密钥。`}}
             </div>
+            ${{p.id === "aliyun-coding-plan" ? buildAliyunPrimaryContrastHtml(isEn) : ""}}
             <a class="cta-primary ${{p.featured_partner ? "cn-cta" : ""}}" href="${{esc(p.url)}}" target="_blank" rel="${{relAttr(p.url, p.provider_config_key, p)}}" data-offer-id="${{esc(p.id)}}" data-card-slot="primary_result">
-              ${{esc(isEn ? (p.cta_en || "View Official Coding Plan") : (p.cta_zh || "前往官网核对套餐与专属端点"))}}
+              ${{esc(p.id === "aliyun-coding-plan" ? resolveAliyunPlanCtaText(p, bestHy.ev, isEn) : (isEn ? (p.cta_en || "View Official Coding Plan") : (p.cta_zh || "前往官网核对套餐与专属端点")))}}
             </a>
           `;
         }} else if (crossFamilyWins.length > 0) {{
@@ -6100,15 +6299,16 @@ def render_html_template(
         let tierSummary = "";
         let detailText = "";
         let cardCls = "plan-card";
+        let subEval = null;
 
         if (otype === "subscription") {{
-          const ev = evaluateSingleSubscription(plan, monthlyCalls, paygRmb, baselineModel);
-          badgeHtml = ev.badgeHtml;
-          priceMain = ev.priceMain;
-          tierSummary = ev.tierSummary;
-          detailText = ev.detailText;
-          if (ev.excluded) cardCls += " excluded";
-          else if ((ev.saveRenew && ev.saveRenew > 0 && ev.coversModel) || (ev.overflowHybrid && ev.overflowHybrid.savesOnRenewal && ev.coversModel)) cardCls += " featured";
+          subEval = evaluateSingleSubscription(plan, monthlyCalls, paygRmb, baselineModel);
+          badgeHtml = subEval.badgeHtml;
+          priceMain = subEval.priceMain;
+          tierSummary = subEval.tierSummary;
+          detailText = subEval.detailText;
+          if (subEval.excluded) cardCls += " excluded";
+          else if ((subEval.saveRenew && subEval.saveRenew > 0 && subEval.coversModel) || (subEval.overflowHybrid && subEval.overflowHybrid.savesOnRenewal && subEval.coversModel)) cardCls += " featured";
         }} else if (otype === "cloud_host") {{
           const uncached = paygRmb * (1 - sCacheHit);
           const totalHost = 68 + uncached + 15;
@@ -6148,6 +6348,13 @@ def render_html_template(
             .replace("(免费)", "(Free)");
         }});
         const canConfigEndpoint = otype !== "cloud_host";
+        const isAliyunPlan = plan.id === "aliyun-coding-plan";
+        const decisionMatrixHtml = isAliyunPlan
+          ? buildAliyunDecisionMatrixHtml(plan, subEval, paygRmb, isEn)
+          : "";
+        const ctaText = isAliyunPlan
+          ? resolveAliyunPlanCtaText(plan, subEval, isEn)
+          : (isEn ? (plan.cta_en || "View Official Console") : (plan.cta_zh || "前往官网查看"));
 
         return `
           <article class="${{cardCls}}" data-offer-id="${{esc(plan.id)}}" data-card-slot="plan_card_${{idx + 1}}">
@@ -6168,13 +6375,14 @@ def render_html_template(
               <p style="font-size:0.79rem;color:var(--text-secondary);margin:10px 0 8px;line-height:1.48;">
                 ${{esc(detailText)}}
               </p>
+              ${{decisionMatrixHtml}}
               <div class="card-tags">
                 ${{modelsList.map(t => `<span class="mini-tag">${{esc(t)}}</span>`).join("")}}
               </div>
             </div>
             <div class="card-ctas">
               <a class="cta-primary ${{plan.featured_partner ? "cn-cta" : ""}}" href="${{esc(plan.url)}}" target="_blank" rel="${{relAttr(plan.url, plan.provider_config_key, plan)}}" data-offer-id="${{esc(plan.id)}}" data-card-slot="plan_cta_${{idx + 1}}" data-affiliate-key="${{esc(plan.provider_config_key || "")}}">
-                ${{esc(isEn ? (plan.cta_en || "View Official Console") : (plan.cta_zh || "前往官网查看"))}}
+                ${{esc(ctaText)}}
               </a>
               ${{canConfigEndpoint ? `
                 <button type="button" class="cta-copy-cfg" data-copy-plan="${{esc(plan.id)}}">
@@ -6402,9 +6610,9 @@ def render_html_template(
         {{
           id: "aliyun-coding-plan",
           name: "Aliyun Bailian & Coding Plan",
-          badge: "PayG + IDE Plan · Rules Verified",
-          desc: "Pro 1st mo ¥39.90 / renewal ¥200 (90,000 calls/mo cap; Lite closed to new buyers). Includes Qwen3.5-Plus & Qwen3-Coder-Next.",
-          cta: "Open Aliyun Bailian Console",
+          badge: "¥39.90 1st Mo · Cap / Redline / Threshold",
+          desc: "Cap: Interactive IDEs only (90k/mo · 6k/5h + dedicated sk-sp- endpoint). Redline: No automation scripts, CI/cron, backend APIs, or shared keys. Promo threshold: Pro ¥39.90 1st mo (PayG >¥40 breaks even) → ¥200/mo renewal (Lite closed).",
+          cta: "Check ¥39.90 Pro Cap & Script Redline →",
           url: AFF.aliyun_bailian_url,
           sponsored: true
         }},
@@ -6457,9 +6665,9 @@ def render_html_template(
         {{
           id: "aliyun-coding-plan",
           name: "阿里云百炼大模型与 Coding Plan",
-          badge: "按量 + 个人订阅 · 规则已核验",
-          desc: "Pro 新客首月 ¥39.90 / 续费 ¥200（月限 90,000 次模型调用），Lite 已停新购；支持通义千问 Qwen3.5 与 Qwen3-Coder-Next。",
-          cta: "前往阿里云百炼官方控制台",
+          badge: "首月 ¥39.90 · 封顶/风控/门槛对比",
+          desc: "【封顶预算】仅限交互式 IDE（月限 90,000 次 / 5h 限 6,000 次 + sk-sp- 专属端点防串扣）；【风控红线】严禁脚本、CI/后端或多人共用单密钥；【折扣门槛】Pro 首月 ¥39.90（每日限量，按量 >¥40 即回本）→ 续费 ¥200/月（Lite ¥40 已停新购）。",
+          cta: "核对 Pro 首月 ¥39.90 封顶与脚本红线 →",
           url: AFF.aliyun_bailian_url,
           sponsored: true
         }},
