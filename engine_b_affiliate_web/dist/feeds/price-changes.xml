@@ -4,7 +4,7 @@
   <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml</id>
   <link href="https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml" rel="self" type="application/atom+xml"/>
   <link href="https://ai-cost-radar-nlu.pages.dev/" rel="alternate" type="text/html"/>
-  <updated>2026-11-25T05:50:07Z</updated>
+  <updated>2026-11-25T07:37:00Z</updated>
   <author>
     <name>AI Cost Radar</name>
   </author>
@@ -12,85 +12,85 @@
     <title>[规则巡检预警 2026-11-25] 火山方舟 Coding Plan 编程套餐 (volcengine-coding-plan)</title>
     <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-0-volcengine-coding-plan-2026-11-25</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/coding-plan-2026/"/>
-    <updated>2026-11-25T05:50:07Z</updated>
+    <updated>2026-11-25T07:37:00Z</updated>
     <summary>官方规则页指纹异动（未命中指标：dedicated_coding_endpoint），请核对最新月上限、首购特惠与续费原价：https://www.volcengine.com/docs/82379/1925114</summary>
   </entry>
   <entry>
     <title>[价格异动 2026-11-25] DeepSeek: DeepSeek V4.1 Flash 1017 (deepseek/deepseek-v4.1-flash-1017)</title>
     <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-1-deepseek-deepseek-v4.1-flash-1017-2026-11-25</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/#model-deepseek-deepseek-v4-1-flash-1017"/>
+    <updated>2026-11-25T07:37:00Z</updated>
+    <summary>输入单价 $0.15 -&gt; $0.3 / 1M，输出单价 $0.6 -&gt; $1.2 / 1M</summary>
+  </entry>
+  <entry>
+    <title>[价格异动 2026-11-25] Google: Gemma 4 26B A4B (google/gemma-4-26b-a4b-it)</title>
+    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-2-google-gemma-4-26b-a4b-it-2026-11-25</id>
+    <link href="https://ai-cost-radar-nlu.pages.dev/#model-google-gemma-4-26b-a4b-it"/>
+    <updated>2026-11-25T07:37:00Z</updated>
+    <summary>输入单价 $0.0765 -&gt; $0.09 / 1M，输出单价 $0.255 -&gt; $0.3 / 1M</summary>
+  </entry>
+  <entry>
+    <title>[价格异动 2026-11-25] DeepSeek: DeepSeek V4.1 Flash 1017 (deepseek/deepseek-v4.1-flash-1017)</title>
+    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-3-deepseek-deepseek-v4.1-flash-1017-2026-11-25</id>
+    <link href="https://ai-cost-radar-nlu.pages.dev/#model-deepseek-deepseek-v4-1-flash-1017"/>
     <updated>2026-11-25T05:47:53Z</updated>
     <summary>输入单价 $0.3 -&gt; $0.15 / 1M，输出单价 $1.2 -&gt; $0.6 / 1M</summary>
   </entry>
   <entry>
     <title>[价格异动 2026-11-25] DeepSeek: DeepSeek V4.1 Flash (deepseek/deepseek-v4.1-flash)</title>
-    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-2-deepseek-deepseek-v4.1-flash-2026-11-25</id>
+    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-4-deepseek-deepseek-v4.1-flash-2026-11-25</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/#model-deepseek-deepseek-v4-1-flash"/>
     <updated>2026-11-25T02:00:53Z</updated>
     <summary>输入单价 $0.0498 -&gt; $0.14 / 1M，输出单价 $0.1992 -&gt; $0.42 / 1M</summary>
   </entry>
   <entry>
     <title>[价格异动 2026-11-25] DeepSeek: DeepSeek V4.1 Flash 1017 (deepseek/deepseek-v4.1-flash-1017)</title>
-    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-3-deepseek-deepseek-v4.1-flash-1017-2026-11-25</id>
+    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-5-deepseek-deepseek-v4.1-flash-1017-2026-11-25</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/#model-deepseek-deepseek-v4-1-flash-1017"/>
     <updated>2026-11-25T02:00:53Z</updated>
     <summary>输入单价 $0.03 -&gt; $0.3 / 1M，输出单价 $0.2 -&gt; $1.2 / 1M</summary>
   </entry>
   <entry>
     <title>[价格异动 2026-11-25] DeepSeek: DeepSeek V4 Flash Vision Exp (deepseek/deepseek-v4-flash-vision-exp)</title>
-    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-4-deepseek-deepseek-v4-flash-vision-exp-2026-11-25</id>
+    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-6-deepseek-deepseek-v4-flash-vision-exp-2026-11-25</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/#model-deepseek-deepseek-v4-flash-vision-exp"/>
     <updated>2026-11-25T02:00:53Z</updated>
     <summary>输入单价 $0.2156 -&gt; $0.44 / 1M，输出单价 $0.6468 -&gt; $1.32 / 1M</summary>
   </entry>
   <entry>
     <title>[价格异动 2026-11-24] DeepSeek: DeepSeek V4.1 Flash 1017 (deepseek/deepseek-v4.1-flash-1017)</title>
-    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-5-deepseek-deepseek-v4.1-flash-1017-2026-11-24</id>
+    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-7-deepseek-deepseek-v4.1-flash-1017-2026-11-24</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/#model-deepseek-deepseek-v4-1-flash-1017"/>
     <updated>2026-11-24T02:00:50Z</updated>
     <summary>输入单价 $0.3 -&gt; $0.03 / 1M，输出单价 $1.2 -&gt; $0.2 / 1M</summary>
   </entry>
   <entry>
     <title>[价格异动 2026-11-24] DeepSeek: DeepSeek V4 Flash 0731 (deepseek/deepseek-v4-flash-0731)</title>
-    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-6-deepseek-deepseek-v4-flash-0731-2026-11-24</id>
+    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-8-deepseek-deepseek-v4-flash-0731-2026-11-24</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/#model-deepseek-deepseek-v4-flash-0731"/>
     <updated>2026-11-24T02:00:50Z</updated>
     <summary>输入单价 $0.0443 -&gt; $0.047 / 1M，输出单价 $0.3 -&gt; $0.3 / 1M</summary>
   </entry>
   <entry>
     <title>[价格异动 2026-11-24] Google: Gemma 4 26B A4B (google/gemma-4-26b-a4b-it)</title>
-    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-7-google-gemma-4-26b-a4b-it-2026-11-24</id>
+    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-9-google-gemma-4-26b-a4b-it-2026-11-24</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/#model-google-gemma-4-26b-a4b-it"/>
     <updated>2026-11-24T02:00:50Z</updated>
     <summary>输入单价 $0.0675 -&gt; $0.0765 / 1M，输出单价 $0.225 -&gt; $0.255 / 1M</summary>
   </entry>
   <entry>
-    <title>[价格异动 2026-11-23] DeepSeek: DeepSeek V4.1 Flash 1017 (deepseek/deepseek-v4.1-flash-1017)</title>
-    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-8-deepseek-deepseek-v4.1-flash-1017-2026-11-23</id>
-    <link href="https://ai-cost-radar-nlu.pages.dev/#model-deepseek-deepseek-v4-1-flash-1017"/>
-    <updated>2026-11-23T02:00:49Z</updated>
-    <summary>输入单价 $0.15 -&gt; $0.3 / 1M，输出单价 $0.6 -&gt; $1.2 / 1M</summary>
-  </entry>
-  <entry>
     <title>[价格异动 2026-11-22] DeepSeek: DeepSeek V4.1 Flash (deepseek/deepseek-v4.1-flash)</title>
-    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-9-deepseek-deepseek-v4.1-flash-2026-11-22</id>
+    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-10-deepseek-deepseek-v4.1-flash-2026-11-22</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/#model-deepseek-deepseek-v4-1-flash"/>
     <updated>2026-11-22T02:00:46Z</updated>
     <summary>输入单价 $0.0507 -&gt; $0.0498 / 1M，输出单价 $0.2028 -&gt; $0.1992 / 1M</summary>
   </entry>
   <entry>
     <title>[价格异动 2026-11-22] Qwen: Qwen3.8 27B (qwen/qwen3.8-27b)</title>
-    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-10-qwen-qwen3.8-27b-2026-11-22</id>
+    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-11-qwen-qwen3.8-27b-2026-11-22</id>
     <link href="https://ai-cost-radar-nlu.pages.dev/#model-qwen-qwen3-8-27b"/>
     <updated>2026-11-22T02:00:46Z</updated>
     <summary>输入单价 $0.06 -&gt; $0.035 / 1M，输出单价 $1.96 -&gt; $1.5 / 1M</summary>
-  </entry>
-  <entry>
-    <title>[价格异动 2026-11-21] DeepSeek: DeepSeek V4.1 Flash (deepseek/deepseek-v4.1-flash)</title>
-    <id>https://ai-cost-radar-nlu.pages.dev/feeds/price-changes.xml#delta-11-deepseek-deepseek-v4.1-flash-2026-11-21</id>
-    <link href="https://ai-cost-radar-nlu.pages.dev/#model-deepseek-deepseek-v4-1-flash"/>
-    <updated>2026-11-21T02:00:50Z</updated>
-    <summary>输入单价 $0.3 -&gt; $0.0507 / 1M，输出单价 $1.2 -&gt; $0.2028 / 1M</summary>
   </entry>
   <entry>
     <title>[报价核验 2026-11-13] 修正国内三大厂 Coding Plan 月上限 (90,000次/月) 与首购/续费价格口径</title>
