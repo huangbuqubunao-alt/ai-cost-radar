@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-26T07:26:22Z",
-  "last_live_verified_at": "2026-11-26T07:26:22Z",
+  "updated_at": "2026-11-27T07:22:27Z",
+  "last_live_verified_at": "2026-11-27T07:22:27Z",
   "quote_verified_date": "2026-11-13",
   "source": "openrouter_live+curated_cn_2026",
   "fx_rate_usd_to_rmb": 7.2,
@@ -10,7 +10,7 @@
     "global": 69
   },
   "official_rule_audit": {
-    "checked_at": "2026-11-26T07:26:22Z",
+    "checked_at": "2026-11-27T07:22:27Z",
     "vendors": [
       {
         "plan_id": "aliyun-coding-plan",
@@ -22,7 +22,7 @@
           "pro_promo_39_9"
         ],
         "missing_groups": [],
-        "last_verified_at": "2026-11-26T07:26:22Z",
+        "last_verified_at": "2026-11-27T07:22:27Z",
         "last_verified_groups": [
           "pro_monthly_cap_90k",
           "pro_renewal_200",
@@ -32,13 +32,8 @@
       {
         "plan_id": "tencent-coding-plan",
         "url": "https://cloud.tencent.com/document/product/1823/130092",
-        "status": "verified_markers",
-        "matched_groups": [
-          "lite_monthly_cap_18k",
-          "lite_renewal_40",
-          "pro_monthly_cap_90k",
-          "pro_renewal_200"
-        ],
+        "status": "csr_shell_manual_check",
+        "matched_groups": [],
         "missing_groups": [],
         "last_verified_at": "2026-11-26T07:26:22Z",
         "last_verified_groups": [
@@ -65,12 +60,44 @@
   },
   "price_changes": [
     {
-      "detected_at": "2026-11-26T07:26:22Z",
+      "detected_at": "2026-11-27T07:22:27Z",
       "entity_type": "coding_plan",
       "id": "volcengine-coding-plan",
       "name": "火山方舟 Coding Plan 编程套餐",
       "change_type": "plan_rule_drift_warning",
       "summary_zh": "官方规则页指纹异动（未命中指标：dedicated_coding_endpoint），请核对最新月上限、首购特惠与续费原价：https://www.volcengine.com/docs/82379/1925114"
+    },
+    {
+      "detected_at": "2026-11-27T07:22:27Z",
+      "entity_type": "model",
+      "id": "deepseek/deepseek-v4-flash-0731",
+      "name": "DeepSeek: DeepSeek V4 Flash 0731",
+      "change_type": "price_update",
+      "summary_zh": "输入单价 $0.06 -> $0.047 / 1M，输出单价 $0.18 -> $0.3 / 1M"
+    },
+    {
+      "detected_at": "2026-11-27T07:22:27Z",
+      "entity_type": "model",
+      "id": "deepseek/deepseek-v4-flash-vision-exp",
+      "name": "DeepSeek: DeepSeek V4 Flash Vision Exp",
+      "change_type": "price_update",
+      "summary_zh": "输入单价 $0.44 -> $0.2156 / 1M，输出单价 $1.32 -> $0.6468 / 1M"
+    },
+    {
+      "detected_at": "2026-11-27T07:22:27Z",
+      "entity_type": "model",
+      "id": "qwen/qwen3.8-27b",
+      "name": "Qwen: Qwen3.8 27B",
+      "change_type": "price_update",
+      "summary_zh": "输入单价 $0.035 -> $0.06 / 1M，输出单价 $1.5 -> $1.96 / 1M"
+    },
+    {
+      "detected_at": "2026-11-27T07:22:27Z",
+      "entity_type": "model",
+      "id": "deepseek/deepseek-v4-pro-0813",
+      "name": "DeepSeek: DeepSeek V4 Pro 0813",
+      "change_type": "price_update",
+      "summary_zh": "输入单价 $0.111 -> $0.0999 / 1M，输出单价 $4.44 -> $5 / 1M"
     },
     {
       "detected_at": "2026-11-26T07:26:22Z",
@@ -159,38 +186,6 @@
       "name": "DeepSeek: DeepSeek V4.1 Flash",
       "change_type": "price_update",
       "summary_zh": "输入单价 $0.0507 -> $0.0498 / 1M，输出单价 $0.2028 -> $0.1992 / 1M"
-    },
-    {
-      "detected_at": "2026-11-22T02:00:46Z",
-      "entity_type": "model",
-      "id": "qwen/qwen3.8-27b",
-      "name": "Qwen: Qwen3.8 27B",
-      "change_type": "price_update",
-      "summary_zh": "输入单价 $0.06 -> $0.035 / 1M，输出单价 $1.96 -> $1.5 / 1M"
-    },
-    {
-      "detected_at": "2026-11-21T02:00:50Z",
-      "entity_type": "model",
-      "id": "deepseek/deepseek-v4.1-flash",
-      "name": "DeepSeek: DeepSeek V4.1 Flash",
-      "change_type": "price_update",
-      "summary_zh": "输入单价 $0.3 -> $0.0507 / 1M，输出单价 $1.2 -> $0.2028 / 1M"
-    },
-    {
-      "detected_at": "2026-11-21T02:00:50Z",
-      "entity_type": "model",
-      "id": "deepseek/deepseek-v4.1-flash-1017",
-      "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
-      "change_type": "price_update",
-      "summary_zh": "输入单价 $0.036 -> $0.15 / 1M，输出单价 $0.5 -> $0.6 / 1M"
-    },
-    {
-      "detected_at": "2026-11-21T02:00:50Z",
-      "entity_type": "model",
-      "id": "deepseek/deepseek-v4-flash-0731",
-      "name": "DeepSeek: DeepSeek V4 Flash 0731",
-      "change_type": "price_update",
-      "summary_zh": "输入单价 $0.1 -> $0.0443 / 1M，输出单价 $0.3 -> $0.3 / 1M"
     }
   ],
   "coding_plans": [
@@ -849,17 +844,17 @@
       "affiliate_url": "https://openrouter.ai",
       "model_page_url": "https://openrouter.ai/deepseek/deepseek-v4-flash-0731",
       "region": "global",
-      "input_usd_per_1m": 0.06,
-      "output_usd_per_1m": 0.18,
-      "input_rmb_per_1m": 0.432,
-      "output_rmb_per_1m": 1.296,
-      "blended_usd_per_1m": 0.09,
-      "blended_rmb_per_1m": 0.648,
+      "input_usd_per_1m": 0.047,
+      "output_usd_per_1m": 0.3,
+      "input_rmb_per_1m": 0.3384,
+      "output_rmb_per_1m": 2.16,
+      "blended_usd_per_1m": 0.1103,
+      "blended_rmb_per_1m": 0.7942,
       "context_length": 1048576,
       "supports_tools": true,
       "modality": "text->text",
       "is_free": false,
-      "value_score": 92.1,
+      "value_score": 91.6,
       "tags": [
         "coding",
         "reasoning",
@@ -899,29 +894,29 @@
       ]
     },
     {
-      "id": "qwen/qwen3.8-27b",
-      "name": "Qwen: Qwen3.8 27B",
+      "id": "deepseek/deepseek-v4-flash-vision-exp",
+      "name": "DeepSeek: DeepSeek V4 Flash Vision Exp",
       "provider": "OpenRouter (Global)",
       "provider_config_key": "openrouter_url",
       "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "qwen/qwen3.8-27b",
+      "api_model_id": "deepseek/deepseek-v4-flash-vision-exp",
       "cache_hit_factor": 0.5,
       "perf_note": "",
       "signup_url": "https://openrouter.ai",
       "affiliate_url": "https://openrouter.ai",
-      "model_page_url": "https://openrouter.ai/qwen/qwen3.8-27b",
+      "model_page_url": "https://openrouter.ai/deepseek/deepseek-v4-flash-vision-exp",
       "region": "global",
-      "input_usd_per_1m": 0.035,
-      "output_usd_per_1m": 1.5,
-      "input_rmb_per_1m": 0.252,
-      "output_rmb_per_1m": 10.8,
-      "blended_usd_per_1m": 0.4012,
-      "blended_rmb_per_1m": 2.8886,
-      "context_length": 1024000,
+      "input_usd_per_1m": 0.2156,
+      "output_usd_per_1m": 0.6468,
+      "input_rmb_per_1m": 1.5523,
+      "output_rmb_per_1m": 4.657,
+      "blended_usd_per_1m": 0.3234,
+      "blended_rmb_per_1m": 2.3285,
+      "context_length": 1048576,
       "supports_tools": true,
-      "modality": "text+image+video->text",
+      "modality": "text+image->text",
       "is_free": false,
-      "value_score": 90.4,
+      "value_score": 91.3,
       "tags": [
         "coding",
         "reasoning",
@@ -1023,6 +1018,37 @@
       ]
     },
     {
+      "id": "qwen/qwen3.8-27b",
+      "name": "Qwen: Qwen3.8 27B",
+      "provider": "OpenRouter (Global)",
+      "provider_config_key": "openrouter_url",
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_model_id": "qwen/qwen3.8-27b",
+      "cache_hit_factor": 0.5,
+      "perf_note": "",
+      "signup_url": "https://openrouter.ai",
+      "affiliate_url": "https://openrouter.ai",
+      "model_page_url": "https://openrouter.ai/qwen/qwen3.8-27b",
+      "region": "global",
+      "input_usd_per_1m": 0.06,
+      "output_usd_per_1m": 1.96,
+      "input_rmb_per_1m": 0.432,
+      "output_rmb_per_1m": 14.112,
+      "blended_usd_per_1m": 0.535,
+      "blended_rmb_per_1m": 3.852,
+      "context_length": 1024000,
+      "supports_tools": true,
+      "modality": "text+image+video->text",
+      "is_free": false,
+      "value_score": 89.2,
+      "tags": [
+        "coding",
+        "reasoning",
+        "cheap",
+        "global"
+      ]
+    },
+    {
       "id": "google/gemini-3.1-flash-lite",
       "name": "Google: Gemini 3.1 Flash Lite",
       "provider": "OpenRouter (Global)",
@@ -1081,36 +1107,6 @@
         "coding",
         "reasoning",
         "cheap",
-        "global"
-      ]
-    },
-    {
-      "id": "deepseek/deepseek-v4-flash-vision-exp",
-      "name": "DeepSeek: DeepSeek V4 Flash Vision Exp",
-      "provider": "OpenRouter (Global)",
-      "provider_config_key": "openrouter_url",
-      "api_base_url": "https://openrouter.ai/api/v1",
-      "api_model_id": "deepseek/deepseek-v4-flash-vision-exp",
-      "cache_hit_factor": 0.5,
-      "perf_note": "",
-      "signup_url": "https://openrouter.ai",
-      "affiliate_url": "https://openrouter.ai",
-      "model_page_url": "https://openrouter.ai/deepseek/deepseek-v4-flash-vision-exp",
-      "region": "global",
-      "input_usd_per_1m": 0.44,
-      "output_usd_per_1m": 1.32,
-      "input_rmb_per_1m": 3.168,
-      "output_rmb_per_1m": 9.504,
-      "blended_usd_per_1m": 0.66,
-      "blended_rmb_per_1m": 4.752,
-      "context_length": 1048576,
-      "supports_tools": true,
-      "modality": "text+image->text",
-      "is_free": false,
-      "value_score": 88.2,
-      "tags": [
-        "coding",
-        "reasoning",
         "global"
       ]
     },
@@ -1798,17 +1794,17 @@
       "affiliate_url": "https://openrouter.ai",
       "model_page_url": "https://openrouter.ai/deepseek/deepseek-v4-pro-0813",
       "region": "global",
-      "input_usd_per_1m": 0.111,
-      "output_usd_per_1m": 4.44,
-      "input_rmb_per_1m": 0.7992,
-      "output_rmb_per_1m": 31.968,
-      "blended_usd_per_1m": 1.1933,
-      "blended_rmb_per_1m": 8.5918,
+      "input_usd_per_1m": 0.0999,
+      "output_usd_per_1m": 5.0,
+      "input_rmb_per_1m": 0.7193,
+      "output_rmb_per_1m": 36.0,
+      "blended_usd_per_1m": 1.3249,
+      "blended_rmb_per_1m": 9.5393,
       "context_length": 1048576,
       "supports_tools": true,
       "modality": "text->text",
       "is_free": false,
-      "value_score": 82.2,
+      "value_score": 81.6,
       "tags": [
         "coding",
         "reasoning",
